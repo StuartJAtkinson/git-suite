@@ -51,12 +51,20 @@
     errorMsg = '';
     try {
       const handle = await window.showDirectoryPicker();
-      const res = await api.searchFolder(handle.name);
-      if (res.path) {
-        repos_root = res.path;
-      } else {
-        errorMsg = `Picked "${handle.name}" — not found on server. Type the full path manually.`;
-      }
+      const name = handle.name;
+
+      // If the field already ends with this folder name, it's already correct
+      const currentLeaf = repos_root.replace(/[\\/]+$/, '').split(/[\\/]/).pop();
+      if (currentLeaf === name) return;
+
+      // Ask backend to find it by scanning drives
+      try {
+        const res = await api.searchFolder(name);
+        if (res.path) { repos_root = res.path; return; }
+      } catch {}
+
+      // Last resort: put the name in the field so the user can prepend the drive
+      repos_root = name;
     } catch (e) {
       if (e.name !== 'AbortError') errorMsg = e.message;
     }
