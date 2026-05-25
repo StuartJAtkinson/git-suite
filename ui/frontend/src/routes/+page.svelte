@@ -19,6 +19,7 @@
       const defaults = await api.getDefaults();
       if (defaults.has_env_token) await fetchGhToken();
     } catch {}
+    // repos_root intentionally left blank — user types or browses
   });
 
   async function fetchGhToken() {
