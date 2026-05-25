@@ -46,6 +46,21 @@ class LoginResponse(BaseModel):
     avatar_url: str
 
 
+@router.post("/pick-folder")
+async def pick_folder():
+    """Open the native OS folder dialog on the server and return the selected path."""
+    import tkinter as tk
+    from tkinter.filedialog import askdirectory
+    root = tk.Tk()
+    root.withdraw()
+    root.wm_attributes("-topmost", True)
+    path = askdirectory(title="Select repos folder")
+    root.destroy()
+    if not path:
+        raise HTTPException(status_code=204, detail="No folder selected")
+    return {"path": path}
+
+
 @router.get("/browse")
 async def browse(path: str = ""):
     """List subdirectories at path. Called by the folder picker modal."""

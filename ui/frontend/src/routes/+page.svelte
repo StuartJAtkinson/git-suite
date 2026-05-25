@@ -12,6 +12,7 @@
   let loadingToken = false;
   let tokenSource = '';
   let showBrowser = false;
+  let picking = false;
 
   onMount(async () => {
     if ($session) { goto('/hubs'); return; }
@@ -34,6 +35,19 @@
       tokenSource = '';
     } finally {
       loadingToken = false;
+    }
+  }
+
+  async function browseNative() {
+    picking = true;
+    errorMsg = '';
+    try {
+      const res = await api.pickFolder();
+      repos_root = res.path;
+    } catch (e) {
+      if (!e.message.includes('204')) errorMsg = e.message;
+    } finally {
+      picking = false;
     }
   }
 
@@ -107,7 +121,9 @@
             placeholder="Click Browse to select your repos folder"
             style="flex:1;"
           />
-          <button type="button" class="ghost sm" on:click={() => (showBrowser = true)}>Browse</button>
+          <button type="button" class="ghost sm" disabled={picking} on:click={browseNative}>
+            {picking ? '…' : 'Browse'}
+          </button>
         </div>
       </label>
     </div>

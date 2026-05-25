@@ -14,6 +14,7 @@ async function req(method, path, body) {
 
 export const api = {
   // Auth
+  pickFolder: () => req('POST', '/auth/pick-folder'),
   browse: (path) =>
     req('GET', `/auth/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   searchFolder: (name) =>
