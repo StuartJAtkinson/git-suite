@@ -12,6 +12,7 @@
   let tokenSource = '';
   let suggestions = [];
   let completeTimer;
+  let fileInput;
 
   onMount(async () => {
     if ($session) { goto('/hubs'); return; }
@@ -45,6 +46,25 @@
         suggestions = await api.pathComplete(val);
       } catch { suggestions = []; }
     }, 250);
+  }
+
+  async function onFolderPick(e) {
+    const files = e.target.files;
+    if (!files || !files.length) return;
+    const folderName = files[0].webkitRelativePath.split('/')[0];
+    errorMsg = '';
+    try {
+      const res = await api.searchFolder(folderName);
+      if (res.path) {
+        repos_root = res.path;
+      } else {
+        errorMsg = `Selected "${folderName}" but couldn't find it on the server — type the full path.`;
+      }
+    } catch (ex) {
+      errorMsg = ex.message;
+    }
+    // Reset so the same folder can be re-picked if needed
+    e.target.value = '';
   }
 
   async function login() {
@@ -102,18 +122,21 @@
       {/if}
     </div>
 
-    <!-- Repos root with backend autocomplete -->
+    <!-- Repos root -->
     <div>
       <label style="margin-bottom:0.4rem;">
         Repos root
-        <input
-          list="path-suggestions"
-          bind:value={repos_root}
-          on:input={onPathInput}
-          required
-          placeholder="H:\GitHub"
-          style="width:100%; margin-top:0.3rem;"
-        />
+        <div style="display:flex; gap:0.4rem; align-items:center; margin-top:0.3rem;">
+          <input
+            list="path-suggestions"
+            bind:value={repos_root}
+            on:input={onPathInput}
+            required
+            placeholder="H:\GitHub"
+            style="flex:1;"
+          />
+          <button type="button" class="ghost sm" on:click={() => fileInput.click()}>Browse</button>
+        </div>
         <datalist id="path-suggestions">
           {#each suggestions as s}
             <option value={s}></option>
@@ -121,9 +144,18 @@
         </datalist>
       </label>
       <p style="font-size:0.78rem; color:#6b7280; margin:0.2rem 0 0">
-        Type to autocomplete from the server filesystem.
+        Type to autocomplete or click Browse to pick the folder.
       </p>
     </div>
+
+    <!-- Hidden folder picker -->
+    <input
+      type="file"
+      webkitdirectory
+      bind:this={fileInput}
+      on:change={onFolderPick}
+      style="display:none"
+    />
 
     {#if errorMsg}
       <div class="error-msg">{errorMsg}</div>

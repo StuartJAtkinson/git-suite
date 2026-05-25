@@ -46,6 +46,25 @@ class LoginResponse(BaseModel):
     avatar_url: str
 
 
+@router.get("/search-folder")
+async def search_folder(name: str):
+    """Find a folder by exact name — called after the browser file picker."""
+    candidates: list[Path] = []
+    if os.name == "nt":
+        for d in string.ascii_uppercase:
+            candidates.append(Path(f"{d}:/{name}"))
+    home = Path.home()
+    candidates += [home / name, home / "GitHub" / name, home / "git" / name]
+    for c in candidates:
+        try:
+            if c.exists() and c.is_dir():
+                log.info("search-folder: found '%s' at %s", name, c)
+                return {"path": str(c)}
+        except OSError:
+            pass
+    return {"path": None}
+
+
 @router.get("/path-complete")
 async def path_complete(prefix: str = ""):
     """Return up to 20 directory completions for the path input datalist."""
