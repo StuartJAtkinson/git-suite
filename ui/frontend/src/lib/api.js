@@ -14,6 +14,8 @@ async function req(method, path, body) {
 
 export const api = {
   // Auth
+  browse: (path) =>
+    req('GET', `/auth/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   searchFolder: (name) =>
     req('GET', `/auth/search-folder?name=${encodeURIComponent(name)}`),
 

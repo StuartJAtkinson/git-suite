@@ -46,6 +46,40 @@ class LoginResponse(BaseModel):
     avatar_url: str
 
 
+@router.get("/browse")
+async def browse(path: str = ""):
+    """List subdirectories at path. Called by the folder picker modal."""
+    if not path:
+        if os.name == "nt":
+            entries = []
+            for d in string.ascii_uppercase:
+                p = Path(f"{d}:\\")
+                try:
+                    if p.exists():
+                        entries.append({"name": f"{d}:\\", "path": f"{d}\\"})
+                except OSError:
+                    pass
+            return {"path": "", "parent": None, "entries": entries}
+        path = str(Path.home())
+
+    p = Path(path)
+    try:
+        if not p.is_dir():
+            raise HTTPException(status_code=404, detail=f"Not a directory: {path}")
+        entries = sorted(
+            [{"name": d.name, "path": str(d)} for d in p.iterdir()
+             if d.is_dir() and not d.name.startswith(".")],
+            key=lambda x: x["name"].lower(),
+        )
+        parent = str(p.parent) if str(p.parent) != str(p) else None
+        return {"path": str(p), "parent": parent, "entries": entries}
+    except HTTPException:
+        raise
+    except OSError:
+        parent = str(p.parent) if str(p.parent) != str(p) else None
+        return {"path": str(p), "parent": parent, "entries": []}
+
+
 @router.get("/search-folder")
 async def search_folder(name: str):
     """Find a folder by exact name — called after the browser file picker."""

@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { session } from '$lib/stores';
   import { api } from '$lib/api';
+  import FolderBrowser from '$lib/FolderBrowser.svelte';
 
   let token = '';
   let repos_root = '';
@@ -10,16 +11,14 @@
   let loading = false;
   let loadingToken = false;
   let tokenSource = '';
-  let suggestions = [];
-  let completeTimer;
+  let showBrowser = false;
 
   onMount(async () => {
     if ($session) { goto('/hubs'); return; }
     try {
       const defaults = await api.getDefaults();
-      repos_root = defaults.repos_root;
       if (defaults.has_env_token) await fetchGhToken();
-    } catch { /* leave blank */ }
+    } catch {}
   });
 
   async function fetchGhToken() {
@@ -35,44 +34,6 @@
     } finally {
       loadingToken = false;
     }
-  }
-
-  function onPathInput(e) {
-    clearTimeout(completeTimer);
-    const val = e.target.value;
-    completeTimer = setTimeout(async () => {
-      try {
-        suggestions = await api.pathComplete(val);
-      } catch { suggestions = []; }
-    }, 250);
-  }
-
-  async function browseFolder() {
-    errorMsg = '';
-    try {
-      const handle = await window.showDirectoryPicker();
-      const name = handle.name;
-
-      // If the field already ends with this folder name, it's already correct
-      const currentLeaf = repos_root.replace(/[\\/]+$/, '').split(/[\\/]/).pop();
-      if (currentLeaf === name) return;
-
-      // Ask backend to find it by scanning drives
-      try {
-        const res = await api.searchFolder(name);
-        if (res.path) { repos_root = res.path; return; }
-      } catch {}
-
-      // Last resort: put the name in the field so the user can prepend the drive
-      repos_root = name;
-    } catch (e) {
-      if (e.name !== 'AbortError') errorMsg = e.message;
-    }
-  }
-
-  async function onPathFocus() {
-    // Show drive/root suggestions immediately on focus
-    try { suggestions = await api.pathComplete(repos_root || ''); } catch {}
   }
 
   async function login() {
@@ -95,13 +56,19 @@
   };
 </script>
 
+{#if showBrowser}
+  <FolderBrowser
+    on:select={(e) => { repos_root = e.detail; showBrowser = false; }}
+    on:cancel={() => (showBrowser = false)}
+  />
+{/if}
+
 <div class="card login-card">
   <h1>git-suite</h1>
   <p class="sub">GitHub portfolio manager</p>
 
   <form on:submit|preventDefault={login} class="form-group">
 
-    <!-- Token -->
     <div>
       <label style="margin-bottom:0.4rem;">
         GitHub token
@@ -120,38 +87,29 @@
         </div>
       </label>
       {#if tokenSource && token}
-        <p style="font-size:0.78rem; color:#6b7280; margin:0.2rem 0 0">{SOURCE_LABEL[tokenSource] ?? tokenSource}</p>
+        <p style="font-size:0.78rem;color:#6b7280;margin:0.2rem 0 0">{SOURCE_LABEL[tokenSource] ?? tokenSource}</p>
       {:else if !token}
-        <p style="font-size:0.78rem; color:#6b7280; margin:0.2rem 0 0">
-          Create one at
-          <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer">github.com/settings/tokens</a>
-          — needs <code>repo</code> scope.
+        <p style="font-size:0.78rem;color:#6b7280;margin:0.2rem 0 0">
+          Create one at <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer">github.com/settings/tokens</a> — needs <code>repo</code> scope.
         </p>
       {/if}
     </div>
 
-    <!-- Repos root -->
-    <label>
-      Repos root
-      <div style="display:flex; gap:0.4rem; align-items:center; margin-top:0.3rem;">
-        <input
-          list="path-suggestions"
-          bind:value={repos_root}
-          on:input={onPathInput}
-          on:focus={onPathFocus}
-          required
-          placeholder="H:\GitHub"
-          style="flex:1;"
-          autocomplete="off"
-        />
-        <button type="button" class="ghost sm" on:click={browseFolder}>Browse</button>
-      </div>
-      <datalist id="path-suggestions">
-        {#each suggestions as s}
-          <option value={s}></option>
-        {/each}
-      </datalist>
-    </label>
+    <div>
+      <label style="margin-bottom:0.4rem;">
+        Repos root
+        <div style="display:flex; gap:0.4rem; align-items:center; margin-top:0.3rem;">
+          <input
+            type="text"
+            bind:value={repos_root}
+            required
+            placeholder="Click Browse to select your repos folder"
+            style="flex:1;"
+          />
+          <button type="button" class="ghost sm" on:click={() => (showBrowser = true)}>Browse</button>
+        </div>
+      </label>
+    </div>
 
     {#if errorMsg}
       <div class="error-msg">{errorMsg}</div>
