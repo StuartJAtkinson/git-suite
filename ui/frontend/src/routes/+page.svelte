@@ -9,22 +9,17 @@
   let errorMsg = '';
   let loading = false;
   let loadingToken = false;
-  let tokenSource = ''; // 'env' | 'gh-cli' | ''
+  let tokenSource = '';
+  let pickerSupported = false;
 
   onMount(async () => {
     if ($session) { goto('/hubs'); return; }
-
-    // Pre-fill from server-detected defaults
+    pickerSupported = 'showDirectoryPicker' in window;
     try {
       const defaults = await api.getDefaults();
       repos_root = defaults.repos_root;
-      if (defaults.has_env_token) {
-        tokenSource = 'env';
-        await fetchGhToken(); // auto-fill if env token is ready
-      }
-    } catch {
-      repos_root = '';
-    }
+      if (defaults.has_env_token) await fetchGhToken();
+    } catch { /* leave blank */ }
   });
 
   async function fetchGhToken() {
@@ -39,6 +34,22 @@
       tokenSource = '';
     } finally {
       loadingToken = false;
+    }
+  }
+
+  async function browseFolder() {
+    try {
+      const handle = await window.showDirectoryPicker({ mode: 'read' });
+      // Resolve the picked folder name to a full server-side path
+      const res = await api.findPath(handle.name, repos_root);
+      if (res.path) {
+        repos_root = res.path;
+      } else {
+        // Could not resolve — put the folder name in so the user can complete it
+        errorMsg = `Could not auto-resolve path for "${handle.name}" — please type the full path.`;
+      }
+    } catch (e) {
+      if (e.name !== 'AbortError') errorMsg = e.message; // AbortError = user cancelled
     }
   }
 
@@ -57,7 +68,7 @@
   }
 
   const SOURCE_LABEL = {
-    env: 'from GH_TOKEN env / Infisical',
+    env: 'from GH_TOKEN / Infisical',
     'gh-cli': 'from gh CLI',
   };
 </script>
@@ -68,50 +79,56 @@
 
   <form on:submit|preventDefault={login} class="form-group">
 
-    <!-- Token row -->
+    <!-- Token -->
     <div>
       <label style="margin-bottom: 0.4rem;">
         GitHub token
-        <div style="display: flex; gap: 0.4rem; align-items: center; margin-top: 0.3rem;">
+        <div style="display:flex; gap:0.4rem; align-items:center; margin-top:0.3rem;">
           <input
             type="password"
             bind:value={token}
             placeholder="ghp_..."
             required
             autocomplete="off"
-            style="flex: 1;"
+            style="flex:1;"
           />
-          <button
-            type="button"
-            class="ghost sm"
-            disabled={loadingToken}
-            on:click={fetchGhToken}
-            title="Read token from gh CLI or GH_TOKEN env var"
-          >
+          <button type="button" class="ghost sm" disabled={loadingToken} on:click={fetchGhToken}>
             {loadingToken ? '...' : 'gh auth'}
           </button>
         </div>
       </label>
       {#if tokenSource && token}
-        <p style="font-size: 0.78rem; color: #6b7280; margin: 0.2rem 0 0;">
-          {SOURCE_LABEL[tokenSource] ?? tokenSource}
-        </p>
+        <p style="font-size:0.78rem; color:#6b7280; margin:0.2rem 0 0">{SOURCE_LABEL[tokenSource] ?? tokenSource}</p>
       {:else if !token}
-        <p style="font-size: 0.78rem; color: #6b7280; margin: 0.2rem 0 0;">
+        <p style="font-size:0.78rem; color:#6b7280; margin:0.2rem 0 0">
           Or create one at
-          <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer">
-            github.com/settings/tokens
-          </a>
+          <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer">github.com/settings/tokens</a>
           — needs <code>repo</code> scope.
         </p>
       {/if}
     </div>
 
     <!-- Repos root -->
-    <label>
-      Repos root (server path)
-      <input type="text" bind:value={repos_root} required placeholder="/home/user/GitHub" />
-    </label>
+    <div>
+      <label style="margin-bottom:0.4rem;">
+        Repos root
+        <div style="display:flex; gap:0.4rem; align-items:center; margin-top:0.3rem;">
+          <input
+            type="text"
+            bind:value={repos_root}
+            required
+            placeholder="/home/user/GitHub"
+            style="flex:1;"
+          />
+          {#if pickerSupported}
+            <button type="button" class="ghost sm" on:click={browseFolder}>Browse</button>
+          {/if}
+        </div>
+      </label>
+      <p style="font-size:0.78rem; color:#6b7280; margin:0.2rem 0 0">
+        The folder containing all your cloned repos.
+      </p>
+    </div>
 
     {#if errorMsg}
       <div class="error-msg">{errorMsg}</div>

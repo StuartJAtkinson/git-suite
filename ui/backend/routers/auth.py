@@ -25,6 +25,33 @@ class LoginResponse(BaseModel):
     avatar_url: str
 
 
+@router.get("/find-path")
+async def find_path(name: str, hint: str = ""):
+    """Resolve a folder name to a full path. Called after showDirectoryPicker()."""
+    candidates: list[Path] = []
+    if hint:
+        h = Path(hint)
+        candidates += [h / name, h.parent / name]
+    candidates += [
+        Path(f"H:/GitHub/{name}"),
+        Path(f"C:/GitHub/{name}"),
+        Path.home() / name,
+        Path.home() / "GitHub" / name,
+        Path.home() / "git" / name,
+        Path.home() / "repos" / name,
+        Path.home() / "code" / name,
+    ]
+    for c in candidates:
+        try:
+            if c.exists() and c.is_dir():
+                log.info("find-path: resolved '%s' -> %s", name, c)
+                return {"path": str(c)}
+        except OSError:
+            pass
+    log.warning("find-path: could not resolve '%s' (hint=%s)", name, hint)
+    return {"path": None}
+
+
 @router.get("/defaults")
 async def get_defaults():
     """Return server-side detected defaults so the login form can pre-fill."""

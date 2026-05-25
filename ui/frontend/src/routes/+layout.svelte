@@ -18,7 +18,7 @@
     <a href="/hubs" class={active('/hubs')}>Hubs</a>
     <a href="/scan" class={active('/scan')}>Scan</a>
   </div>
-  <span class="spacer" />
+  <span class="spacer"></span>
   {#if $session}
     <div class="user">
       {#if $session.avatar_url}
