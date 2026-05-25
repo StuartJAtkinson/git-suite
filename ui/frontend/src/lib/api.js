@@ -14,6 +14,8 @@ async function req(method, path, body) {
 
 export const api = {
   // Auth
+  getDefaults: () => req('GET', '/auth/defaults'),
+  getGhToken: () => req('GET', '/auth/gh-token'),
   login: (token, repos_root) =>
     req('POST', '/auth/login', { token, repos_root }),
   getSession: (session_id) =>
