@@ -225,7 +225,6 @@ ARCHIVE_HUB: dict[str, str | None] = {
     "esoteric-streamer":                  None,
     "nouns-ai-sd-server":                 None,
     "pc-part-dataset":                    None,
-    "VTuberLIVE":                         None,  # L9 Creative has no hub yet
     "ai-demos":                           None,
 }
 
@@ -236,6 +235,8 @@ ARCHIVE_TARGETS = set(ARCHIVE_HUB.keys())
 KEEP_AS_IS = {
     # XIVAPI site repo — reference, not a merge target
     "xivapi.com",
+    # Unique: live microphone-driven generative visual effects — no OSS/commercial equivalent
+    "VTuberLIVE",
     # Genealogy cluster
     "AncestryBrowsableSchema",
     "FTAnalyzer",

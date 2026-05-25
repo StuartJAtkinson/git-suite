@@ -2,6 +2,8 @@
 
 ## Open
 
+- [ ] **L9 Creative has no hub** — `VTuberLIVE` (live audio-driven generative visuals) is unique with no OSS/commercial equivalent; currently kept as-is but has no layer home. Consider a `creative-hub` if other L9 repos accumulate *(found 2026-05-25)*
+
 - [ ] **fetch_following() not paginated** — removed as a concern (following list no longer fetched in simplified script); if re-added later, remember to paginate beyond 100 *(found 2026-05-24)*
 - [ ] **Absorb targets include non-owned repos** — some items in NEW_REPOS absorbs lists (e.g. `xivapi.com`, `autoEdit_2`, `intelli-video`) were never owned repos; they show as 100% absorbed from day one. Plan data needs an `owned_absorbs` vs `starred_inspiration` split if this becomes noisy *(found 2026-05-24)*
 
