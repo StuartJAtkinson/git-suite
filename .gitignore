@@ -37,3 +37,7 @@ generate_github_index.py
 .env
 .env.local
 *.local
+
+# Runtime state — never commit
+ui/backend/state.db
+ui/backend/logs/
