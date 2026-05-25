@@ -1,5 +1,7 @@
 import logging
 import os
+import shutil
+import string
 import subprocess
 import uuid
 from pathlib import Path
@@ -13,6 +15,25 @@ from services.github import validate_token
 log = logging.getLogger(__name__)
 router = APIRouter()
 
+# Common Windows install locations for the gh CLI
+_GH_FALLBACKS = [
+    r"C:\Program Files\GitHub CLI\gh.exe",
+    r"C:\Program Files (x86)\GitHub CLI\gh.exe",
+    Path.home() / "AppData" / "Local" / "Microsoft" / "WinGet" / "Links" / "gh.exe",
+    Path.home() / "scoop" / "shims" / "gh.exe",
+    r"C:\ProgramData\chocolatey\bin\gh.exe",
+]
+
+
+def _find_gh() -> str | None:
+    found = shutil.which("gh")
+    if found:
+        return found
+    for p in _GH_FALLBACKS:
+        if Path(p).exists():
+            return str(p)
+    return None
+
 
 class LoginRequest(BaseModel):
     token: str
@@ -25,47 +46,39 @@ class LoginResponse(BaseModel):
     avatar_url: str
 
 
-@router.get("/find-path")
-async def find_path(name: str, hint: str = ""):
-    """Resolve a folder name to a full path. Called after showDirectoryPicker()."""
-    import os, string
+@router.get("/path-complete")
+async def path_complete(prefix: str = ""):
+    """Return up to 20 directory completions for the path input datalist."""
+    if not prefix:
+        if os.name == "nt":
+            return [f"{d}:\\" for d in string.ascii_uppercase if Path(f"{d}:\\").exists()]
+        return [str(Path.home())]
 
-    candidates: list[Path] = []
-
-    # 1. Relative to hint (user's current repos_root or its parent)
-    if hint:
-        h = Path(hint)
-        candidates += [h / name, h.parent / name, h.parent.parent / name]
-
-    # 2. Common home-relative locations
-    home = Path.home()
-    for parent in (home, home / "GitHub", home / "git", home / "repos", home / "code"):
-        candidates.append(parent / name)
-
-    # 3. Scan every drive root on Windows — catches H:\GitHub, D:\projects etc.
-    if os.name == "nt":
-        for d in string.ascii_uppercase:
-            candidates.append(Path(f"{d}:/{name}"))
-
-    for c in candidates:
-        try:
-            if c.exists() and c.is_dir():
-                log.info("find-path: resolved '%s' -> %s", name, c)
-                return {"path": str(c)}
-        except OSError:
-            pass
-
-    log.warning("find-path: could not resolve '%s' (hint=%s)", name, hint)
-    return {"path": None}
+    p = Path(prefix)
+    try:
+        # If prefix ends with a separator (or is an existing dir), list children
+        if p.is_dir() and (prefix.endswith("/") or prefix.endswith("\\")):
+            entries = sorted(p.iterdir())
+            return [str(p / d.name) for d in entries if d.is_dir() and not d.name.startswith(".")][:20]
+        # Otherwise list siblings whose name starts with the typed stem
+        if p.parent.is_dir():
+            stem = p.name.lower()
+            entries = sorted(p.parent.iterdir())
+            return [
+                str(p.parent / d.name)
+                for d in entries
+                if d.is_dir() and not d.name.startswith(".") and d.name.lower().startswith(stem)
+            ][:20]
+    except (PermissionError, OSError):
+        pass
+    return []
 
 
 @router.get("/defaults")
 async def get_defaults():
     """Return server-side detected defaults so the login form can pre-fill."""
-    # Check env first (covers infisical run / .env injection)
     gh_token = os.environ.get("GH_TOKEN", "")
 
-    # Detect repos root: walk common locations, return first that exists
     candidates = [
         Path("H:/GitHub"),
         Path("C:/GitHub"),
@@ -74,7 +87,7 @@ async def get_defaults():
         Path.home() / "repos",
         Path.home() / "code",
     ]
-    repos_root = str(Path.home() / "GitHub")  # sensible fallback
+    repos_root = str(Path.home() / "GitHub")
     for c in candidates:
         if c.exists():
             repos_root = str(c)
@@ -85,25 +98,27 @@ async def get_defaults():
 
 @router.get("/gh-token")
 async def get_gh_token():
-    """Return the token from `gh auth token` if the gh CLI is authenticated."""
-    # Also accept GH_TOKEN env var (set by infisical or .env)
+    """Return token from GH_TOKEN env or gh CLI."""
     env_token = os.environ.get("GH_TOKEN", "")
     if env_token:
         log.info("gh-token: returning GH_TOKEN from environment")
         return {"token": env_token, "source": "env"}
 
-    try:
-        result = subprocess.run(
-            ["gh", "auth", "token"],
-            capture_output=True, text=True, timeout=5,
+    gh = _find_gh()
+    if not gh:
+        log.warning("gh-token: gh CLI not found")
+        raise HTTPException(
+            status_code=404,
+            detail="gh CLI not found. Install from https://cli.github.com or set GH_TOKEN env var.",
         )
+
+    log.info("gh-token: running %s auth token", gh)
+    try:
+        result = subprocess.run([gh, "auth", "token"], capture_output=True, text=True, timeout=5)
         token = result.stdout.strip()
         if not token:
-            raise HTTPException(status_code=404, detail="gh CLI is not authenticated — run: gh auth login")
-        log.info("gh-token: returning token from gh CLI")
+            raise HTTPException(status_code=404, detail="gh CLI found but not authenticated — run: gh auth login")
         return {"token": token, "source": "gh-cli"}
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="gh CLI not found and GH_TOKEN env var not set")
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="gh CLI timed out")
 

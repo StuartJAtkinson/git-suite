@@ -14,8 +14,8 @@ async function req(method, path, body) {
 
 export const api = {
   // Auth
-  findPath: (name, hint) =>
-    req('GET', `/auth/find-path?name=${encodeURIComponent(name)}&hint=${encodeURIComponent(hint || '')}`),
+  pathComplete: (prefix) =>
+    req('GET', `/auth/path-complete?prefix=${encodeURIComponent(prefix)}`),
   getDefaults: () => req('GET', '/auth/defaults'),
   getGhToken: () => req('GET', '/auth/gh-token'),
   login: (token, repos_root) =>

@@ -10,11 +10,11 @@
   let loading = false;
   let loadingToken = false;
   let tokenSource = '';
-  let pickerSupported = false;
+  let suggestions = [];
+  let completeTimer;
 
   onMount(async () => {
     if ($session) { goto('/hubs'); return; }
-    pickerSupported = 'showDirectoryPicker' in window;
     try {
       const defaults = await api.getDefaults();
       repos_root = defaults.repos_root;
@@ -37,27 +37,14 @@
     }
   }
 
-  let pickerMsg = '';
-
-  async function browseFolder() {
-    pickerMsg = '';
-    errorMsg = '';
-    try {
-      // No mode option — avoids the spurious "Allow downloads" prompt in Chrome
-      const handle = await window.showDirectoryPicker();
-      pickerMsg = `Resolving "${handle.name}"…`;
-      const res = await api.findPath(handle.name, repos_root);
-      if (res.path) {
-        repos_root = res.path;
-        pickerMsg = '';
-      } else {
-        pickerMsg = '';
-        errorMsg = `Couldn't find "${handle.name}" on the server — type the full path below.`;
-      }
-    } catch (e) {
-      pickerMsg = '';
-      if (e.name !== 'AbortError') errorMsg = `Folder picker: ${e.message}`;
-    }
+  function onPathInput(e) {
+    clearTimeout(completeTimer);
+    const val = e.target.value;
+    completeTimer = setTimeout(async () => {
+      try {
+        suggestions = await api.pathComplete(val);
+      } catch { suggestions = []; }
+    }, 250);
   }
 
   async function login() {
@@ -88,7 +75,7 @@
 
     <!-- Token -->
     <div>
-      <label style="margin-bottom: 0.4rem;">
+      <label style="margin-bottom:0.4rem;">
         GitHub token
         <div style="display:flex; gap:0.4rem; align-items:center; margin-top:0.3rem;">
           <input
@@ -108,37 +95,34 @@
         <p style="font-size:0.78rem; color:#6b7280; margin:0.2rem 0 0">{SOURCE_LABEL[tokenSource] ?? tokenSource}</p>
       {:else if !token}
         <p style="font-size:0.78rem; color:#6b7280; margin:0.2rem 0 0">
-          Or create one at
+          Create one at
           <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer">github.com/settings/tokens</a>
           — needs <code>repo</code> scope.
         </p>
       {/if}
     </div>
 
-    <!-- Repos root -->
+    <!-- Repos root with backend autocomplete -->
     <div>
       <label style="margin-bottom:0.4rem;">
         Repos root
-        <div style="display:flex; gap:0.4rem; align-items:center; margin-top:0.3rem;">
-          <input
-            type="text"
-            bind:value={repos_root}
-            required
-            placeholder="/home/user/GitHub"
-            style="flex:1;"
-          />
-          {#if pickerSupported}
-            <button type="button" class="ghost sm" on:click={browseFolder}>Browse</button>
-          {/if}
-        </div>
+        <input
+          list="path-suggestions"
+          bind:value={repos_root}
+          on:input={onPathInput}
+          required
+          placeholder="H:\GitHub"
+          style="width:100%; margin-top:0.3rem;"
+        />
+        <datalist id="path-suggestions">
+          {#each suggestions as s}
+            <option value={s}></option>
+          {/each}
+        </datalist>
       </label>
-      {#if pickerMsg}
-        <p style="font-size:0.78rem; color:#6b7280; margin:0.2rem 0 0">{pickerMsg}</p>
-      {:else}
-        <p style="font-size:0.78rem; color:#6b7280; margin:0.2rem 0 0">
-          The folder containing all your cloned repos.
-        </p>
-      {/if}
+      <p style="font-size:0.78rem; color:#6b7280; margin:0.2rem 0 0">
+        Type to autocomplete from the server filesystem.
+      </p>
     </div>
 
     {#if errorMsg}
