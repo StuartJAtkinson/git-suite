@@ -60,7 +60,7 @@ export const api = {
 };
 
 export function scanWs(scan_id, onRepo, onDone, onError) {
-  const ws = new WebSocket(`ws://localhost:8000/api/scan/${scan_id}/ws`);
+  const ws = new WebSocket(`ws://localhost:8001/api/scan/${scan_id}/ws`);
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
     if (msg.type === 'repo') onRepo(msg.data);
