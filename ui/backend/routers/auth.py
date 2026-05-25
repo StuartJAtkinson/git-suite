@@ -1,6 +1,10 @@
+import logging
 import uuid
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+log = logging.getLogger(__name__)
 
 from database import get_db
 from services.github import validate_token
@@ -23,7 +27,8 @@ class LoginResponse(BaseModel):
 async def login(body: LoginRequest):
     try:
         user = await validate_token(body.token)
-    except Exception:
+    except Exception as exc:
+        log.warning("login failed: %s", exc)
         raise HTTPException(status_code=401, detail="Invalid GitHub token")
 
     session_id = str(uuid.uuid4())
@@ -34,6 +39,7 @@ async def login(body: LoginRequest):
         )
         await db.commit()
 
+    log.info("session created for %s  id=%s", user["login"], session_id)
     return LoginResponse(
         session_id=session_id,
         github_user=user["login"],

@@ -1,7 +1,11 @@
 import json
+import logging
 import uuid
+
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
+
+log = logging.getLogger(__name__)
 
 from database import get_db
 from plan import HUB_ABSORBS, ARCHIVE_HUB, KEEP_AS_IS
@@ -95,6 +99,7 @@ async def scan_ws(websocket: WebSocket, scan_id: str):
     token = session[0]["github_token"]
     username = session[0]["github_user"]
 
+    log.info("scan %s starting for user=%s", scan_id, username)
     repos: list[dict] = []
     try:
         async for repo in list_repos(token, username):
@@ -102,8 +107,10 @@ async def scan_ws(websocket: WebSocket, scan_id: str):
             repos.append(row)
             await websocket.send_json({"type": "repo", "data": row})
     except WebSocketDisconnect:
+        log.info("scan %s — client disconnected after %d repos", scan_id, len(repos))
         return
     except Exception as exc:
+        log.error("scan %s error: %s", scan_id, exc)
         await websocket.send_json({"type": "error", "message": str(exc)})
         await websocket.close()
         return
@@ -127,6 +134,7 @@ async def scan_ws(websocket: WebSocket, scan_id: str):
         )
         await db.commit()
 
+    log.info("scan %s complete — %d repos saved", scan_id, len(repos))
     await websocket.send_json({"type": "done", "total": len(repos)})
     await websocket.close()
 

@@ -1,18 +1,47 @@
+import logging
+import time
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from pathlib import Path
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import init_db
 from routers import auth, scan, hubs, commercial, readme
 
+_LOG_DIR = Path(__file__).parent / "logs"
+_LOG_DIR.mkdir(exist_ok=True)
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)-8s %(name)-28s %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(_LOG_DIR / "app.log", encoding="utf-8"),
+    ],
+)
+log = logging.getLogger("git-suite.main")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    log.info("startup — initialising database")
     await init_db()
+    log.info("database ready")
     yield
+    log.info("shutdown")
 
 
 app = FastAPI(title="git-suite API", version="0.1.0", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    t0 = time.perf_counter()
+    response = await call_next(request)
+    ms = (time.perf_counter() - t0) * 1000
+    log.info("%s %s -> %d  %.0fms", request.method, request.url.path, response.status_code, ms)
+    return response
 
 app.add_middleware(
     CORSMiddleware,

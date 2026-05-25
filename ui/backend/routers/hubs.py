@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -5,6 +7,7 @@ from database import get_db
 from plan import HUB_META, HUB_ABSORBS, HUB_ALTERNATIVES, ARCHIVE_HUB, KEEP_AS_IS
 from services.github import archive_repo
 
+log = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -25,7 +28,7 @@ async def list_hubs():
 
 
 @router.get("/hubs/{hub}/status")
-async def hub_status(hub: str, scan_id: str):
+async def hub_status(hub: str, scan_id: str | None = None):
     if hub not in HUB_META:
         raise HTTPException(status_code=404, detail="Unknown hub")
 
@@ -82,9 +85,11 @@ async def do_archive(body: ArchiveRequest):
         token = row[0]["github_token"]
         owner = row[0]["github_user"]
 
+    log.info("archiving %s/%s for hub=%s", owner, body.repo, body.hub)
     try:
         await archive_repo(token, owner, body.repo)
     except Exception as exc:
+        log.error("archive failed %s: %s", body.repo, exc)
         raise HTTPException(status_code=502, detail=str(exc))
 
     async for db in get_db():

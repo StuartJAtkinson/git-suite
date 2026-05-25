@@ -1,6 +1,10 @@
 import json
+import logging
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+log = logging.getLogger(__name__)
 
 from database import get_db
 from services.scraper import scrape
@@ -16,15 +20,21 @@ class ScrapeRequest(BaseModel):
 
 @router.post("/commercial/scrape")
 async def scrape_and_extract(body: ScrapeRequest):
+    log.info("scraping %s for hub=%s", body.url, body.hub)
     try:
         content = await scrape(body.url)
     except Exception as exc:
+        log.error("scrape failed %s: %s", body.url, exc)
         raise HTTPException(status_code=502, detail=f"Scrape failed: {exc}")
 
+    log.debug("scraped %d chars, extracting features via Claude", len(content))
     try:
         name, features = await extract_features(body.url, content)
     except Exception as exc:
+        log.error("feature extraction failed: %s", exc)
         raise HTTPException(status_code=502, detail=f"Feature extraction failed: {exc}")
+
+    log.info("extracted %d features for '%s'", len(features), name)
 
     async for db in get_db():
         await db.execute(

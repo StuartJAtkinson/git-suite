@@ -1,7 +1,11 @@
 import base64
 import json
+import logging
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+log = logging.getLogger(__name__)
 
 from database import get_db
 from plan import HUB_ABSORBS, HUB_META, HUB_ALTERNATIVES
@@ -118,6 +122,7 @@ async def push_readme(body: PushReadmeRequest):
     updated = _inject_roadmap(existing, new_section)
 
     content_b64 = base64.b64encode(updated.encode("utf-8")).decode("ascii")
+    log.info("pushing README for %s/%s (sha=%s)", owner, body.hub, sha)
     await push_file(
         token=token,
         owner=owner,
@@ -127,7 +132,7 @@ async def push_readme(body: PushReadmeRequest):
         message=f"chore: update integration roadmap [{body.hub}]",
         sha=sha,
     )
-
+    log.info("README pushed OK for %s", body.hub)
     return {"pushed": True, "hub": body.hub, "sha_was": sha}
 
 
