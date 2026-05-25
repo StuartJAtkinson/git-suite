@@ -3,9 +3,12 @@
 ## Open
 
 - [ ] **fetch_following() not paginated** — removed as a concern (following list no longer fetched in simplified script); if re-added later, remember to paginate beyond 100 *(found 2026-05-24)*
+- [ ] **Absorb targets include non-owned repos** — some items in NEW_REPOS absorbs lists (e.g. `xivapi.com`, `autoEdit_2`, `intelli-video`) were never owned repos; they show as 100% absorbed from day one. Plan data needs an `owned_absorbs` vs `starred_inspiration` split if this becomes noisy *(found 2026-05-24)*
 
 
 ## Resolved
+
+- [x] **place-time cross-layer conflict** — resolved: `place-time` is ontology-first (temporal/spatial as classification), not a mapping tool; removed from `map-suite` absorbs, kept in `ontology-align` only *(resolved 2026-05-24)*
 
 - [x] **Path bug in embed_vba.ps1** — script deleted (defunct pipeline removed) *(resolved 2026-05-24)*
 - [x] **compress variable dead in inject_datamashup()** — script deleted (defunct pipeline removed) *(resolved 2026-05-24)*
