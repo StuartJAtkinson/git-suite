@@ -37,19 +37,26 @@
     }
   }
 
+  let pickerMsg = '';
+
   async function browseFolder() {
+    pickerMsg = '';
+    errorMsg = '';
     try {
-      const handle = await window.showDirectoryPicker({ mode: 'read' });
-      // Resolve the picked folder name to a full server-side path
+      // No mode option — avoids the spurious "Allow downloads" prompt in Chrome
+      const handle = await window.showDirectoryPicker();
+      pickerMsg = `Resolving "${handle.name}"…`;
       const res = await api.findPath(handle.name, repos_root);
       if (res.path) {
         repos_root = res.path;
+        pickerMsg = '';
       } else {
-        // Could not resolve — put the folder name in so the user can complete it
-        errorMsg = `Could not auto-resolve path for "${handle.name}" — please type the full path.`;
+        pickerMsg = '';
+        errorMsg = `Couldn't find "${handle.name}" on the server — type the full path below.`;
       }
     } catch (e) {
-      if (e.name !== 'AbortError') errorMsg = e.message; // AbortError = user cancelled
+      pickerMsg = '';
+      if (e.name !== 'AbortError') errorMsg = `Folder picker: ${e.message}`;
     }
   }
 
@@ -125,9 +132,13 @@
           {/if}
         </div>
       </label>
-      <p style="font-size:0.78rem; color:#6b7280; margin:0.2rem 0 0">
-        The folder containing all your cloned repos.
-      </p>
+      {#if pickerMsg}
+        <p style="font-size:0.78rem; color:#6b7280; margin:0.2rem 0 0">{pickerMsg}</p>
+      {:else}
+        <p style="font-size:0.78rem; color:#6b7280; margin:0.2rem 0 0">
+          The folder containing all your cloned repos.
+        </p>
+      {/if}
     </div>
 
     {#if errorMsg}

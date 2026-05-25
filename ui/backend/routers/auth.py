@@ -28,19 +28,25 @@ class LoginResponse(BaseModel):
 @router.get("/find-path")
 async def find_path(name: str, hint: str = ""):
     """Resolve a folder name to a full path. Called after showDirectoryPicker()."""
+    import os, string
+
     candidates: list[Path] = []
+
+    # 1. Relative to hint (user's current repos_root or its parent)
     if hint:
         h = Path(hint)
-        candidates += [h / name, h.parent / name]
-    candidates += [
-        Path(f"H:/GitHub/{name}"),
-        Path(f"C:/GitHub/{name}"),
-        Path.home() / name,
-        Path.home() / "GitHub" / name,
-        Path.home() / "git" / name,
-        Path.home() / "repos" / name,
-        Path.home() / "code" / name,
-    ]
+        candidates += [h / name, h.parent / name, h.parent.parent / name]
+
+    # 2. Common home-relative locations
+    home = Path.home()
+    for parent in (home, home / "GitHub", home / "git", home / "repos", home / "code"):
+        candidates.append(parent / name)
+
+    # 3. Scan every drive root on Windows — catches H:\GitHub, D:\projects etc.
+    if os.name == "nt":
+        for d in string.ascii_uppercase:
+            candidates.append(Path(f"{d}:/{name}"))
+
     for c in candidates:
         try:
             if c.exists() and c.is_dir():
@@ -48,6 +54,7 @@ async def find_path(name: str, hint: str = ""):
                 return {"path": str(c)}
         except OSError:
             pass
+
     log.warning("find-path: could not resolve '%s' (hint=%s)", name, hint)
     return {"path": None}
 
