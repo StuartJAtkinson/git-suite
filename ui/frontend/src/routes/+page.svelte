@@ -47,6 +47,21 @@
     }, 250);
   }
 
+  async function browseFolder() {
+    errorMsg = '';
+    try {
+      const handle = await window.showDirectoryPicker();
+      const res = await api.searchFolder(handle.name);
+      if (res.path) {
+        repos_root = res.path;
+      } else {
+        errorMsg = `Picked "${handle.name}" — not found on server. Type the full path manually.`;
+      }
+    } catch (e) {
+      if (e.name !== 'AbortError') errorMsg = e.message;
+    }
+  }
+
   async function onPathFocus() {
     // Show drive/root suggestions immediately on focus
     try { suggestions = await api.pathComplete(repos_root || ''); } catch {}
@@ -110,24 +125,24 @@
     <!-- Repos root -->
     <label>
       Repos root
-      <input
-        list="path-suggestions"
-        bind:value={repos_root}
-        on:input={onPathInput}
-        on:focus={onPathFocus}
-        required
-        placeholder="H:\GitHub"
-        style="margin-top:0.3rem; width:100%;"
-        autocomplete="off"
-      />
+      <div style="display:flex; gap:0.4rem; align-items:center; margin-top:0.3rem;">
+        <input
+          list="path-suggestions"
+          bind:value={repos_root}
+          on:input={onPathInput}
+          on:focus={onPathFocus}
+          required
+          placeholder="H:\GitHub"
+          style="flex:1;"
+          autocomplete="off"
+        />
+        <button type="button" class="ghost sm" on:click={browseFolder}>Browse</button>
+      </div>
       <datalist id="path-suggestions">
         {#each suggestions as s}
           <option value={s}></option>
         {/each}
       </datalist>
-      <span style="font-size:0.78rem; color:#6b7280;">
-        Click the field — folder suggestions appear as you type.
-      </span>
     </label>
 
     {#if errorMsg}
