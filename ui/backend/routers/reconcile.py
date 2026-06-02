@@ -1,0 +1,151 @@
+"""
+reconcile.py — the reconciliation engine (design philosophy #2).
+
+The whole value of git-suite is the diff between *intent* (the plan) and
+*reality* (live GitHub). This router answers one question for every screen:
+"where does reality disagree with the plan, and what's the next action?"
+
+It never trusts the verdict stored at scan time — the plan can change after a
+scan — so it recomputes every repo's fate from plan_store at request time,
+using the scan only for the live repo SET and its metadata.
+"""
+import json
+import logging
+
+from fastapi import APIRouter, HTTPException
+
+import plan_store
+from database import get_db
+
+log = logging.getLogger(__name__)
+router = APIRouter()
+
+
+async def _latest_scan_repos(session_id: str) -> tuple[str, list[dict]]:
+    """Return (scan_id, repo rows) for the session's most recent scan."""
+    async for db in get_db():
+        meta = await db.execute_fetchall(
+            """SELECT scan_id FROM scan_meta
+               WHERE session_id = ? ORDER BY started_at DESC LIMIT 1""",
+            (session_id,),
+        )
+        if not meta:
+            raise HTTPException(status_code=404, detail="No scan found — run a scan first")
+        scan_id = meta[0]["scan_id"]
+        rows = await db.execute_fetchall(
+            "SELECT * FROM repos WHERE scan_id = ?", (scan_id,)
+        )
+    return scan_id, [dict(r) for r in rows]
+
+
+async def _done_actions() -> dict[str, str]:
+    """Map repo -> action ('absorbed'|'archived') for executed hub_actions."""
+    async for db in get_db():
+        rows = await db.execute_fetchall(
+            "SELECT repo, action FROM hub_actions"
+        )
+    return {r["repo"]: r["action"] for r in rows}
+
+
+@router.get("/reconcile/{session_id}")
+async def reconcile(session_id: str):
+    scan_id, repos = await _latest_scan_repos(session_id)
+    plan = plan_store.get_plan()
+    placement = plan_store.repo_placement(plan)
+    done = await _done_actions()
+
+    live_names = {r["name"] for r in repos}
+
+    # --- per-repo reconciled view ---------------------------------------
+    reconciled: list[dict] = []
+    counts = {"absorb": 0, "archive": 0, "keep": 0, "orphan": 0}
+    for r in repos:
+        name = r["name"]
+        place = placement.get(name)
+        verdict = place["verdict"] if place else "orphan"
+        hub = place["hub"] if place else None
+        counts[verdict] = counts.get(verdict, 0) + 1
+        try:
+            topics = json.loads(r["topics"]) if r.get("topics") else []
+        except (TypeError, ValueError):
+            topics = []
+        reconciled.append({
+            "name": name,
+            "verdict": verdict,
+            "hub": hub,
+            "language": r.get("language") or "",
+            "aim": r.get("aim") or "",
+            "url": r.get("url") or "",
+            "visibility": r.get("visibility") or "",
+            "done": done.get(name),  # 'absorbed' | 'archived' | None
+            # enriched signal (NULL on scans taken before enrichment)
+            "stars": r.get("stars") or 0,
+            "is_fork": bool(r.get("is_fork")),
+            "pushed_at": r.get("pushed_at") or "",
+            "topics": topics,
+            "archived": bool(r.get("archived")),
+        })
+
+    # --- ghosts: planned repos that don't exist live --------------------
+    ghosts = [
+        {"name": name, **place}
+        for name, place in placement.items()
+        if name not in live_names
+    ]
+
+    # --- hub rollup -----------------------------------------------------
+    hubs_roll = []
+    for hub, meta in plan.get("hubs", {}).items():
+        absorbs = meta.get("absorbs", [])
+        live_absorbs = [a for a in absorbs if a in live_names]
+        absorbed_done = [a for a in absorbs if done.get(a) == "absorbed"]
+        archives = [r for r, h in plan.get("archives", {}).items() if h == hub]
+        archived_done = [a for a in archives if done.get(a) == "archived"]
+        hubs_roll.append({
+            "name": hub,
+            "layer": meta.get("layer"),
+            "priority": meta.get("priority"),
+            "description": meta.get("description", ""),
+            "absorb_total": len(absorbs),
+            "absorb_live": len(live_absorbs),
+            "absorb_done": len(absorbed_done),
+            "absorb_pct": round(100 * len(absorbed_done) / len(absorbs)) if absorbs else 0,
+            "archive_total": len(archives),
+            "archive_done": len(archived_done),
+            "ghosts": [a for a in absorbs if a not in live_names],
+        })
+    hubs_roll.sort(key=lambda h: (h["layer"] if h["layer"] is not None else 99))
+
+    # --- layer rollup (fixes the old stub layer-audit page) -------------
+    layer_names = plan.get("layer_names", {})
+    layers_roll = []
+    for num_str, lname in sorted(layer_names.items(), key=lambda kv: int(kv[0])):
+        num = int(num_str)
+        hubs_in_layer = [h for h in hubs_roll if h["layer"] == num]
+        repos_in_layer = sorted(
+            r["name"] for r in reconciled
+            if r["hub"] and any(h["name"] == r["hub"] for h in hubs_in_layer)
+        )
+        layers_roll.append({
+            "num": num,
+            "name": lname,
+            "hubs": [h["name"] for h in hubs_in_layer],
+            "repos": repos_in_layer,
+        })
+
+    orphans = [r for r in reconciled if r["verdict"] == "orphan"]
+
+    return {
+        "scan_id": scan_id,
+        "stats": {
+            "live": len(repos),
+            **counts,
+            "ghost": len(ghosts),
+            "undecided": len(orphans),
+        },
+        "repos": reconciled,
+        "orphans": orphans,
+        "ghosts": ghosts,
+        "hubs": hubs_roll,
+        "layers": layers_roll,
+    }

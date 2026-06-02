@@ -3,8 +3,8 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+import plan_store
 from database import get_db
-from plan import HUB_META, HUB_ABSORBS, HUB_ALTERNATIVES, ARCHIVE_HUB, KEEP_AS_IS
 from services.github import archive_repo
 
 log = logging.getLogger(__name__)
@@ -13,15 +13,16 @@ router = APIRouter()
 
 @router.get("/hubs")
 async def list_hubs():
+    plan = plan_store.get_plan()
     hubs = []
-    for name, meta in HUB_META.items():
+    for name, meta in plan.get("hubs", {}).items():
         hubs.append({
             "name": name,
             "layer": meta["layer"],
             "priority": meta["priority"],
             "description": meta["description"],
-            "absorbs": HUB_ABSORBS.get(name, []),
-            "alternatives": HUB_ALTERNATIVES.get(name, {}),
+            "absorbs": meta.get("absorbs", []),
+            "alternatives": meta.get("alternatives", {}),
         })
     hubs.sort(key=lambda h: h["layer"])
     return hubs
@@ -29,11 +30,12 @@ async def list_hubs():
 
 @router.get("/hubs/{hub}/status")
 async def hub_status(hub: str, scan_id: str | None = None):
-    if hub not in HUB_META:
+    plan = plan_store.get_plan()
+    if hub not in plan.get("hubs", {}):
         raise HTTPException(status_code=404, detail="Unknown hub")
 
-    absorb_targets = HUB_ABSORBS.get(hub, [])
-    archive_targets = [r for r, h in ARCHIVE_HUB.items() if h == hub]
+    absorb_targets = plan["hubs"][hub].get("absorbs", [])
+    archive_targets = [r for r, h in plan.get("archives", {}).items() if h == hub]
 
     async for db in get_db():
         absorbed_rows = await db.execute_fetchall(

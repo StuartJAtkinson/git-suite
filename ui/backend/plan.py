@@ -66,6 +66,16 @@ ARCHIVE_HUB: dict[str, str | None] = {
     "Ontologies": "ontology-align",      "opencyc": "ontology-align",
     "html-tree-generator__chrome-extension": "code-suite",
     "UsefulCodeToMakeGists": "code-suite",
+    # No hub — retire whenever (superseded, abandoned, or out of scope).
+    "Newtonian-Particle-Simulator": None, "MarvelGraph": None,
+    "prettymaps": None,                   "webmapper": None,
+    "FreshView": None,                    "ReverseYoutubePlaylist": None,
+    "infranodus": None,                   "John-Watson-Guides": None,
+    "MTGScrape": None,                    "SteamScrape": None,
+    "ChronoZoom": None,                   "chromeos-apk": None,
+    "windows95": None,                    "esoteric-streamer": None,
+    "nouns-ai-sd-server": None,           "pc-part-dataset": None,
+    "ai-demos": None,
 }
 
 HUB_ALTERNATIVES: dict[str, dict[str, list[str]]] = {

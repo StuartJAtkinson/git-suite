@@ -7,38 +7,23 @@ from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
 
+import plan_store
 from database import get_db
-from plan import HUB_ABSORBS, ARCHIVE_HUB, KEEP_AS_IS
 from services.github import list_repos
 
 router = APIRouter()
 
-# Build a flat lookup: repo_name -> hub (from absorbs + archive targets)
-def _repo_to_hub() -> dict[str, str]:
-    mapping: dict[str, str] = {}
-    for hub, repos in HUB_ABSORBS.items():
-        for r in repos:
-            mapping[r] = hub
-    for repo, hub in ARCHIVE_HUB.items():
-        if hub and repo not in mapping:
-            mapping[repo] = hub
-    return mapping
 
+def _categorise(repo: dict, placement: dict[str, dict]) -> dict:
+    """Categorise one repo against the live plan placement.
 
-_REPO_HUB = _repo_to_hub()
-
-
-def _categorise(repo: dict) -> dict:
+    Placement is computed fresh from plan_store per scan, so a scan always
+    reflects the current plan rather than a snapshot frozen at import time.
+    """
     name = repo["name"]
-    hub = _REPO_HUB.get(name)
-    if name in KEEP_AS_IS:
-        super_cat = "keep"
-    elif name in ARCHIVE_HUB:
-        super_cat = "archive"
-    elif hub:
-        super_cat = "absorb"
-    else:
-        super_cat = "orphan"
+    place = placement.get(name)
+    super_cat = place["verdict"] if place else "orphan"
+    hub = place["hub"] if place else None
 
     return {
         "name": name,
@@ -49,6 +34,12 @@ def _categorise(repo: dict) -> dict:
         "url": repo.get("html_url", ""),
         "visibility": "private" if repo.get("private") else "public",
         "language": repo.get("language") or "",
+        # enriched signal (all come free in the repos list response)
+        "stars": repo.get("stargazers_count") or 0,
+        "is_fork": 1 if repo.get("fork") else 0,
+        "pushed_at": repo.get("pushed_at") or "",
+        "topics": json.dumps(repo.get("topics") or []),
+        "archived": 1 if repo.get("archived") else 0,
     }
 
 
@@ -100,10 +91,11 @@ async def scan_ws(websocket: WebSocket, scan_id: str):
     username = session[0]["github_user"]
 
     log.info("scan %s starting for user=%s", scan_id, username)
+    placement = plan_store.repo_placement()
     repos: list[dict] = []
     try:
         async for repo in list_repos(token, username):
-            row = _categorise(repo)
+            row = _categorise(repo, placement)
             repos.append(row)
             await websocket.send_json({"type": "repo", "data": row})
     except WebSocketDisconnect:
@@ -118,12 +110,14 @@ async def scan_ws(websocket: WebSocket, scan_id: str):
     async for db in get_db():
         await db.executemany(
             """INSERT OR REPLACE INTO repos
-               (scan_id, name, super_cat, mid_cat, fine_cat, aim, url, visibility, language)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (scan_id, name, super_cat, mid_cat, fine_cat, aim, url, visibility, language,
+                stars, is_fork, pushed_at, topics, archived)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             [
                 (
                     scan_id, r["name"], r["super_cat"], r["mid_cat"],
                     r["fine_cat"], r["aim"], r["url"], r["visibility"], r["language"],
+                    r["stars"], r["is_fork"], r["pushed_at"], r["topics"], r["archived"],
                 )
                 for r in repos
             ],
@@ -152,3 +146,43 @@ async def scan_results(scan_id: str, super_cat: str | None = None):
                 "SELECT * FROM repos WHERE scan_id = ?", (scan_id,)
             )
     return [dict(r) for r in rows]
+
+
+@router.get("/scan/latest/{session_id}")
+async def latest_scan(session_id: str):
+    """Return the most recent scan_id and full results for a session."""
+    scan_id: str | None = None
+    repo_count: int | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+    rows_out: list[dict] = []
+
+    async for db in get_db():
+        meta_rows = await db.execute_fetchall(
+            """SELECT scan_id, repo_count, started_at, finished_at
+               FROM scan_meta
+               WHERE session_id = ?
+               ORDER BY started_at DESC
+               LIMIT 1""",
+            (session_id,),
+        )
+        if not meta_rows:
+            raise HTTPException(status_code=404, detail="No scan found for session")
+
+        scan_id = meta_rows[0]["scan_id"]
+        repo_count = meta_rows[0]["repo_count"]
+        started_at = meta_rows[0]["started_at"]
+        finished_at = meta_rows[0]["finished_at"]
+
+        repos_rows = await db.execute_fetchall(
+            "SELECT * FROM repos WHERE scan_id = ?", (scan_id,)
+        )
+        rows_out = [dict(r) for r in repos_rows]
+
+    return {
+        "scan_id": scan_id,
+        "repo_count": repo_count,
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "repos": rows_out,
+    }
