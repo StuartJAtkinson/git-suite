@@ -1,15 +1,6 @@
 import json
-import os
-from anthropic import AsyncAnthropic
 
-_client: AsyncAnthropic | None = None
-
-
-def _get_client() -> AsyncAnthropic:
-    global _client
-    if _client is None:
-        _client = AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    return _client
+from services import llm
 
 
 async def extract_features(url: str, content: str) -> tuple[str, list[str]]:
@@ -38,13 +29,7 @@ Rules:
 - No marketing fluff ("best-in-class", "powerful", etc.)
 - If the page is not a product page, return {{"name": "Unknown", "features": []}}
 """
-    client = _get_client()
-    response = await client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    text = response.content[0].text.strip()
+    text = (await llm.complete(prompt, max_tokens=1024)).strip()
     # Strip markdown code fences if present
     if text.startswith("```"):
         text = text.split("```")[1]
