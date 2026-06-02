@@ -41,3 +41,13 @@ generate_github_index.py
 # Runtime state — never commit
 ui/backend/state.db
 ui/backend/logs/
+
+# Docker
+data/
+.dockerignore
+docker-compose*.yml
+Dockerfile.*
+nginx.conf
+.env
+.env.docker
+.env.*.local

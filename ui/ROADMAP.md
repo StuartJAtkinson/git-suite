@@ -108,11 +108,13 @@ hub_actions     (hub, repo, action, done_at)   -- action: absorbed | archived
 
 ---
 
-## Phase 3 — Deployment
+## Phase 3 — Deployment (DONE)
 
-- `docker-compose.yml` — backend + frontend containers
-- Nginx reverse proxy
-- `.env` for secrets (ANTHROPIC_API_KEY, GH_TOKEN)
+- `docker-compose.yml` — backend + frontend + nginx
+- `Dockerfile.backend` — FastAPI container
+- `Dockerfile.frontend` — SvelteKit static build
+- `nginx.conf` — reverse proxy (HTTP on :8080, /api + /auth → backend, /* → frontend)
+- `.env.docker` — template for secrets (ANTHROPIC_API_KEY, GH_TOKEN)
 - Optional: Traefik integration with homelab-core
 
 ---

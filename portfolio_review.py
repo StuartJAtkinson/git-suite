@@ -28,259 +28,32 @@ CSV_IN      = _HERE / "github_index.csv"
 GITHUB_USER = "StuartJAtkinson"
 
 # ---------------------------------------------------------------------------
-# Plan data
+# Plan data — single source of truth is the web app's seed (ui/backend/plan.py),
+# which feeds plan_store / ~/.git-suite/plan.json. This CLI derives its view
+# from that seed so the two can never drift again. Edit the plan there, not here.
 # ---------------------------------------------------------------------------
 
+sys.path.insert(0, str(_HERE / "ui" / "backend"))
+import plan as _seed  # noqa: E402
+
 NEW_REPOS = {
-    "personal-ai-os": {
-        "layer":       3,
-        "priority":    2,
-        "description": "Unified local AI OS — RAG, memory, email ingestion, emotional events",
-        "absorbs": [
-            "quivr",               # RAG over personal docs
-            "EMailParseAI",        # email ingestion
-            "heart-on-a-sleeve",   # emotional event tracker
-            "gsd-work",            # personal GTD (moved from work-hub — personal scope)
-            "LangFlowProject",     # agentic workflow experiments
-            "Multi-agent-DataAnalysis",  # LangGraph research pipeline
-            "MultiCoT",            # chain-of-table reasoning
-            "STTScrape",           # speech-to-text transcript extraction
-        ],
-    },
-    "ontology-align": {
-        "layer":       1,
-        "priority":    1,
-        "description": "Validates and aligns ontological schemas across repos",
-        "absorbs": [
-            "place-time",              # H3 spatial-temporal ontology (L1 not L5 — classification system)
-            "ontologiesUK",            # UK Parliament/ONS ontology
-            "CommonCoreOntologies",    # enterprise knowledge ontology
-            "federated-api-model",     # government API ontology
-            "IAO",                     # Information Artifact Ontology
-            "Sagex3-Script-Parser",    # formal grammar for Sage X3 ERP — schema/language tool
-            "UKPoliticsData",          # UK open political data → graph DB
-            "neo4J-SQL-Graphs",        # Neo4j + SQL graph unification
-        ],
-    },
-    "homelab-core": {
-        "layer":       8,
-        "priority":    1,
-        "description": "Self-hosted infrastructure control plane — service discovery, secrets, stack deployment and homelab orchestration",
-        "absorbs": [
-            "homelab-designer",        # scrapes app registries, generates install plans
-            "homelab-discovery",       # service discovery and inventory
-            "infisical",               # secrets and privileged access management
-            "orchestration-stack",     # Traefik + monitoring + AI orchestration stack
-            "ai-work-orchestration",   # Vikunja + Formbricks + AI infra (moved from work-hub — it's deployment)
-            "winutil",                 # Windows tweaks/installs via PowerShell
-            "linutil",                 # Linux toolbox for installs/tweaks
-            "fusio",                   # API management gateway
-        ],
-    },
-    "work-hub": {
-        "layer":       2,
-        "priority":    2,
-        "description": "Self-hosted professional work management — tickets, CRM and project tools",
-        # Trimmed to purely professional scope.
-        # ai-work-orchestration → homelab-core (it's infra deployment, not work management)
-        # gsd-work → personal-ai-os (personal GTD, not professional workflow)
-        "absorbs": [
-            "guided-tickets",          # Zoho-backed guided support ticketing
-            "jira-dependency-graph",   # Jira project/issue graph visualisation
-            "ZohoAPI",                 # Zoho CRM integration
-            "Jira-Lens",               # Jira analysis tool
-        ],
-    },
-    "media-hub": {
-        "layer":       4,
-        "priority":    3,
-        "description": "Unified media ingestion — social archives, comics, photos and video",
-        "absorbs": [
-            "socialMediaArchiver",     # social content archiver
-            "YouTubeCommunityPosts",   # YouTube community post scraper
-            "simklExporter",           # TV/anime watch history export
-            "CBL-ReadingLists",        # comic reading orders
-            "marvel-comics-api",       # Marvel comics API client
-            "EXIF-SpaceTime",          # photo EXIF geolocation/time editor
-            "tweetext",                # Wayback Machine tweet recovery
-            "comictagger",             # digital comic metadata tagger
-            "linkedin-api",            # LinkedIn data tools
-            "TagStudio",               # photo/file management with tagging
-            "ClipsReview",             # video clip review tool
-            "autoEdit_2",              # automated video editing
-            "intelli-video",           # intelligent video processing
-            "AIPhotoRestore",          # AI photo restoration
-        ],
-    },
-    "map-suite": {
-        "layer":       5,
-        "priority":    2,
-        "description": "OSM-based unified mapping — indoor, outdoor, 3D and procedural fantasy",
-        # place-time removed — ontological system belongs in ontology-align (L1)
-        "absorbs": [
-            "qgis-mcp",                # QGIS + Claude AI via MCP (owned)
-            "Fantasy-Map-Generator",   # procedural fantasy map generation
-            "planetiler",              # planet-scale vector tile generator
-            "OSM2World",               # OSM → 3D world models
-            "streets-gl",              # WebGL OSM 3D renderer
-            "openindoor6",             # indoor mapping and routing
-            "OsmGo",                   # mobile OSM field editing
-            "worldengine",             # procedural world simulation (plates, erosion)
-        ],
-    },
-    "game-hub": {
-        "layer":       6,
-        "priority":    3,
-        "description": "Unified gaming platform — FFXIV toolkit, Pokemon, Zelda, Steam and TTRPG",
-        "absorbs": [
-            # FFXIV
-            "FFXIVQuestMap",           # FFXIV quest dependency map (owned)
-            "FFXIVAPI",                # FFXIV data extraction scripts (owned)
-            "AllaganTools",            # FFXIV inventory/market Dalamud plugin
-            "Lumina",                  # FFXIV game data C# framework
-            "XIVSlothCombo",           # FFXIV rotation helper plugin
-            # Pokemon / Zelda
-            "PokeManager",             # Pokemon Go mass-transfer tool (owned)
-            "Pokedex-RL",              # real-life Pokedex via photo (owned)
-            "ZeldaRecipes",            # Zelda ingredient recipe finder (owned)
-            "BOTW-Recipes",            # BOTW recipe reference (owned)
-            "BlossomsPokemonGoManager",# Pokemon Go manager (owned)
-            "Pogo-Account-Checker",    # Pokemon Go PTC account checker (owned)
-            "GoDex",                   # Go-based Pokedex (owned)
-            "PokemonGo-Bot",           # Pokemon Go automation (owned)
-            "botw-tools",              # BOTW tools (owned)
-            # Other games
-            "d4buildsAPI",             # Diablo 4 build data scraper (owned)
-            "gwSkills",                # Guild Wars 2 skills reference (owned)
-            "DungeonGeneration",       # procedural dungeon generation (owned)
-            # TTRPG
-            "Chronicle-Keeper",        # AI GM assistant for TTRPG campaigns (owned)
-            "foundryvtt-session-scheduler", # Foundry VTT session scheduling (owned)
-            "dnd-aMagaAdventure",      # D&D adventure content (owned)
-            "Armoria",                 # heraldry generator — worldbuilding/creative
-        ],
-    },
-    "code-suite": {
-        "layer":       7,
-        "priority":    4,
-        "description": "Unified code management — bulk ops, semantic search, code graph and cheatsheets",
-        "absorbs": [
-            "DoIHaveEverything",       # repo inventory checker (owned)
-            "Coding-Cheatsheets",      # personal coding cheatsheet notebooks (owned)
-            "CodeAtlasVsix",           # graph-based code navigation VS plugin (owned)
-            "SQLFluffParsing",         # SQL parsing/linting exploration (owned)
-            "ClickTheseThings",        # UI element auto-clicker automation (owned)
-            "Page-Manipulator",        # page/DOM manipulation tool (owned)
-            "RepoReader",              # repo content reader (owned)
-            "bytebytego-grabber",      # ByteByteGo content scraper (owned)
-            "bloop",                   # semantic code search engine
-            "all-repos",               # bulk git repo operations
-            "astral",                  # GitHub stars organiser
-        ],
-    },
+    name: {
+        "layer":       meta["layer"],
+        "priority":    meta["priority"],
+        "description": meta["description"],
+        "absorbs":     list(_seed.HUB_ABSORBS.get(name, [])),
+    }
+    for name, meta in _seed.HUB_META.items()
 }
 
-# Archive targets: repo → hub they belong to (None = retire regardless, no hub needed)
-ARCHIVE_HUB: dict[str, str | None] = {
-    # work-hub era
-    "belzona-tickets":                    "work-hub",
-    "JiraApp":                            "work-hub",
-    # game-hub era
-    "FFXIV-Scraping":                     "game-hub",
-    "FFXIVPlugin":                        "game-hub",
-    "InteractiveMaps":                    "game-hub",
-    "Tetra-Master-Clone":                 "game-hub",
-    "TownGeneratorOS":                    "game-hub",
-    "botwr":                              "game-hub",
-    "donjonrp":                           "game-hub",
-    "dummy-sheet":                        "game-hub",
-    # media-hub era
-    "ClipsReview":                        "media-hub",
-    "TagStudio":                          "media-hub",
-    "restorePhotos":                      "media-hub",
-    "twitterscraper":                     "media-hub",
-    # homelab-core era
-    "mRemoteNG":                          "homelab-core",
-    "linutil":                            "homelab-core",
-    # ontology-align era
-    "Ontologies":                         "ontology-align",
-    "opencyc":                            "ontology-align",
-    # code-suite era
-    "html-tree-generator__chrome-extension": "code-suite",
-    "UsefulCodeToMakeGists":              "code-suite",
-    # no hub — retire whenever
-    "Newtonian-Particle-Simulator":       None,
-    "MarvelGraph":                        None,
-    "prettymaps":                         None,
-    "webmapper":                          None,
-    "FreshView":                          None,
-    "ReverseYoutubePlaylist":             None,
-    "infranodus":                         None,
-    "John-Watson-Guides":                 None,
-    "MTGScrape":                          None,
-    "SteamScrape":                        None,
-    "ChronoZoom":                         None,
-    "chromeos-apk":                       None,
-    "windows95":                          None,
-    "esoteric-streamer":                  None,
-    "nouns-ai-sd-server":                 None,
-    "pc-part-dataset":                    None,
-    "ai-demos":                           None,
-}
-
+# Archive targets: repo → hub they belong to (None = retire regardless).
+ARCHIVE_HUB: dict[str, str | None] = dict(_seed.ARCHIVE_HUB)
 ARCHIVE_TARGETS = set(ARCHIVE_HUB.keys())
 
-# Repos that stay standalone — working tools, libraries, forks used as references.
-# Not absorbed into a hub, not archived.
-KEEP_AS_IS = {
-    # XIVAPI site repo — reference, not a merge target
-    "xivapi.com",
-    # Unique: live microphone-driven generative visual effects — no OSS/commercial equivalent
-    "VTuberLIVE",
-    # Genealogy cluster
-    "AncestryBrowsableSchema",
-    "FTAnalyzer",
-    "wikitree-sourcer",
-    # AI agent frameworks (forks/references — influence personal-ai-os but stay separate)
-    "Archon",
-    "OpenDevin",
-    "agent-zero",
-    "crewAI",
-    "crewAI-examples",
-    "crawl4ai",
-    "portia",
-    "headless-recorder",
-    "langgraph-search-agents",
-    "rag-from-scratch",
-    "llm-answer-engine",
-    "kg_llm",
-    # ActivityWatch integrations (working, standalone)
-    "aw-import-ical",
-    "aw-watcher-ask",
-    # Libraries / visualisation dependencies
-    "GoJS",
-    "jsoncrack.com",
-    "venn.js",
-    "segment-anything",
-    # Browser extensions (working, self-contained)
-    "YouTubeExtension",
-    "free-map-genie",
-    # This repo itself
-    "git-suite",
-}
+# Repos that stay standalone — working tools, libraries, reference forks.
+KEEP_AS_IS = set(_seed.KEEP_AS_IS)
 
-LAYER_NAMES = {
-    0: "Event Bus & Dispatch",
-    1: "Ontological Backbone",
-    2: "Automation & Workflow",
-    3: "Knowledge & RAG",
-    4: "Media & Archiving",
-    5: "GIS & Maps",
-    6: "Game & Entertainment",
-    7: "Dev & Code Tools",
-    8: "Homelab & Infra",
-    9: "Creative & Graphics",
-}
+LAYER_NAMES = dict(_seed.LAYER_NAMES)
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -2,6 +2,8 @@
 
 ## Open
 
+- [ ] **Plan editing is repo-verdict only** — can set a repo's fate, but hub meta (layer/priority/description/alternatives) and creating new hubs still require editing plan.py seed. Add hub-level plan editing if needed *(found 2026-06-02)*
+
 - [ ] **L9 Creative has no hub** — `VTuberLIVE` (live audio-driven generative visuals) is unique with no OSS/commercial equivalent; currently kept as-is but has no layer home. Consider a `creative-hub` if other L9 repos accumulate *(found 2026-05-25)*
 
 - [ ] **fetch_following() not paginated** — removed as a concern (following list no longer fetched in simplified script); if re-added later, remember to paginate beyond 100 *(found 2026-05-24)*
@@ -9,6 +11,25 @@
 
 
 ## Resolved
+
+- [x] **Phase 3: Migration assist** — `services/migration.py` (checklist_for via LLM failover + per-language rule template; scaffold_for; build_migration_md) + `github.get_readme` (on-demand) + `routers/migration.py` (GET hub scaffold/status, POST generate+cache checklist, POST push MIGRATION.md) + migration_checklist DB table. Hub detail gained a Migration section: per-absorb generate/regenerate/view-steps + Push MIGRATION.md. Live-verified game-hub (21 absorbs, 7-step rule checklist cached). +5 tests (37 total) *(resolved 2026-06-02)*
+- [x] **list_repos missed private repos** — used /users/{username}/repos (public only), so scan/reconcile/execute saw 118 of ~144 repos and flagged private hubs (personal-ai-os, ontology-align) as "missing". Switched to /user/repos?affiliation=owner&visibility=all. Re-scan in UI to capture the full portfolio *(resolved 2026-06-02)*
+- [x] **Phase 2: Execute only archived; READMEs used stale seed** — (a) readme.py routed through plan_store with reusable compose_section/push_hub_readme/readme_status; (b) github.create_repo + get_file added; (c) Execute expanded to 3 dry-run groups — archive, create-missing-hubs, push-READMEs (diffed vs composed) — each idempotent with select+run UI; (d) hub detail shows plan OSS/commercial alternatives. Live-verified: 11 archive / 13 already / 0 create / 8 README stale. +9 tests (32 total) *(resolved 2026-06-02)*
+- [x] **Phase 1a: scan was signal-poor** — enriched scan with topics, stars, fork, pushed_at, archived (DB migration + scan capture + reconcile passthrough); replan rules now also score against topics *(resolved 2026-06-02)*
+- [x] **Phase 1b: plan data duplicated/drifting** — plan.py made canonical (37 archive targets, was 20); portfolio_review.py now derives its plan from the seed (duplicated dicts removed) so the two can't drift; stale .xlsx deleted (.venv already git-ignored). Reconcile orphans dropped 19→0 *(resolved 2026-06-02)*
+- [x] **8 hub repos showed as orphans** — repo_placement now treats any hub repo as implicitly 'keep' (a hub is the destination, not a candidate); fix applies across scan/reconcile/execute/replan *(resolved 2026-06-02)*
+- [x] **Archive count drift (PLAN.md 35 vs plan.py 20)** — plan.py ARCHIVE_HUB restored to the full 37 (incl. no-hub retire-anytime targets); plan_store reseeded *(resolved 2026-06-02)*
+- [x] **Phase 1c: no automated tests** — added pytest suite (26 tests) covering plan_store verdicts/placement, reconcile diffing, replan two-phase generation + rules, execute idempotency, llm failover; + pytest.ini + requirements-dev.txt. All green *(resolved 2026-06-02)*
+- [x] **LLM had no failover — single provider, no resilience** — added `llm_providers.py` (registry: api_type/base_url/default_model/exhaust_patterns, adapted from belzona-tickets) + `services/llm.py` (async failover client: builds chain from config keys+models+priority_order, advances past exhausted/transient providers, persists floor, keyless Ollama opt-in only). Routed `claude_ai.extract_features` + `replan._llm_proposal` through it. Added `GET /api/config/llm-status` + Setup page chain readout. Tested: anthropic→openai failover on credit error, subsequent calls skip dead provider, empty-config degrades to rules-only *(resolved 2026-06-02)*
+- [x] **No execute step — planning never reached GitHub (philosophy #4)** — added `routers/execute.py`: `GET /api/execute/preview` (dry-run: archive-verdict repos checked against *live* GitHub state → will/already/gone) + `POST /api/execute/archive` (batch, idempotent — skips already-archived/gone, records hub_actions). Frontend `/execute` page: grouped preview, per-repo select, explicit confirm checkbox, batch run, results. Live-tested: 11 will-archive (matches reconcile), skip path verified, no real archive fired *(resolved 2026-06-02)*
+- [x] **Stack never booted live (only TestClient/build)** — verified under real uvicorn: lifespan creates new tables, /health + /api/plan + /api/reconcile + /api/replan/state + /api/execute/preview all serve 200 *(resolved 2026-06-02)*
+- [x] **Scoping was a one-shot LLM call, not a loop** — added an iterative re-planning loop: `services/replan.py` engine (hybrid keyword/language rules + LLM fallback, degrades to rules-only with no API key) + `routers/replan.py` (`/api/replan/pass`, `/state`, `/proposals`, accept/reject, `/history`) + DB tables (replan_pass, proposal, plan_history) + `/replan` UI page. Two-phase state machine: incremental (fill orphans/prune ghosts) until fully planned, then structural replan (split/new-hub advisories). Validated: 45 proposals from live scan, accept applies via plan_store + logs history *(resolved 2026-06-02)*
+- [x] **8 hub repos showed as orphans** — replan engine now self-keeps any repo that is itself a hub (proposes verdict=keep, conf 0.95) *(resolved 2026-06-02)*
+- [x] **Plan was code, not data (philosophy #1)** — added `plan_store.py`: canonical plan in `~/.git-suite/plan.json`, seeded from plan.py; refactored hubs.py + scan.py to read it at request time; added GET/POST `/api/plan` + `/api/plan/verdict` + `/api/plan/reset` *(resolved 2026-06-02)*
+- [x] **No reconciliation engine (philosophy #2)** — added `routers/reconcile.py`: `/api/reconcile/{session}` diffs latest scan vs plan → per-repo verdict, orphans, ghosts, hub + layer rollups, done-flags. Validated against live 118-repo scan *(resolved 2026-06-02)*
+- [x] **No triage workflow (philosophy #3)** — added `/triage` SvelteKit page: keyboard-fast verdict queue (1–8 absorb, a/k/o/s), optimistic updates; added to nav *(resolved 2026-06-02)*
+- [x] **layer-audit page was a stub** — `byLayer` always rendered empty; now populated from reconcile layer rollup, with hub labels per layer *(resolved 2026-06-02)*
+- [x] **summary page read non-existent `hub._status` + undefined `orphans`** — rewritten on the single reconcile call; shows live/absorbed/archived/undecided/ghost stats, per-hub progress, next-action list *(resolved 2026-06-02)*
 
 - [x] **place-time cross-layer conflict** — resolved: `place-time` is ontology-first (temporal/spatial as classification), not a mapping tool; removed from `map-suite` absorbs, kept in `ontology-align` only *(resolved 2026-05-24)*
 
