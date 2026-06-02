@@ -2,7 +2,6 @@
 
 ## Open
 
-- [ ] **Fresh-start UI surfacing** — backend done (blank plan, prune-ghosts, stub flag); still need UI buttons: "Start fresh (blank plan)" on Setup/Summary, "Prune ghosts" on Replan/Summary, and stub badges in Triage/Summary *(found 2026-06-03)*
 - [ ] **Hub stub lifecycle (decided 2026-06-03)** — archive the 8 empty hub repos now; after the plan is set, either UN-archive ("return") the one that becomes the correct group repo, or DELETE it once its content is absorbed. Build: github.unarchive_repo (PATCH archived:false) + delete_repo (needs delete_repo PAT scope); Execute hub-level actions (archive hub / return hub / delete absorbed hub) with confirm *(found 2026-06-03)*
 - [ ] **Browse folder picker errors on some setups** — tkinter subprocess returns "Folder dialog unavailable"; manual path entry works and is the reliable route. Low priority *(found 2026-06-03)*
 - [ ] **Plan editing is repo-verdict only** — can set a repo's fate, but hub meta (layer/priority/description/alternatives) and creating new hubs still require editing plan.py seed. Add hub-level plan editing if needed *(found 2026-06-02)*
@@ -15,6 +14,7 @@
 
 ## Resolved
 
+- [x] **Phase 5 (partial): fresh-start UI** — Replan page got "Prune N ghosts" + "Start fresh (blank plan)" buttons (with confirm); Triage shows stub badges. Backend blank/prune/stub already landed *(resolved 2026-06-03)*
 - [x] **Phase 3: Migration assist** — `services/migration.py` (checklist_for via LLM failover + per-language rule template; scaffold_for; build_migration_md) + `github.get_readme` (on-demand) + `routers/migration.py` (GET hub scaffold/status, POST generate+cache checklist, POST push MIGRATION.md) + migration_checklist DB table. Hub detail gained a Migration section: per-absorb generate/regenerate/view-steps + Push MIGRATION.md. Live-verified game-hub (21 absorbs, 7-step rule checklist cached). +5 tests (37 total) *(resolved 2026-06-02)*
 - [x] **list_repos missed private repos** — used /users/{username}/repos (public only), so scan/reconcile/execute saw 118 of ~144 repos and flagged private hubs (personal-ai-os, ontology-align) as "missing". Switched to /user/repos?affiliation=owner&visibility=all. Re-scan in UI to capture the full portfolio *(resolved 2026-06-02)*
 - [x] **Phase 2: Execute only archived; READMEs used stale seed** — (a) readme.py routed through plan_store with reusable compose_section/push_hub_readme/readme_status; (b) github.create_repo + get_file added; (c) Execute expanded to 3 dry-run groups — archive, create-missing-hubs, push-READMEs (diffed vs composed) — each idempotent with select+run UI; (d) hub detail shows plan OSS/commercial alternatives. Live-verified: 11 archive / 13 already / 0 create / 8 README stale. +9 tests (32 total) *(resolved 2026-06-02)*
