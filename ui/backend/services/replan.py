@@ -175,6 +175,16 @@ async def generate_proposals(recon: dict) -> tuple[str, list[dict]]:
                 "rationale": "this repo is itself a hub — keep standalone",
             })
             continue
+        # Low-signal stub -> propose archiving it (unless it's function-distinct,
+        # which the human decides on review).
+        if orphan.get("stub_reason"):
+            proposals.append({
+                "kind": "verdict", "target": orphan["name"],
+                "proposed": {"verdict": "archive", "hub": None},
+                "source": "rule", "confidence": 0.7,
+                "rationale": orphan["stub_reason"] + " — archive unless function-distinct",
+            })
+            continue
         rule = _rule_proposal(orphan)
         if rule and rule["confidence"] >= _RULE_THRESHOLD:
             proposals.append(rule)

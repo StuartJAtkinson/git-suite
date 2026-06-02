@@ -56,6 +56,18 @@ def test_incremental_phase_verdicts_and_ghosts():
     assert tile_p["proposed"]["hub"] == "map-suite"
 
 
+def test_stub_orphan_proposed_for_archive():
+    from services import replan
+    recon = _recon(
+        undecided=1,
+        orphans=[{"name": "junk", "aim": "", "language": "", "topics": [],
+                  "stub_reason": "likely stub: 4KB, no description, no stars/topics"}],
+    )
+    _, proposals = asyncio.run(replan.generate_proposals(recon))
+    p = next(x for x in proposals if x["target"] == "junk")
+    assert p["proposed"]["verdict"] == "archive"
+
+
 def test_replan_phase_unlocks_structural():
     from services import replan
     recon = _recon(
