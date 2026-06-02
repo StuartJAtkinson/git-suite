@@ -28,6 +28,13 @@
   let pushing = false;
   let pushMsg = '';
 
+  // Migration assist
+  let migration = null;
+  let genning = {};
+  let expanded = {};
+  let pushingMig = false;
+  let migMsg = '';
+
   onMount(async () => {
     if (!$session) { goto('/'); return; }
     await load();
@@ -40,6 +47,7 @@
       const hubs = await api.getHubs();
       hubMeta = hubs.find((h) => h.name === hub);
       status = await api.getHubStatus(hub);
+      migration = await api.migrationHub(hub, $session.session_id);
     } catch (e) {
       errorMsg = e.message;
     } finally {
@@ -123,11 +131,38 @@
     }
   }
 
+  async function genChecklist(repo, regenerate = false) {
+    genning = { ...genning, [repo]: true };
+    errorMsg = '';
+    try {
+      await api.genChecklist($session.session_id, hub, repo, regenerate);
+      migration = await api.migrationHub(hub, $session.session_id);
+      expanded = { ...expanded, [repo]: true };
+    } catch (e) {
+      errorMsg = `Checklist failed for ${repo}: ${e.message}`;
+    } finally {
+      genning = { ...genning, [repo]: false };
+    }
+  }
+
+  async function pushMigration() {
+    pushingMig = true; migMsg = ''; errorMsg = '';
+    try {
+      const r = await api.pushMigration($session.session_id, hub);
+      migMsg = `Pushed MIGRATION.md (${r.bytes} bytes).`;
+    } catch (e) {
+      errorMsg = e.message;
+    } finally {
+      pushingMig = false;
+    }
+  }
+
   const LAYER = {
     0: 'Event Bus', 1: 'Ontology', 2: 'Automation', 3: 'Knowledge & RAG',
     4: 'Media', 5: 'GIS & Maps', 6: 'Gaming', 7: 'Dev Tools', 8: 'Homelab',
   };
 
+  // styles for alternative chips live in app.css-adjacent block below
   $: absorbs   = status?.absorbs  ?? [];
   $: archives  = status?.archives ?? [];
   $: refs      = status?.commercial_refs ?? [];
@@ -174,6 +209,53 @@
 </div>
 {/if}
 
+<!-- ── Migration assist ── -->
+{#if migration && migration.absorbs.length}
+<div class="section">
+  <div class="section-head">
+    <h2>Migration plan</h2>
+    <button class="sm secondary" disabled={pushingMig} on:click={pushMigration}>
+      {pushingMig ? 'Pushing…' : 'Push MIGRATION.md'}
+    </button>
+  </div>
+  {#if migMsg}<div class="ok-msg" style="margin-bottom:0.6rem">{migMsg}</div>{/if}
+  <div class="repo-list">
+    {#each migration.absorbs as m}
+      <div class="mig-item">
+        <div class="mig-head">
+          <span class="repo-name">{m.repo}</span>
+          {#if m.language}<span class="lang-tag">{m.language}</span>{/if}
+          <code class="mig-path">{m.path}</code>
+          {#if m.done}<span class="mig-badge done">absorbed</span>
+          {:else if !m.live}<span class="mig-badge gone">not on GitHub</span>
+          {:else}<span class="mig-badge ready">ready</span>{/if}
+          <span class="mig-actions">
+            {#if m.has_checklist}
+              <button class="sm ghost" on:click={() => (expanded = { ...expanded, [m.repo]: !expanded[m.repo] })}>
+                {expanded[m.repo] ? 'Hide' : 'Steps'}
+              </button>
+              <button class="sm ghost" disabled={genning[m.repo]} on:click={() => genChecklist(m.repo, true)}>
+                {genning[m.repo] ? '…' : 'Regenerate'}
+              </button>
+            {:else}
+              <button class="sm" disabled={genning[m.repo]} on:click={() => genChecklist(m.repo)}>
+                {genning[m.repo] ? 'Generating…' : 'Generate checklist'}
+              </button>
+            {/if}
+          </span>
+        </div>
+        {#if m.has_checklist && expanded[m.repo]}
+          <ol class="mig-steps">
+            {#each m.steps as s}<li>{s}</li>{/each}
+          </ol>
+          {#if m.source}<div class="mig-source">via {m.source}</div>{/if}
+        {/if}
+      </div>
+    {/each}
+  </div>
+</div>
+{/if}
+
 <!-- ── Archive queue ── -->
 {#if archives.length}
 <div class="section">
@@ -201,7 +283,30 @@
 </div>
 {/if}
 
-<!-- ── Commercial benchmarks ── -->
+<!-- ── Reference alternatives (from the plan) ── -->
+{#if hubMeta?.alternatives && (hubMeta.alternatives.oss?.length || hubMeta.alternatives.commercial?.length)}
+<div class="section">
+  <div class="section-head"><h2>Reference alternatives</h2></div>
+  {#if hubMeta.alternatives.oss?.length}
+    <div class="alt-row">
+      <span class="alt-label oss">OSS</span>
+      <div class="alt-chips">
+        {#each hubMeta.alternatives.oss as a}<span class="alt-chip">{a}</span>{/each}
+      </div>
+    </div>
+  {/if}
+  {#if hubMeta.alternatives.commercial?.length}
+    <div class="alt-row">
+      <span class="alt-label comm">Commercial</span>
+      <div class="alt-chips">
+        {#each hubMeta.alternatives.commercial as a}<span class="alt-chip">{a}</span>{/each}
+      </div>
+    </div>
+  {/if}
+</div>
+{/if}
+
+<!-- ── Commercial benchmarks (scraped) ── -->
 <div class="section">
   <div class="section-head">
     <h2>Commercial benchmarks ({refs.length})</h2>
@@ -264,3 +369,25 @@
     <div class="preview-box" style="margin-top:0.75rem">{preview}</div>
   {/if}
 </div>
+
+<style>
+  .alt-row { display: flex; align-items: flex-start; gap: 0.6rem; margin-bottom: 0.5rem; }
+  .alt-label { font-size: 0.7rem; font-weight: 700; border-radius: 4px; padding: 0.15em 0.5em; white-space: nowrap; }
+  .alt-label.oss { background: #d1fae5; color: #065f46; }
+  .alt-label.comm { background: #e0e7ff; color: #3730a3; }
+  .alt-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .alt-chip { font-size: 0.78rem; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; padding: 0.1rem 0.5rem; }
+
+  .mig-item { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.55rem 0.75rem; }
+  .mig-head { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; }
+  .mig-path { font-size: 0.75rem; background: #eef2ff; color: #3730a3; border-radius: 4px; padding: 0.1em 0.4em; }
+  .lang-tag { font-size: 0.72rem; background: #eff6ff; color: #1e40af; border-radius: 4px; padding: 0.1em 0.4em; }
+  .mig-badge { font-size: 0.7rem; border-radius: 4px; padding: 0.1em 0.45em; font-weight: 600; }
+  .mig-badge.ready { background: #dbeafe; color: #1e40af; }
+  .mig-badge.done { background: #d1fae5; color: #065f46; }
+  .mig-badge.gone { background: #f3f4f6; color: #9ca3af; }
+  .mig-actions { margin-left: auto; display: flex; gap: 0.3rem; }
+  .mig-steps { margin: 0.6rem 0 0.2rem; padding-left: 1.4rem; font-size: 0.85rem; color: #374151; line-height: 1.5; }
+  .mig-steps li { margin-bottom: 0.25rem; }
+  .mig-source { font-size: 0.72rem; color: #9ca3af; }
+</style>

@@ -15,8 +15,15 @@
 <nav>
   <a href="/" class="brand">git-suite</a>
   <div class="links">
-    <a href="/hubs" class={active('/hubs')}>Hubs</a>
     <a href="/scan" class={active('/scan')}>Scan</a>
+    <a href="/triage" class={active('/triage')}>Triage</a>
+    <a href="/replan" class={active('/replan')}>Replan</a>
+    <a href="/hubs" class={active('/hubs')}>Hubs</a>
+    <a href="/archive" class={active('/archive')}>Archive</a>
+    <a href="/execute" class={active('/execute')}>Execute</a>
+    <a href="/layer-audit" class={active('/layer-audit')}>Layers</a>
+    <a href="/summary" class={active('/summary')}>Summary</a>
+    <a href="/setup" class={active('/setup')}>Setup</a>
   </div>
   <span class="spacer"></span>
   {#if $session}
