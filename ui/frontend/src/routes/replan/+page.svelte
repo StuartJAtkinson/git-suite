@@ -76,6 +76,25 @@
     ]);
   }
 
+  async function pruneGhosts() {
+    if (!confirm(`Prune ${state.ghosts} ghost(s) — repos no longer on GitHub — from the plan?`)) return;
+    running = true; errorMsg = '';
+    try {
+      await api.pruneGhosts($session.session_id);
+      await load();
+    } catch (e) { errorMsg = e.message; } finally { running = false; }
+  }
+
+  async function startFresh() {
+    if (!confirm('Start fresh? Clears every repo assignment (hub shells kept). You then rebuild the plan from a scan via Triage/Replan.')) return;
+    running = true; errorMsg = '';
+    try {
+      await api.blankPlan();
+      proposals = [];
+      await load();
+    } catch (e) { errorMsg = e.message; } finally { running = false; }
+  }
+
   function fmtProposed(p) {
     if (p.kind === 'verdict' || p.kind === 'reassign')
       return p.proposed.verdict + (p.proposed.hub ? ` → ${p.proposed.hub}` : '');
@@ -121,7 +140,11 @@
         ✓ Accept all high-confidence
       </button>
     {/if}
+    {#if state.ghosts > 0}
+      <button class="ghost" on:click={pruneGhosts} disabled={running}>🗑 Prune {state.ghosts} ghosts</button>
+    {/if}
     <button class="ghost" on:click={load} disabled={running}>↻ Reload</button>
+    <button class="ghost danger-ghost" on:click={startFresh} disabled={running}>Start fresh</button>
   </div>
 
   <!-- Proposals -->
@@ -182,6 +205,7 @@
   .phase-text { font-size: 0.875rem; color: #374151; }
   .phase-stats { display: flex; gap: 0.6rem; font-size: 0.75rem; color: #6b7280; white-space: nowrap; }
   .phase-stats span { background: rgba(255,255,255,0.7); border-radius: 4px; padding: 0.15em 0.5em; }
+  .danger-ghost { margin-left: auto; color: #b91c1c; border-color: #fecaca; }
 
   .prop-list, .hist-list { display: flex; flex-direction: column; gap: 0.4rem; }
   .prop-row { display: grid; grid-template-columns: 72px 180px 150px 48px 42px 1fr auto; align-items: center; gap: 0.6rem; padding: 0.45rem 0.7rem; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.84rem; }

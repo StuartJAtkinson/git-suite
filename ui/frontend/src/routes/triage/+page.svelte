@@ -120,6 +120,7 @@
           <span class="repo-name big">{active.name}</span>
           {#if active.language}<span class="lang-tag">{active.language}</span>{/if}
           <span class="badge cat-{active.verdict}">{active.verdict}{active.hub ? ` → ${active.hub}` : ''}</span>
+          {#if active.stub_reason}<span class="badge stub-badge" title={active.stub_reason}>stub</span>{/if}
           {#if active.done}<span class="badge done-badge">{active.done}</span>{/if}
           <span class="counter">{activeIndex + 1} / {queue.length}</span>
         </div>
@@ -158,6 +159,7 @@
             <span class="repo-name">{r.name}</span>
             {#if r.language}<span class="lang-tag">{r.language}</span>{/if}
             <span class="badge cat-{r.verdict}">{r.verdict}{r.hub ? ` → ${r.hub}` : ''}</span>
+            {#if r.stub_reason}<span class="badge stub-badge" title={r.stub_reason}>stub</span>{/if}
           </div>
         {/each}
       </div>
@@ -180,6 +182,7 @@
   .active-aim { color: #4b5563; font-size: 0.9rem; margin: 0.6rem 0 0.3rem; }
   .active-url { font-size: 0.78rem; word-break: break-all; }
   .done-badge { background: #1a1a2e; color: #fff; }
+  .stub-badge { background: #fee2e2; color: #991b1b; }
 
   .verdict-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.4rem; margin-top: 1rem; }
   .hub-btn { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; text-align: left; font-size: 0.82rem; }
