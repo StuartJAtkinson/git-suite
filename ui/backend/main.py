@@ -7,7 +7,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import init_db
-from routers import auth, scan, hubs, commercial, readme
+from routers import (auth, scan, hubs, commercial, readme, config, reconcile,
+                     plan, replan, execute, migration)
 
 _LOG_DIR = Path(__file__).parent / "logs"
 _LOG_DIR.mkdir(exist_ok=True)
@@ -56,6 +57,12 @@ app.include_router(scan.router,       prefix="/api",   tags=["scan"])
 app.include_router(hubs.router,       prefix="/api",   tags=["hubs"])
 app.include_router(commercial.router, prefix="/api",   tags=["commercial"])
 app.include_router(readme.router,     prefix="/api",   tags=["readme"])
+app.include_router(config.router,     prefix="/api",   tags=["config"])
+app.include_router(reconcile.router,  prefix="/api",   tags=["reconcile"])
+app.include_router(plan.router,       prefix="/api",   tags=["plan"])
+app.include_router(replan.router,     prefix="/api",   tags=["replan"])
+app.include_router(execute.router,    prefix="/api",   tags=["execute"])
+app.include_router(migration.router,  prefix="/api",   tags=["migration"])
 
 
 @app.get("/health")
