@@ -21,6 +21,26 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _stub_reason(r: dict) -> str | None:
+    """Flag low-signal 'stub' repos that probably shouldn't survive as their own
+    project unless they're function-distinct and integratable. Transparent
+    heuristic over enriched scan signal (needs a fresh scan to be meaningful)."""
+    size = r.get("size") or 0          # KB
+    stars = r.get("stars") or 0
+    has_desc = bool((r.get("aim") or "").strip())
+    has_topics = bool(r.get("topics"))
+    if has_desc or stars > 0 or has_topics:
+        return None                    # any real signal -> not a stub
+    why = []
+    if size < 100:
+        why.append(f"{size}KB")
+    why.append("no description")
+    why.append("no stars/topics")
+    if r.get("is_fork"):
+        why.append("fork")
+    return "likely stub: " + ", ".join(why)
+
+
 async def _latest_scan_repos(session_id: str) -> tuple[str, list[dict]]:
     """Return (scan_id, repo rows) for the session's most recent scan."""
     async for db in get_db():
@@ -84,6 +104,8 @@ async def reconcile(session_id: str):
             "pushed_at": r.get("pushed_at") or "",
             "topics": topics,
             "archived": bool(r.get("archived")),
+            "size": r.get("size") or 0,
+            "stub_reason": _stub_reason(r),
         })
 
     # --- ghosts: planned repos that don't exist live --------------------
@@ -134,6 +156,7 @@ async def reconcile(session_id: str):
         })
 
     orphans = [r for r in reconciled if r["verdict"] == "orphan"]
+    stubs = [r for r in reconciled if r["stub_reason"]]
 
     return {
         "scan_id": scan_id,
@@ -142,10 +165,12 @@ async def reconcile(session_id: str):
             **counts,
             "ghost": len(ghosts),
             "undecided": len(orphans),
+            "stub": len(stubs),
         },
         "repos": reconciled,
         "orphans": orphans,
         "ghosts": ghosts,
+        "stubs": stubs,
         "hubs": hubs_roll,
         "layers": layers_roll,
     }

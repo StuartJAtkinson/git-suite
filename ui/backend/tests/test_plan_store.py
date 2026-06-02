@@ -56,3 +56,13 @@ def test_persistence_roundtrip(isolated_plan):
     isolated_plan.set_verdict("foo", "keep")
     # a fresh read parses the file from disk
     assert "foo" in isolated_plan.get_plan()["keeps"]
+
+
+def test_blank_clears_assignments_keeps_hub_shells(isolated_plan):
+    isolated_plan.set_verdict("foo", "absorb", "media-hub")
+    p = isolated_plan.blank()
+    assert len(p["hubs"]) == 8                 # hub shells remain
+    assert all(h["absorbs"] == [] for h in p["hubs"].values())
+    assert p["archives"] == {} and p["keeps"] == []
+    # a hub is still implicitly keep
+    assert isolated_plan.repo_placement(p)["media-hub"]["verdict"] == "keep"

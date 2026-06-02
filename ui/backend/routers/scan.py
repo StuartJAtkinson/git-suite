@@ -40,6 +40,7 @@ def _categorise(repo: dict, placement: dict[str, dict]) -> dict:
         "pushed_at": repo.get("pushed_at") or "",
         "topics": json.dumps(repo.get("topics") or []),
         "archived": 1 if repo.get("archived") else 0,
+        "size": repo.get("size") or 0,
     }
 
 
@@ -111,13 +112,13 @@ async def scan_ws(websocket: WebSocket, scan_id: str):
         await db.executemany(
             """INSERT OR REPLACE INTO repos
                (scan_id, name, super_cat, mid_cat, fine_cat, aim, url, visibility, language,
-                stars, is_fork, pushed_at, topics, archived)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                stars, is_fork, pushed_at, topics, archived, size)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             [
                 (
                     scan_id, r["name"], r["super_cat"], r["mid_cat"],
                     r["fine_cat"], r["aim"], r["url"], r["visibility"], r["language"],
-                    r["stars"], r["is_fork"], r["pushed_at"], r["topics"], r["archived"],
+                    r["stars"], r["is_fork"], r["pushed_at"], r["topics"], r["archived"], r["size"],
                 )
                 for r in repos
             ],

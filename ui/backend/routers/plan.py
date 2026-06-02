@@ -27,6 +27,12 @@ async def reset_plan():
     return plan_store.reset()
 
 
+@router.post("/plan/blank")
+async def blank_plan():
+    """Start from scratch — hub shells kept, all repo assignments cleared."""
+    return plan_store.blank()
+
+
 class VerdictRequest(BaseModel):
     repo: str
     verdict: str           # absorb | archive | keep | orphan

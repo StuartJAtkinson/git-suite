@@ -100,6 +100,27 @@ def reset() -> dict:
         return plan
 
 
+def blank() -> dict:
+    """Start from scratch: keep the hub *shells* (layer/priority/description/
+    alternatives) and layer names, but clear every repo assignment — no
+    absorbs, no archives, no keeps. After a scan every repo is undecided, so
+    the plan is rebuilt from the real portfolio via triage/replan, and hubs are
+    (re)created consistently through Execute rather than assumed to exist."""
+    with _LOCK:
+        seed = _seed_plan()
+        plan = {
+            "hubs": {
+                name: {**meta, "absorbs": []}
+                for name, meta in seed["hubs"].items()
+            },
+            "archives": {},
+            "keeps": [],
+            "layer_names": seed["layer_names"],
+        }
+        _write(plan)
+        return plan
+
+
 # --- derived lookups -------------------------------------------------------
 
 def repo_placement(plan: dict | None = None) -> dict[str, dict]:

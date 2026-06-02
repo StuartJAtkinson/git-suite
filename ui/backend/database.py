@@ -109,6 +109,7 @@ _REPOS_ADDED_COLUMNS = {
     "pushed_at": "TEXT",
     "topics": "TEXT",       # JSON array of strings
     "archived": "INTEGER",  # 0/1 — repo archived on GitHub at scan time
+    "size": "INTEGER",      # repo size in KB (stub-assessment signal)
 }
 
 

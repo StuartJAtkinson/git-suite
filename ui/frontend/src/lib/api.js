@@ -74,6 +74,8 @@ export const api = {
   setVerdict: (repo, verdict, hub) =>
     req('POST', '/api/plan/verdict', { repo, verdict, hub }),
   resetPlan: () => req('POST', '/api/plan/reset'),
+  blankPlan: () => req('POST', '/api/plan/blank'),
+  pruneGhosts: (session_id) => req('POST', `/api/replan/prune-ghosts/${session_id}`),
 
   // Execute (plan -> real GitHub actions)
   executePreview: (session_id) => req('GET', `/api/execute/preview/${session_id}`),

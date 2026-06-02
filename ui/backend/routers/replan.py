@@ -152,6 +152,29 @@ async def reject(proposal_id: int):
     return {"rejected": proposal_id}
 
 
+@router.post("/replan/prune-ghosts/{session_id}")
+async def prune_ghosts(session_id: str):
+    """Drop every planned repo that no longer exists on GitHub — a repo that's
+    gone is a conscious deletion, so it should leave the plan entirely."""
+    recon = await reconcile(session_id)
+    pruned = []
+    for ghost in recon["ghosts"]:
+        name = ghost["name"]
+        before = plan_store.repo_placement().get(name)
+        plan_store.set_verdict(name, "orphan")   # unassign = remove from plan
+        async for db in get_db():
+            await db.execute(
+                """INSERT INTO plan_history (target, kind, change, source, rationale)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (name, "ghost-prune", json.dumps({"from": before, "to": None}),
+                 "manual", "repo no longer on GitHub — pruned from plan"),
+            )
+            await db.commit()
+        pruned.append(name)
+    log.info("pruned %d ghosts", len(pruned))
+    return {"pruned": len(pruned), "repos": pruned}
+
+
 @router.get("/replan/history")
 async def history(limit: int = 100):
     async for db in get_db():
