@@ -1,4 +1,4 @@
-// All calls go through Vite's dev proxy (/api -> :8000/api, /auth -> :8000/auth)
+// All calls go through Vite's dev proxy (/api -> :2800/api, /auth -> :2800/auth)
 // so no hard-coded base URL is needed in dev or prod.
 
 async function req(method, path, body) {
@@ -102,8 +102,8 @@ export const api = {
 };
 
 export function scanWs(scan_id, onRepo, onDone, onError) {
-  // Backend runs on port 8000 (uvicorn default); proxy does HTTP only, WS goes direct
-  const ws = new WebSocket(`ws://localhost:8000/api/scan/${scan_id}/ws`);
+  // Backend runs on port 2800; proxy does HTTP only, WS goes direct
+  const ws = new WebSocket(`ws://localhost:2800/api/scan/${scan_id}/ws`);
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
     if (msg.type === 'repo') onRepo(msg.data);

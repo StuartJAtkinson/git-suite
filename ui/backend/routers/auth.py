@@ -46,19 +46,39 @@ class LoginResponse(BaseModel):
     avatar_url: str
 
 
+# tkinter must own the main thread, so run the dialog in a throwaway
+# subprocess rather than inside the async event loop (which 502s).
+_PICKER_SCRIPT = (
+    "import tkinter as tk\n"
+    "from tkinter.filedialog import askdirectory\n"
+    "r = tk.Tk(); r.withdraw(); r.wm_attributes('-topmost', True)\n"
+    "p = askdirectory(title='Select repos folder')\n"
+    "r.destroy()\n"
+    "print(p or '')\n"
+)
+
+
 @router.post("/pick-folder")
 async def pick_folder():
-    """Open the native OS folder dialog on the server and return the selected path."""
-    import tkinter as tk
-    from tkinter.filedialog import askdirectory
-    root = tk.Tk()
-    root.withdraw()
-    root.wm_attributes("-topmost", True)
-    path = askdirectory(title="Select repos folder")
-    root.destroy()
-    if not path:
-        raise HTTPException(status_code=204, detail="No folder selected")
-    return {"path": path}
+    """Open the native OS folder dialog on the server and return the selected path.
+
+    Runs tkinter in a separate Python process so it has its own main thread and
+    never blocks/crashes the uvicorn event loop.
+    """
+    import asyncio
+    import sys
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, "-c", _PICKER_SCRIPT,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        out, err = await proc.communicate()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Folder dialog unavailable: {exc}")
+    if proc.returncode != 0:
+        raise HTTPException(status_code=500,
+                            detail=f"Folder dialog failed: {err.decode(errors='replace')[:200]}")
+    return {"path": out.decode(errors="replace").strip()}  # "" if cancelled
 
 
 @router.get("/browse")

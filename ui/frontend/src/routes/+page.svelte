@@ -43,9 +43,9 @@
     errorMsg = '';
     try {
       const res = await api.pickFolder();
-      repos_root = res.path;
+      if (res.path) repos_root = res.path;   // empty = dialog cancelled
     } catch (e) {
-      if (!e.message.includes('204')) errorMsg = e.message;
+      errorMsg = e.message;
     } finally {
       picking = false;
     }
