@@ -2,6 +2,9 @@
 
 ## Open
 
+- [ ] **Fresh-start UI surfacing** — backend done (blank plan, prune-ghosts, stub flag); still need UI buttons: "Start fresh (blank plan)" on Setup/Summary, "Prune ghosts" on Replan/Summary, and stub badges in Triage/Summary *(found 2026-06-03)*
+- [ ] **Hub stub lifecycle (decided 2026-06-03)** — archive the 8 empty hub repos now; after the plan is set, either UN-archive ("return") the one that becomes the correct group repo, or DELETE it once its content is absorbed. Build: github.unarchive_repo (PATCH archived:false) + delete_repo (needs delete_repo PAT scope); Execute hub-level actions (archive hub / return hub / delete absorbed hub) with confirm *(found 2026-06-03)*
+- [ ] **Browse folder picker errors on some setups** — tkinter subprocess returns "Folder dialog unavailable"; manual path entry works and is the reliable route. Low priority *(found 2026-06-03)*
 - [ ] **Plan editing is repo-verdict only** — can set a repo's fate, but hub meta (layer/priority/description/alternatives) and creating new hubs still require editing plan.py seed. Add hub-level plan editing if needed *(found 2026-06-02)*
 
 - [ ] **L9 Creative has no hub** — `VTuberLIVE` (live audio-driven generative visuals) is unique with no OSS/commercial equivalent; currently kept as-is but has no layer home. Consider a `creative-hub` if other L9 repos accumulate *(found 2026-05-25)*
