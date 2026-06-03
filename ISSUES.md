@@ -14,6 +14,7 @@
 
 ## Resolved
 
+- [x] **Phase 6: hub boundaries + semantic overlap (venn)** — per-hub editable `boundary` rule (seeded from delegation notes) fed to replan + migration LLM prompts; `/api/overlap` scores repos vs hub keyword/topic profiles → boundary cases + hub×hub matrix; Overlap page (matrix heatmap + cases list + boundary editor). Rule+topic method, seed+editable boundaries, matrix+cases viz (per decisions 2026-06-03). +2 tests (44) *(resolved 2026-06-03)*
 - [x] **Phase 5 (partial): fresh-start UI** — Replan page got "Prune N ghosts" + "Start fresh (blank plan)" buttons (with confirm); Triage shows stub badges. Backend blank/prune/stub already landed *(resolved 2026-06-03)*
 - [x] **Phase 3: Migration assist** — `services/migration.py` (checklist_for via LLM failover + per-language rule template; scaffold_for; build_migration_md) + `github.get_readme` (on-demand) + `routers/migration.py` (GET hub scaffold/status, POST generate+cache checklist, POST push MIGRATION.md) + migration_checklist DB table. Hub detail gained a Migration section: per-absorb generate/regenerate/view-steps + Push MIGRATION.md. Live-verified game-hub (21 absorbs, 7-step rule checklist cached). +5 tests (37 total) *(resolved 2026-06-02)*
 - [x] **list_repos missed private repos** — used /users/{username}/repos (public only), so scan/reconcile/execute saw 118 of ~144 repos and flagged private hubs (personal-ai-os, ontology-align) as "missing". Switched to /user/repos?affiliation=owner&visibility=all. Re-scan in UI to capture the full portfolio *(resolved 2026-06-02)*
