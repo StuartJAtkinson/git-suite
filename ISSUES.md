@@ -13,6 +13,8 @@
 
 ## Resolved
 
+- [x] **Portable scan WebSocket (A)** — WS URL derives from window.location (ws/wss), proxied by Vite (ws:true) + nginx (upgrade headers); works dev/docker/https *(resolved 2026-06-03)*
+- [x] **Embeddings semantic layer (B)** — services/embeddings.py (OpenAI + opt-in Ollama, failover, DB-cached, cosine); /api/overlap does semantic cosine analysis with keyword fallback (reports method); replan proposes absorb from a clear embedding match (source 'embedding'); embedding cache table. Degrades to keyword/rules with no provider. +6 tests (54) *(resolved 2026-06-03)*
 - [x] **Overnight improvements (2026-06-03)** — (1) plan_store self-heals new hub fields (boundary etc.) on load, no reset needed; (2) logging quieted to INFO, aiosqlite/httpx DEBUG silenced; (3) **hub stub lifecycle**: github unarchive_repo/delete_repo + Execute archive-hubs/return/delete (delete gated to already-archived) + UI; (4) ROADMAP rewritten to actual architecture; (5) Summary surfaces stub count + review action. 49 tests green. On branch feature/overnight-improvements *(resolved 2026-06-03)*
 - [x] **Phase 6: hub boundaries + semantic overlap (venn)** — per-hub editable `boundary` rule (seeded from delegation notes) fed to replan + migration LLM prompts; `/api/overlap` scores repos vs hub keyword/topic profiles → boundary cases + hub×hub matrix; Overlap page (matrix heatmap + cases list + boundary editor). Rule+topic method, seed+editable boundaries, matrix+cases viz (per decisions 2026-06-03). +2 tests (44) *(resolved 2026-06-03)*
 - [x] **Phase 5 (partial): fresh-start UI** — Replan page got "Prune N ghosts" + "Start fresh (blank plan)" buttons (with confirm); Triage shows stub badges. Backend blank/prune/stub already landed *(resolved 2026-06-03)*
