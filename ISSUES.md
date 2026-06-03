@@ -2,6 +2,9 @@
 
 ## Open
 
+- [ ] **Assisted clustering stage ("Form groups") — NEXT** — after Scan, cluster repos by embedding similarity; per cluster suggest the functional theme; user either promotes an existing repo to be the hub or names a new hub, always with a description (LLM alignment guide). Forms hubs + assigns members. Sits between Scan and Hubs in the flow. Backend: GET /api/cluster/{session} (embedding k-means/threshold groups + theme); frontend: Cluster page (accept/name/promote → upsert_hub + absorb members). Needs embeddings (Ollama nomic-embed-text already configured) *(decided 2026-06-03)*
+- [ ] **Functional flow reorder applied; verify pages** — nav now Setup→Scan→Hubs→Overlap→Replan→Triage→Execute→Layers→Summary; Archive folded into Execute (route still exists, unlinked — delete later). Triage shows hint when no hubs *(2026-06-03)*
+
 - [ ] **Browse folder picker errors on some setups** — tkinter subprocess returns "Folder dialog unavailable"; manual path entry works and is the reliable route. Low priority *(found 2026-06-03)*
 - [ ] **Plan editing is repo-verdict only** — can set a repo's fate, but hub meta (layer/priority/description/alternatives) and creating new hubs still require editing plan.py seed. Add hub-level plan editing if needed *(found 2026-06-02)*
 
