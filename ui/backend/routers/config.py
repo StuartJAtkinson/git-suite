@@ -54,6 +54,7 @@ class ConfigGetResponse(BaseModel):
     llm_keys: dict[str, str]
     llm_models: dict[str, str]
     llm_priority_order: list[str]
+    embedding_models: dict[str, str]   # provider -> embedding model (opt-in)
     jira_url: str | None; email: str | None; api_token: str | None
     zoho_org_id: str | None; zoho_client_id: str | None
     zoho_client_secret: str | None; zoho_refresh_token: str | None
@@ -63,6 +64,7 @@ class ConfigPostRequest(BaseModel):
     llm_keys: dict[str, str] | None = None
     llm_models: dict[str, str] | None = None
     llm_priority_order: list[str] | None = None
+    embedding_models: dict[str, str] | None = None
     jira_url: str | None = None; email: str | None = None; api_token: str | None = None
     zoho_org_id: str | None = None; zoho_client_id: str | None = None
     zoho_client_secret: str | None = None; zoho_refresh_token: str | None = None
@@ -78,6 +80,7 @@ async def get_config():
     return ConfigGetResponse(
         llm_keys=cfg.get("llm_keys", {}), llm_models=models,
         llm_priority_order=cfg.get("llm_priority_order", []),
+        embedding_models=cfg.get("embedding_models", {}),
         jira_url=cfg.get("jira_url"), email=cfg.get("email"),
         api_token=cfg.get("api_token"), zoho_org_id=cfg.get("zoho_org_id"),
         zoho_client_id=cfg.get("zoho_client_id"),
@@ -102,7 +105,12 @@ async def list_providers():
 
 @router.get("/config/llm-status")
 async def llm_status():
-    """Resolved failover chain (ordered providers with a usable key). No secrets."""
-    from services import llm
+    """Resolved LLM failover chain + embeddings chain (no secrets)."""
+    from services import llm, embeddings
     chain = llm.chain_summary()
-    return {"configured": bool(chain), "chain": chain}
+    embed_chain = [{"provider": n, "model": m} for n, _k, m in embeddings.build_chain()]
+    return {
+        "configured": bool(chain),
+        "chain": chain,
+        "embeddings": {"configured": bool(embed_chain), "chain": embed_chain},
+    }

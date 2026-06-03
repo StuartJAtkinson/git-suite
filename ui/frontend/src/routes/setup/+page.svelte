@@ -62,6 +62,19 @@
     finally { saving = false; }
   }
 
+  const EMBED_DEFAULTS = { ollama: 'nomic-embed-text', openai: 'text-embedding-3-small' };
+  $: embedProvider = Object.keys(config.embedding_models || {})[0] || '';
+  $: embedModel = (config.embedding_models || {})[embedProvider] || '';
+  function setEmbedProvider(p) {
+    config = { ...config, embedding_models: p ? { [p]: EMBED_DEFAULTS[p] || '' } : {} };
+    saved = false;
+  }
+  function setEmbedModel(m) {
+    if (!embedProvider) return;
+    config = { ...config, embedding_models: { [embedProvider]: m } };
+    saved = false;
+  }
+
   $: llmKeys = config.llm_keys || {};
   $: llmModels = config.llm_models || {};
   $: configured = Object.keys(llmKeys).filter(p => llmKeys[p]);
@@ -140,6 +153,39 @@
           {/each}
         </div>
       </div>
+      {/if}
+    </div>
+
+    <div class="card">
+      <h3 class="card-title">Embeddings (semantic overlap)</h3>
+      <p class="hint">Powers the semantic venn + absorb suggestions. Off = keyword rules.</p>
+      {#if llmStatus?.embeddings}
+        <div class="status-box" class:warn={!llmStatus.embeddings.configured}>
+          {#if llmStatus.embeddings.configured}
+            Active: {#each llmStatus.embeddings.chain as c}<span class="chain-item">{c.provider} <span class="chain-model">{c.model}</span></span>{/each}
+          {:else}
+            Not configured — overlap uses keyword scoring.
+          {/if}
+        </div>
+      {/if}
+      <div class="field-row">
+        <span class="field-label">Provider</span>
+        <select class="field-input" value={embedProvider} on:change={e => setEmbedProvider(e.target.value)}>
+          <option value="">Off (keyword)</option>
+          <option value="ollama">Ollama (local)</option>
+          <option value="openai">OpenAI</option>
+        </select>
+      </div>
+      {#if embedProvider}
+        <div class="field-row">
+          <span class="field-label">Model</span>
+          <input class="field-input" value={embedModel}
+            on:change={e => setEmbedModel(e.target.value)}
+            placeholder={EMBED_DEFAULTS[embedProvider]} />
+        </div>
+        {#if embedProvider === 'openai' && !llmKeys.openai}
+          <p class="hint" style="color:#92400e">Add an OpenAI key above for embeddings to work.</p>
+        {/if}
       {/if}
     </div>
   </div>
