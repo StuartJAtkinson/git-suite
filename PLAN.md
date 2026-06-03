@@ -10,6 +10,22 @@ This is a living document. Everything below is the current intent — some repos
 
 ---
 
+## Principles — sourcing & hub membership
+
+- **Remote-first, local-equal, no distinction.** The portfolio is sourced from
+  the GitHub API (owned repos, public *and* private). A local checkout carries
+  no special meaning: presence in a local folder neither qualifies nor
+  disqualifies a repo, and is never used to source or classify it.
+- **No repo is assumed a hub.** Hub membership is *derived* through the plan
+  (triage / replan / overlap), not inferred from local presence, repo name, or
+  any pre-existing checkout. Hubs are explicit plan definitions; everything
+  else earns its verdict from the scan.
+- **`repos_root` is optional.** The folder picked at login is stored only as a
+  future target for local operations (clone / migration). It does not drive the
+  scan, the plan, or hub assignment.
+
+---
+
 ## LAYER STRUCTURE
 
 ```
