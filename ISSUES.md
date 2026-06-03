@@ -2,7 +2,6 @@
 
 ## Open
 
-- [ ] **Assisted clustering stage ("Form groups") — NEXT** — after Scan, cluster repos by embedding similarity; per cluster suggest the functional theme; user either promotes an existing repo to be the hub or names a new hub, always with a description (LLM alignment guide). Forms hubs + assigns members. Sits between Scan and Hubs in the flow. Backend: GET /api/cluster/{session} (embedding k-means/threshold groups + theme); frontend: Cluster page (accept/name/promote → upsert_hub + absorb members). Needs embeddings (Ollama nomic-embed-text already configured) *(decided 2026-06-03)*
 - [ ] **Functional flow reorder applied; verify pages** — nav now Setup→Scan→Hubs→Overlap→Replan→Triage→Execute→Layers→Summary; Archive folded into Execute (route still exists, unlinked — delete later). Triage shows hint when no hubs *(2026-06-03)*
 
 - [ ] **Browse folder picker errors on some setups** — tkinter subprocess returns "Folder dialog unavailable"; manual path entry works and is the reliable route. Low priority *(found 2026-06-03)*
@@ -16,6 +15,8 @@
 
 ## Resolved
 
+- [x] **Assisted clustering stage ("Form groups")** — Cluster page (nav between Scan/Hubs): embeds unassigned repos, union-find clusters over a cosine threshold (tightness slider), suggests a theme; user names a new hub / promotes a member / adds to existing, with a description that feeds the hub's LLM boundary; forms hub + absorbs members. Backend services/cluster.py + routers/cluster.py; degrades to available:false without reachable embeddings. +6 tests (61) *(resolved 2026-06-03)*
+- [x] **Functional flow reorder** — nav: Setup→Scan→Cluster→Hubs→Overlap→Replan→Triage→Execute→Layers→Summary; Archive folded into Execute *(resolved 2026-06-03)*
 - [x] **Portable scan WebSocket (A)** — WS URL derives from window.location (ws/wss), proxied by Vite (ws:true) + nginx (upgrade headers); works dev/docker/https *(resolved 2026-06-03)*
 - [x] **Embeddings semantic layer (B)** — services/embeddings.py (OpenAI + opt-in Ollama, failover, DB-cached, cosine); /api/overlap does semantic cosine analysis with keyword fallback (reports method); replan proposes absorb from a clear embedding match (source 'embedding'); embedding cache table. Degrades to keyword/rules with no provider. +6 tests (54) *(resolved 2026-06-03)*
 - [x] **Overnight improvements (2026-06-03)** — (1) plan_store self-heals new hub fields (boundary etc.) on load, no reset needed; (2) logging quieted to INFO, aiosqlite/httpx DEBUG silenced; (3) **hub stub lifecycle**: github unarchive_repo/delete_repo + Execute archive-hubs/return/delete (delete gated to already-archived) + UI; (4) ROADMAP rewritten to actual architecture; (5) Summary surfaces stub count + review action. 49 tests green. On branch feature/overnight-improvements *(resolved 2026-06-03)*
