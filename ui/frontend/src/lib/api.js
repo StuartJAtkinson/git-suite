@@ -115,8 +115,10 @@ export const api = {
 };
 
 export function scanWs(scan_id, onRepo, onDone, onError) {
-  // Backend runs on port 2800; proxy does HTTP only, WS goes direct
-  const ws = new WebSocket(`ws://localhost:2800/api/scan/${scan_id}/ws`);
+  // Same-origin WS — proxied to the backend by Vite (dev) or nginx (prod),
+  // so it works regardless of host/port and over https (wss).
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(`${proto}//${location.host}/api/scan/${scan_id}/ws`);
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
     if (msg.type === 'repo') onRepo(msg.data);
