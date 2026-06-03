@@ -90,6 +90,12 @@ export const api = {
     req('POST', `/api/execute/create-hubs/${session_id}`, { hubs }),
   executePushReadmes: (session_id, hubs) =>
     req('POST', `/api/execute/push-readmes/${session_id}`, { hubs }),
+  archiveHubs: (session_id, hubs) =>
+    req('POST', `/api/execute/archive-hubs/${session_id}`, { hubs }),
+  unarchiveHubs: (session_id, hubs) =>
+    req('POST', `/api/execute/unarchive-hubs/${session_id}`, { hubs }),
+  deleteHubs: (session_id, hubs) =>
+    req('POST', `/api/execute/delete-hubs/${session_id}`, { hubs }),
 
   // Migration assist
   migrationHub: (hub, session_id) =>

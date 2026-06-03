@@ -15,8 +15,16 @@ def _mock_github(monkeypatch, state):
     async def fake_archive(token, owner, repo):
         state[repo] = True  # reflect the mutation back into "reality"
 
+    async def fake_unarchive(token, owner, repo):
+        state[repo] = False
+
+    async def fake_delete(token, owner, repo):
+        state.pop(repo, None)
+
     monkeypatch.setattr(ex, "list_repos", fake_list)
     monkeypatch.setattr(ex, "archive_repo", fake_archive)
+    monkeypatch.setattr(ex, "unarchive_repo", fake_unarchive)
+    monkeypatch.setattr(ex, "delete_repo", fake_delete)
     return ex
 
 
@@ -87,3 +95,33 @@ def test_push_readmes_pushes_per_hub(temp_db, isolated_plan, monkeypatch):
     assert out["pushed"] == 1
     assert "Integration Roadmap" in pushed["media-hub"]
     assert "comictagger" in pushed["media-hub"]           # a media-hub absorb
+
+
+def test_archive_hubs_idempotent(temp_db, isolated_plan, monkeypatch):
+    state = {"media-hub": False, "game-hub": True}  # one active, one archived
+    ex = _mock_github(monkeypatch, state)
+    insert_scan(temp_db, repos=[])
+    out = asyncio.run(ex.execute_archive_hubs("s1", ex.HubBatch(hubs=["media-hub", "game-hub", "map-suite"])))
+    st = {r["hub"]: r["status"] for r in out["results"]}
+    assert st == {"media-hub": "archived", "game-hub": "already-archived", "map-suite": "absent"}
+    assert state["media-hub"] is True
+
+
+def test_unarchive_hub_returns_it(temp_db, isolated_plan, monkeypatch):
+    state = {"media-hub": True}
+    ex = _mock_github(monkeypatch, state)
+    insert_scan(temp_db, repos=[])
+    out = asyncio.run(ex.execute_unarchive_hubs("s1", ex.HubBatch(hubs=["media-hub"])))
+    assert out["returned"] == 1
+    assert state["media-hub"] is False
+
+
+def test_delete_hub_requires_archived_first(temp_db, isolated_plan, monkeypatch):
+    state = {"media-hub": False, "game-hub": True}  # active vs archived
+    ex = _mock_github(monkeypatch, state)
+    insert_scan(temp_db, repos=[])
+    out = asyncio.run(ex.execute_delete_hubs("s1", ex.HubBatch(hubs=["media-hub", "game-hub"])))
+    st = {r["hub"]: r["status"] for r in out["results"]}
+    assert st["media-hub"] == "skipped"      # active hub never deleted
+    assert st["game-hub"] == "deleted"       # archived hub can be deleted
+    assert "media-hub" in state and "game-hub" not in state

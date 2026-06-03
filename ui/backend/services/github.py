@@ -57,6 +57,27 @@ async def archive_repo(token: str, owner: str, repo: str) -> None:
         r.raise_for_status()
 
 
+async def unarchive_repo(token: str, owner: str, repo: str) -> None:
+    """Un-archive ('return') a repo via the GitHub API."""
+    async with httpx.AsyncClient() as client:
+        r = await client.patch(
+            f"{GH_API}/repos/{owner}/{repo}",
+            headers=_headers(token),
+            json={"archived": False},
+        )
+        r.raise_for_status()
+
+
+async def delete_repo(token: str, owner: str, repo: str) -> None:
+    """Delete a repo. Requires the PAT to have the `delete_repo` scope."""
+    async with httpx.AsyncClient() as client:
+        r = await client.delete(
+            f"{GH_API}/repos/{owner}/{repo}",
+            headers=_headers(token),
+        )
+        r.raise_for_status()
+
+
 async def push_file(
     token: str,
     owner: str,

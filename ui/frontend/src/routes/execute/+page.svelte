@@ -72,6 +72,20 @@
     } catch (e) { errorMsg = e.message; } finally { runningReadmes = false; }
   }
 
+  // hub lifecycle
+  let hubBusy = '';
+  async function hubAction(hub, action) {
+    if (action === 'delete' && !confirm(`Delete the repo "${hub}" on GitHub? It must be archived first; this is irreversible.`)) return;
+    if (action === 'archive' && !confirm(`Archive the hub repo "${hub}"?`)) return;
+    hubBusy = hub; errorMsg = ''; msg = '';
+    try {
+      const fn = { archive: api.archiveHubs, return: api.unarchiveHubs, delete: api.deleteHubs }[action];
+      const r = await fn($session.session_id, [hub]);
+      msg = `${hub}: ${r.results[0].status}`;
+      await load();
+    } catch (e) { errorMsg = e.message; } finally { hubBusy = ''; }
+  }
+
   $: c = preview?.counts ?? {};
   $: willList = preview?.archive.will_archive ?? [];
 </script>
@@ -170,6 +184,33 @@
       </div>
     {/if}
   </div>
+
+  <!-- ── Hub lifecycle ── -->
+  {#if preview.hubs_state}
+  <div class="section">
+    <div class="section-head"><h2>Hub lifecycle</h2></div>
+    <p class="hint">Archive empty hub stubs now; later <b>return</b> the one that becomes the real hub, or <b>delete</b> a hub once its content is absorbed (delete requires it be archived first).</p>
+    <div class="repo-list">
+      {#each preview.hubs_state as h}
+        <div class="repo-row">
+          <span class="repo-name">{h.hub}</span>
+          {#if !h.exists}<span class="tag none">absent</span>
+          {:else if h.archived}<span class="tag arch">archived</span>
+          {:else}<span class="tag ok">active</span>{/if}
+          <span class="hub-life-actions">
+            {#if h.exists && !h.archived}
+              <button class="sm" disabled={hubBusy === h.hub} on:click={() => hubAction(h.hub, 'archive')}>Archive</button>
+            {/if}
+            {#if h.exists && h.archived}
+              <button class="sm success" disabled={hubBusy === h.hub} on:click={() => hubAction(h.hub, 'return')}>Return</button>
+              <button class="sm danger" disabled={hubBusy === h.hub} on:click={() => hubAction(h.hub, 'delete')}>Delete</button>
+            {/if}
+          </span>
+        </div>
+      {/each}
+    </div>
+  </div>
+  {/if}
 {/if}
 
 <style>
@@ -192,4 +233,6 @@
   .confirm-box { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; padding: 0.9rem 1.1rem; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; }
   .confirm { flex-direction: row; align-items: center; gap: 0.5rem; font-weight: 500; color: #92400e; }
   .confirm input { width: auto; }
+  .hint { font-size: 0.8rem; color: #6b7280; margin: 0 0 0.75rem; }
+  .hub-life-actions { margin-left: auto; display: flex; gap: 0.3rem; }
 </style>

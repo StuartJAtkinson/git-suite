@@ -24,7 +24,8 @@ import plan_store
 from database import get_db
 from routers.reconcile import reconcile
 from routers.readme import readme_status, push_hub_readme
-from services.github import list_repos, archive_repo, create_repo
+from services.github import (list_repos, archive_repo, create_repo,
+                             unarchive_repo, delete_repo)
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -76,6 +77,11 @@ async def preview(session_id: str):
     archive = _archive_plan(recon, plan, gh)
     create_hubs = [h for h in hub_names if h not in gh]
     existing_hubs = [h for h in hub_names if h in gh]
+    # Hub lifecycle state: exists?/archived? (drives archive / return / delete)
+    hubs_state = [
+        {"hub": h, "exists": h in gh, "archived": bool(gh.get(h))}
+        for h in hub_names
+    ]
     # README status for existing hubs, fetched in parallel
     readmes = await asyncio.gather(
         *[readme_status(token, user, h, plan) for h in existing_hubs]
@@ -85,6 +91,7 @@ async def preview(session_id: str):
         "archive": archive,
         "create_hubs": create_hubs,
         "readmes": readmes,
+        "hubs_state": hubs_state,
         "counts": {
             "will_archive": len(archive["will_archive"]),
             "already_archived": len(archive["already_archived"]),
@@ -179,3 +186,67 @@ async def execute_push_readmes(session_id: str, body: HubBatch):
         results.append({"hub": hub, "status": "pushed"})
 
     return {"pushed": sum(1 for r in results if r["status"] == "pushed"), "results": results}
+
+
+# --- hub lifecycle: archive stub now -> later return the right one or delete --
+
+@router.post("/execute/archive-hubs/{session_id}")
+async def execute_archive_hubs(session_id: str, body: HubBatch):
+    """Archive empty hub stub repos (idempotent: skip absent/already-archived)."""
+    token, user = await _session(session_id)
+    gh = await _github_state(token, user)
+    results = []
+    for hub in body.hubs:
+        if hub not in gh:
+            results.append({"hub": hub, "status": "absent"})
+        elif gh[hub]:
+            results.append({"hub": hub, "status": "already-archived"})
+        else:
+            try:
+                await archive_repo(token, user, hub)
+                results.append({"hub": hub, "status": "archived"})
+            except Exception as exc:
+                results.append({"hub": hub, "status": "error", "detail": str(exc)})
+    return {"archived": sum(1 for r in results if r["status"] == "archived"), "results": results}
+
+
+@router.post("/execute/unarchive-hubs/{session_id}")
+async def execute_unarchive_hubs(session_id: str, body: HubBatch):
+    """'Return' a hub repo by un-archiving it (idempotent)."""
+    token, user = await _session(session_id)
+    gh = await _github_state(token, user)
+    results = []
+    for hub in body.hubs:
+        if hub not in gh:
+            results.append({"hub": hub, "status": "absent"})
+        elif not gh[hub]:
+            results.append({"hub": hub, "status": "already-active"})
+        else:
+            try:
+                await unarchive_repo(token, user, hub)
+                results.append({"hub": hub, "status": "returned"})
+            except Exception as exc:
+                results.append({"hub": hub, "status": "error", "detail": str(exc)})
+    return {"returned": sum(1 for r in results if r["status"] == "returned"), "results": results}
+
+
+@router.post("/execute/delete-hubs/{session_id}")
+async def execute_delete_hubs(session_id: str, body: HubBatch):
+    """Delete a hub repo once its content is absorbed. SAFETY: only deletes a
+    repo that is already archived, so an active hub can never be deleted by
+    accident. Needs the PAT's `delete_repo` scope."""
+    token, user = await _session(session_id)
+    gh = await _github_state(token, user)
+    results = []
+    for hub in body.hubs:
+        if hub not in gh:
+            results.append({"hub": hub, "status": "absent"})       # already gone
+        elif not gh[hub]:
+            results.append({"hub": hub, "status": "skipped", "detail": "archive it first"})
+        else:
+            try:
+                await delete_repo(token, user, hub)
+                results.append({"hub": hub, "status": "deleted"})
+            except Exception as exc:
+                results.append({"hub": hub, "status": "error", "detail": str(exc)})
+    return {"deleted": sum(1 for r in results if r["status"] == "deleted"), "results": results}
