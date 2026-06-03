@@ -173,6 +173,47 @@ def _unassign(plan: dict, repo: str) -> None:
         meta["absorbs"] = [r for r in meta.get("absorbs", []) if r != repo]
 
 
+def clear() -> dict:
+    """Truly empty plan: no hubs, no assignments. Layer names kept. Nothing is
+    assumed to be a hub — hubs are rebuilt explicitly from the scan."""
+    with _LOCK:
+        plan = {"hubs": {}, "archives": {}, "keeps": [],
+                "layer_names": _seed_plan()["layer_names"]}
+        _write(plan)
+        return plan
+
+
+def upsert_hub(name: str, layer: int, priority: int = 3, description: str = "",
+               boundary: str = "", alternatives: dict | None = None) -> dict:
+    """Create or update a hub definition. Preserves existing absorbs."""
+    if not name or not name.strip():
+        raise ValueError("hub name required")
+    with _LOCK:
+        plan = _load()
+        hub = plan["hubs"].get(name, {"absorbs": []})
+        hub.update({
+            "layer": int(layer), "priority": int(priority),
+            "description": description, "boundary": boundary,
+            "alternatives": alternatives or hub.get("alternatives") or {"oss": [], "commercial": []},
+        })
+        hub.setdefault("absorbs", [])
+        plan["hubs"][name] = hub
+        _write(plan)
+        return hub
+
+
+def remove_hub(name: str) -> dict:
+    """Delete a hub definition; any repos archived 'to' it lose that hub link."""
+    with _LOCK:
+        plan = _load()
+        plan["hubs"].pop(name, None)
+        for repo, hub in list(plan.get("archives", {}).items()):
+            if hub == name:
+                plan["archives"][repo] = None
+        _write(plan)
+        return {"removed": name}
+
+
 def set_hub_boundary(hub: str, boundary: str) -> dict:
     """Edit a hub's boundary statement (the scope rule fed to the LLM)."""
     with _LOCK:

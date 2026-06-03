@@ -33,6 +33,34 @@ async def blank_plan():
     return plan_store.blank()
 
 
+@router.post("/plan/clear")
+async def clear_plan():
+    """Truly empty plan — hubs removed too. Nothing assumed to be a hub."""
+    return plan_store.clear()
+
+
+class HubUpsert(BaseModel):
+    name: str
+    layer: int
+    priority: int = 3
+    description: str = ""
+    boundary: str = ""
+
+
+@router.post("/plan/hub")
+async def upsert_hub(body: HubUpsert):
+    try:
+        return plan_store.upsert_hub(body.name, body.layer, body.priority,
+                                     body.description, body.boundary)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.delete("/plan/hub/{name}")
+async def remove_hub(name: str):
+    return plan_store.remove_hub(name)
+
+
 class VerdictRequest(BaseModel):
     repo: str
     verdict: str           # absorb | archive | keep | orphan

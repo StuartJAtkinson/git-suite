@@ -86,10 +86,10 @@
   }
 
   async function startFresh() {
-    if (!confirm('Start fresh? Clears every repo assignment (hub shells kept). You then rebuild the plan from a scan via Triage/Replan.')) return;
+    if (!confirm('Start fresh? Clears the WHOLE plan — every assignment AND all hubs. Nothing is assumed to be a hub; you rebuild hubs from the scan (Hubs → Add hub). Continue?')) return;
     running = true; errorMsg = '';
     try {
-      await api.blankPlan();
+      await api.clearPlan();
       proposals = [];
       await load();
     } catch (e) { errorMsg = e.message; } finally { running = false; }

@@ -58,6 +58,26 @@ def test_persistence_roundtrip(isolated_plan):
     assert "foo" in isolated_plan.get_plan()["keeps"]
 
 
+def test_clear_removes_hubs(isolated_plan):
+    p = isolated_plan.clear()
+    assert p["hubs"] == {} and p["archives"] == {} and p["keeps"] == []
+    # cleared hubs are not resurrected by _heal on reload
+    assert isolated_plan.get_plan()["hubs"] == {}
+    # nothing is implicitly a hub-keep anymore
+    assert isolated_plan.repo_placement() == {}
+
+
+def test_upsert_and_remove_hub(isolated_plan):
+    isolated_plan.clear()
+    isolated_plan.upsert_hub("data-hub", layer=3, priority=2,
+                             description="data stuff", boundary="data only")
+    p = isolated_plan.get_plan()
+    assert "data-hub" in p["hubs"] and p["hubs"]["data-hub"]["boundary"] == "data only"
+    isolated_plan.set_verdict("foo", "absorb", "data-hub")
+    isolated_plan.remove_hub("data-hub")
+    assert "data-hub" not in isolated_plan.get_plan()["hubs"]
+
+
 def test_seed_has_boundaries(isolated_plan):
     p = isolated_plan.get_plan()
     assert p["hubs"]["map-suite"]["boundary"]      # non-empty boundary rule

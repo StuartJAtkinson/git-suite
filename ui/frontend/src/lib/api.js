@@ -75,6 +75,9 @@ export const api = {
     req('POST', '/api/plan/verdict', { repo, verdict, hub }),
   resetPlan: () => req('POST', '/api/plan/reset'),
   blankPlan: () => req('POST', '/api/plan/blank'),
+  clearPlan: () => req('POST', '/api/plan/clear'),
+  upsertHub: (hub) => req('POST', '/api/plan/hub', hub),
+  removeHub: (name) => req('DELETE', `/api/plan/hub/${name}`),
   pruneGhosts: (session_id) => req('POST', `/api/replan/prune-ghosts/${session_id}`),
   setHubBoundary: (hub, boundary) =>
     req('POST', '/api/plan/hub-boundary', { hub, boundary }),
