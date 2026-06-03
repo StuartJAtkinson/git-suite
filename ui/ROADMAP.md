@@ -1,135 +1,123 @@
-# git-suite UI — Roadmap
+# git-suite UI — Architecture & Usage
 
-## Vision
+A guided cockpit for consolidating a sprawling GitHub portfolio into a small set
+of hub platforms. It treats the plan as **data**, continuously **reconciles**
+intent against live GitHub, and turns decisions into real, idempotent actions.
 
-A staged web interface for managing the hub-based portfolio review cycle:
-scan GitHub → review hub status → absorb/archive repos → add commercial benchmarks → push updated READMEs.
-
----
-
-## Phase 0 — CLI Tooling (DONE)
-
-- `generate_github_index.py` — fetch repos → CSV + Excel
-- `build_prompts.py` — group repos into themed Claude prompt files
-- `portfolio_review.py` — 4-phase review cycle (hub status, archive queue, absorptions, layer audit)
-- `init_hub_readmes.py` — write integration roadmap to each hub README
-- All 8 hub repos created, roadmap READMEs pushed, 17 dead repos archived
+> Status: the staged plan (login → scan → … → summary) is built and well past
+> its original scope. This doc describes what actually exists.
 
 ---
 
-## Phase 1 — Backend API (CURRENT)
+## Run it
 
-**Stack:** FastAPI + SQLite (aiosqlite) + httpx
+```powershell
+# backend (port 2800)
+cd ui/backend
+pip install -r requirements-dev.txt
+python -m uvicorn main:app --reload --port 2800
 
-### Routes
+# frontend (port 2173) — separate terminal
+cd ui/frontend
+npm install
+npm run dev          # http://localhost:2173
+```
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/auth/validate` | Validate GitHub PAT, open session |
-| GET | `/auth/me` | Current user info |
-| POST | `/api/scan` | Start portfolio scan (returns job_id) |
-| WS | `/api/scan/{job_id}/progress` | Stream scan progress |
-| GET | `/api/repos` | Cached scan results |
-| GET | `/api/hubs` | All hubs with status |
-| GET | `/api/hub/{name}` | Hub detail (absorbs, archives, commercials) |
-| POST | `/api/hub/{name}/archive/{repo}` | Archive a repo via GitHub API |
-| POST | `/api/hub/{name}/absorb/{repo}` | Mark repo absorbed in local state |
-| POST | `/api/commercial/scrape` | Scrape URL, extract features via Claude |
-| POST | `/api/commercial/{hub}` | Save commercial ref to hub |
-| GET | `/api/commercial/{hub}` | List commercial refs for hub |
-| DELETE | `/api/commercial/{hub}/{id}` | Remove commercial ref |
-| POST | `/api/readme/{hub}` | Regenerate + push hub README |
+Tests: `cd ui/backend && python -m pytest` (49 tests).
+Health: `http://localhost:2800/health`. API docs: `/docs`.
 
-### Database schema
+---
 
-```sql
-session (id, github_token, github_user, repos_root, created_at)
-repos   (scan_id, name, super_cat, mid_cat, fine_cat, aim, url, visibility, language)
-commercial_refs (id, hub, url, name, features_json, added_at)
-hub_actions     (hub, repo, action, done_at)   -- action: absorbed | archived
+## Core design principles
+
+1. **Plan as data** — the canonical plan lives in `~/.git-suite/plan.json`
+   (seeded from `plan.py`), edited via the API. One source of truth for hubs,
+   absorbs, archives, keeps, boundaries.
+2. **Reconciliation engine** — every screen answers "where does reality
+   (live GitHub) disagree with the plan, and what's the next action?"
+3. **Decision-first** — the atomic unit is one repo needing a verdict.
+4. **Planning is cheap, execution is deliberate** — verdicts/edits are local
+   and reversible; outward GitHub actions are previewed, confirmed, batched,
+   idempotent, and audited.
+5. **Hybrid intelligence with failover** — deterministic rules for the obvious,
+   LLM for the ambiguous, across a multi-provider failover chain; degrades to
+   rules-only with no API key.
+
+---
+
+## The loop
+
+```
+        Start fresh (blank plan)
+                 │
+   Scan ──► Reconcile ──► Triage / Replan ──► Execute ──► Migration plan
+   (live    (intent vs    (give each repo    (archive /   (per-repo
+    repos,   reality:      a verdict;         create hub / checklists +
+    enriched orphans,      replan proposes    push README/ MIGRATION.md)
+    fields)  ghosts,       changes)           hub lifecycle)
+             stubs,                               │
+             overlap)         ◄─────── repeat ────┘
 ```
 
 ---
 
-## Phase 2 — SvelteKit Frontend
+## Pages
 
-**Stack:** SvelteKit + Tailwind CSS
+| Page | What it does |
+|------|--------------|
+| **Login** | GitHub PAT (or `gh auth`) + repos-root path |
+| **Scan** | Streams the live portfolio (incl. private repos) with enriched fields (topics, stars, fork, last-push, size) |
+| **Triage** | Keyboard-fast verdict queue (1–N absorb, a/k/o/s); stub badges |
+| **Replan** | Two-phase proposal loop + history; Prune ghosts; Start fresh |
+| **Overlap** | Hub×hub overlap matrix, boundary-case repos, editable hub boundaries |
+| **Hubs / Hub detail** | Per-hub absorbs, alternatives, commercial scrape, README, Migration plan |
+| **Execute** | Dry-run + confirm: archive repos · create hubs · push READMEs · hub lifecycle |
+| **Layers** | Layer 0–9 view of hubs and their repos |
+| **Summary** | Cycle stats + recommended next actions |
+| **Setup** | LLM provider keys/models + failover-chain readout; Jira/Zoho |
 
-### Screens
+---
+
+## Concepts
+
+- **Verdict** — a repo's fate: `absorb` (→ a hub), `archive`, `keep`, or
+  `orphan` (undecided). Hubs are implicitly `keep`.
+- **Ghost** — a planned repo no longer on GitHub. Treated as a conscious
+  deletion: prune it from the plan.
+- **Stub** — a low-signal repo (tiny, no description/stars/topics). Flagged as a
+  drop candidate; replan proposes archiving it unless it's function-distinct.
+- **Boundary** — each hub's scope rule (what's in, what's delegated elsewhere),
+  fed to the LLM so it assigns repos correctly and flags cross-boundary cases.
+- **Two-phase replan** — *incremental* (fill orphans / prune ghosts) until
+  nothing is undecided, then *replan* (structural: splits, new hubs).
+- **Hub lifecycle** — archive empty hub stubs now; later *return* the one that
+  becomes the real hub, or *delete* once absorbed (delete requires archived
+  first; needs the `delete_repo` PAT scope).
+
+---
+
+## Backend layout (`ui/backend`)
 
 ```
-[1. Login] → [2. Scan] → [3. Hub Grid] → [4. Hub Detail] ←→ [5. Commercial URL Drawer]
-                                 ↓
-                          [6. Archive Queue]
-                                 ↓
-                          [7. Layer Audit]
-                                 ↓
-                          [8. Cycle Summary]
+plan.py            seed defaults (hubs, absorbs, archives, keeps, boundaries)
+plan_store.py      canonical plan.json: load/heal/seed, verdicts, blank/reset
+database.py        aiosqlite schema + column migrations
+llm_providers.py   provider registry (api_type, base_url, exhaust patterns)
+services/
+  llm.py           async failover chain (complete)
+  github.py        REST: list/archive/unarchive/delete/create, files, readme
+  replan.py        proposal engine (rules + LLM, two-phase)
+  migration.py     checklist + scaffold + MIGRATION.md
+  claude_ai.py     commercial feature extraction (via llm)
+  scraper.py       URL scrape
+routers/
+  auth scan hubs reconcile plan replan execute migration overlap
+  commercial readme config
 ```
 
-**1. Login**
-- GitHub PAT input (personal tool, no OAuth complexity)
-- Suite root path input with directory browse
-- Remembers last session in localStorage
-
-**2. Scan**
-- WebSocket progress bar
-- Shows repo count, categorisation stage, prompt rebuild
-
-**3. Hub Grid**
-- 8 cards, green/red status
-- Absorption % bar on each card
-- Click → Hub Detail
-
-**4. Hub Detail**
-- Absorption list with [Clone] buttons
-- Archive-alongside list with [Archive] buttons
-- Commercial benchmarks list with [+ Add URL] button
-- Split signal warning if 4+ categories
-
-**5. Commercial URL Drawer** (slide-in)
-- URL input → [Scrape + Extract]
-- Displays extracted name + feature bullets
-- [Add to hub] saves + triggers README update
-
-**6. Archive Queue**
-- Accordion per hub
-- [Archive All for hub] batch button
-
-**7. Layer Audit**
-- Layer 0-9 diagram
-- Each layer shows its hub(s)
-- Orphan list with [Assign] dropdown
-
-**8. Cycle Summary**
-- What changed this cycle
-- Next recommended action
-- [Start New Cycle] button
+State: `~/.git-suite/plan.json` (plan), `~/.git-suite/config.json` (keys),
+`ui/backend/state.db` (sessions, scans, actions, proposals, history, checklists).
 
 ---
 
-## Phase 3 — Deployment (DONE)
-
-- `docker-compose.yml` — backend + frontend + nginx
-- `Dockerfile.backend` — FastAPI container
-- `Dockerfile.frontend` — SvelteKit static build
-- `nginx.conf` — reverse proxy (HTTP on :8080, /api + /auth → backend, /* → frontend)
-- `.env.docker` — template for secrets (ANTHROPIC_API_KEY, GH_TOKEN)
-- Optional: Traefik integration with homelab-core
-
----
-
-## Commercial URL Feature — Detail
-
-1. User pastes a URL (e.g. `https://dndbeyond.com/features`)
-2. Backend scrapes with `crawl4ai` → clean markdown content
-3. Sends to Claude API with extraction prompt
-4. Returns: `{ name: "D&D Beyond", features: ["Character builder", ...] }`
-5. User confirms, clicks [Add to hub]
-6. Saved to `commercial_refs` table
-7. `readme.py` router regenerates hub README section
-8. Git commit + push to hub repo
-
----
-
-*Last updated: May 2026*
+*Last updated: 2026-06 — reflects the reconcile/replan/execute/migration/overlap build.*
