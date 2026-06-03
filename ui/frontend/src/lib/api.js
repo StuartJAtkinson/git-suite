@@ -85,6 +85,12 @@ export const api = {
   // Overlap (hub venn / boundaries)
   getOverlap: (session_id) => req('GET', `/api/overlap/${session_id}`),
 
+  // Cluster (assisted group formation)
+  getClusters: (session_id, threshold) =>
+    req('GET', `/api/cluster/${session_id}${threshold ? `?threshold=${threshold}` : ''}`),
+  formHub: (session_id, body) =>
+    req('POST', `/api/cluster/form/${session_id}`, body),
+
   // Execute (plan -> real GitHub actions)
   executePreview: (session_id) => req('GET', `/api/execute/preview/${session_id}`),
   executeArchive: (session_id, repos) =>
