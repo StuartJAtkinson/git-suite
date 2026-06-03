@@ -48,6 +48,7 @@ def _seed_plan() -> dict:
                 "layer": meta["layer"],
                 "priority": meta["priority"],
                 "description": meta["description"],
+                "boundary": meta.get("boundary", ""),
                 "absorbs": list(seed.HUB_ABSORBS.get(name, [])),
                 "alternatives": seed.HUB_ALTERNATIVES.get(name, {"oss": [], "commercial": []}),
             }
@@ -150,6 +151,17 @@ def _unassign(plan: dict, repo: str) -> None:
     plan.get("archives", {}).pop(repo, None)
     for meta in plan.get("hubs", {}).values():
         meta["absorbs"] = [r for r in meta.get("absorbs", []) if r != repo]
+
+
+def set_hub_boundary(hub: str, boundary: str) -> dict:
+    """Edit a hub's boundary statement (the scope rule fed to the LLM)."""
+    with _LOCK:
+        plan = _load()
+        if hub not in plan.get("hubs", {}):
+            raise ValueError(f"unknown hub {hub!r}")
+        plan["hubs"][hub]["boundary"] = boundary
+        _write(plan)
+        return {"hub": hub, "boundary": boundary}
 
 
 def set_verdict(repo: str, verdict: str, hub: str | None = None) -> dict:

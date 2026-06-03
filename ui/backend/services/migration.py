@@ -80,6 +80,7 @@ Repo to absorb:
 
 Destination hub: {hub_meta.get('name')} (Layer {hub_meta.get('layer')})
 Hub purpose: {hub_meta.get('description')}
+Hub boundary: {hub_meta.get('boundary') or '(none)'}
 
 Write a concrete, ordered migration checklist (5-9 steps) to fold this repo's
 useful functionality into the hub. Be specific to THIS repo — reference its

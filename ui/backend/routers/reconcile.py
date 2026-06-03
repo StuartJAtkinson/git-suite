@@ -128,6 +128,7 @@ async def reconcile(session_id: str):
             "layer": meta.get("layer"),
             "priority": meta.get("priority"),
             "description": meta.get("description", ""),
+            "boundary": meta.get("boundary", ""),
             "absorb_total": len(absorbs),
             "absorb_live": len(live_absorbs),
             "absorb_done": len(absorbed_done),

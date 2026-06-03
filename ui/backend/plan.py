@@ -44,14 +44,22 @@ HUB_ABSORBS: dict[str, list[str]] = {
 }
 
 HUB_META: dict[str, dict] = {
-    "personal-ai-os":  {"layer": 3, "priority": 2, "description": "Unified local AI OS — RAG, memory, email ingestion, emotional events"},
-    "ontology-align":  {"layer": 1, "priority": 1, "description": "Validates and aligns ontological schemas across repos"},
-    "homelab-core":    {"layer": 8, "priority": 1, "description": "Self-hosted infrastructure control plane — service discovery, secrets, stack deployment and homelab orchestration"},
-    "work-hub":        {"layer": 2, "priority": 2, "description": "Self-hosted professional work management — tickets, CRM and project tools"},
-    "media-hub":       {"layer": 4, "priority": 3, "description": "Unified media ingestion — social archives, comics, photos and video"},
-    "map-suite":       {"layer": 5, "priority": 2, "description": "OSM-based unified mapping — indoor, outdoor, 3D and procedural fantasy"},
-    "game-hub":        {"layer": 6, "priority": 3, "description": "Unified gaming platform — FFXIV toolkit, Pokemon, Zelda, Steam and TTRPG"},
-    "code-suite":      {"layer": 7, "priority": 4, "description": "Unified code management — bulk ops, semantic search, code graph and cheatsheets"},
+    "personal-ai-os":  {"layer": 3, "priority": 2, "description": "Unified local AI OS — RAG, memory, email ingestion, emotional events",
+                        "boundary": "Personal AI: RAG, memory, agents, email/knowledge for one's own use. Excludes professional work tooling (-> work-hub), infra/deployment (-> homelab-core), and formal ontologies (-> ontology-align)."},
+    "ontology-align":  {"layer": 1, "priority": 1, "description": "Validates and aligns ontological schemas across repos",
+                        "boundary": "Formal ontologies, schemas and semantic alignment — including spatial/temporal classification (place-time as an ontology). Excludes map rendering/tiles (-> map-suite) and RAG/knowledge apps (-> personal-ai-os)."},
+    "homelab-core":    {"layer": 8, "priority": 1, "description": "Self-hosted infrastructure control plane — service discovery, secrets, stack deployment and homelab orchestration",
+                        "boundary": "Deployment & infrastructure: discovery, secrets, orchestration, install tooling. Owns the deployment of other tools (e.g. ai-work-orchestration). Excludes work/project management (-> work-hub) and app-level AI (-> personal-ai-os)."},
+    "work-hub":        {"layer": 2, "priority": 2, "description": "Self-hosted professional work management — tickets, CRM and project tools",
+                        "boundary": "Professional work management only: tickets, CRM, projects, time. Excludes personal GTD (-> personal-ai-os) and the infra/deployment of these tools (-> homelab-core)."},
+    "media-hub":       {"layer": 4, "priority": 3, "description": "Unified media ingestion — social archives, comics, photos and video",
+                        "boundary": "Media content ingestion/management: social archives, comics, photos, video. Excludes game-specific data/tools (-> game-hub) and code tooling (-> code-suite)."},
+    "map-suite":       {"layer": 5, "priority": 2, "description": "OSM-based unified mapping — indoor, outdoor, 3D and procedural fantasy",
+                        "boundary": "Spatial rendering & map platforms: OSM, tiles, 3D, indoor, procedural maps. Excludes spatial ontology/classification (-> ontology-align)."},
+    "game-hub":        {"layer": 6, "priority": 3, "description": "Unified gaming platform — FFXIV toolkit, Pokemon, Zelda, Steam and TTRPG",
+                        "boundary": "Game-specific data and toolkits (FFXIV, Pokemon, Zelda, TTRPG). Excludes general media (-> media-hub) and generic procedural/world generators shared with mapping (-> map-suite)."},
+    "code-suite":      {"layer": 7, "priority": 4, "description": "Unified code management — bulk ops, semantic search, code graph and cheatsheets",
+                        "boundary": "Developer/code tooling: bulk repo ops, code search, graphs, cheatsheets, scrapers. Excludes AI agent frameworks (-> personal-ai-os) and infra (-> homelab-core)."},
 }
 
 ARCHIVE_HUB: dict[str, str | None] = {

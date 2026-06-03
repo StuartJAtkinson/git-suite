@@ -39,6 +39,19 @@ class VerdictRequest(BaseModel):
     hub: str | None = None
 
 
+class BoundaryRequest(BaseModel):
+    hub: str
+    boundary: str
+
+
+@router.post("/plan/hub-boundary")
+async def set_hub_boundary(body: BoundaryRequest):
+    try:
+        return plan_store.set_hub_boundary(body.hub, body.boundary)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @router.post("/plan/verdict")
 async def set_verdict(body: VerdictRequest):
     try:

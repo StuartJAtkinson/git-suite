@@ -76,6 +76,11 @@ export const api = {
   resetPlan: () => req('POST', '/api/plan/reset'),
   blankPlan: () => req('POST', '/api/plan/blank'),
   pruneGhosts: (session_id) => req('POST', `/api/replan/prune-ghosts/${session_id}`),
+  setHubBoundary: (hub, boundary) =>
+    req('POST', '/api/plan/hub-boundary', { hub, boundary }),
+
+  // Overlap (hub venn / boundaries)
+  getOverlap: (session_id) => req('GET', `/api/overlap/${session_id}`),
 
   // Execute (plan -> real GitHub actions)
   executePreview: (session_id) => req('GET', `/api/execute/preview/${session_id}`),

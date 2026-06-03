@@ -110,7 +110,11 @@ async def _llm_proposal(repo: dict, hubs: list[dict]) -> dict | None:
     if not llm.has_provider():
         return None
     try:
-        hub_lines = "\n".join(f"- {h['name']} (L{h['layer']}): {h['description']}" for h in hubs)
+        hub_lines = "\n".join(
+            f"- {h['name']} (L{h['layer']}): {h['description']}"
+            + (f"\n    boundary: {h['boundary']}" if h.get('boundary') else "")
+            for h in hubs
+        )
         prompt = f"""You assign a GitHub repo to a portfolio plan. Choose exactly one verdict.
 
 Repo:
