@@ -55,9 +55,6 @@ class ConfigGetResponse(BaseModel):
     llm_models: dict[str, str]
     llm_priority_order: list[str]
     embedding_models: dict[str, str]   # provider -> embedding model (opt-in)
-    jira_url: str | None; email: str | None; api_token: str | None
-    zoho_org_id: str | None; zoho_client_id: str | None
-    zoho_client_secret: str | None; zoho_refresh_token: str | None
 
 
 class ConfigPostRequest(BaseModel):
@@ -65,9 +62,6 @@ class ConfigPostRequest(BaseModel):
     llm_models: dict[str, str] | None = None
     llm_priority_order: list[str] | None = None
     embedding_models: dict[str, str] | None = None
-    jira_url: str | None = None; email: str | None = None; api_token: str | None = None
-    zoho_org_id: str | None = None; zoho_client_id: str | None = None
-    zoho_client_secret: str | None = None; zoho_refresh_token: str | None = None
 
 
 @router.get("/config", response_model=ConfigGetResponse)
@@ -81,11 +75,6 @@ async def get_config():
         llm_keys=cfg.get("llm_keys", {}), llm_models=models,
         llm_priority_order=cfg.get("llm_priority_order", []),
         embedding_models=cfg.get("embedding_models", {}),
-        jira_url=cfg.get("jira_url"), email=cfg.get("email"),
-        api_token=cfg.get("api_token"), zoho_org_id=cfg.get("zoho_org_id"),
-        zoho_client_id=cfg.get("zoho_client_id"),
-        zoho_client_secret=cfg.get("zoho_client_secret"),
-        zoho_refresh_token=cfg.get("zoho_refresh_token"),
     )
 
 

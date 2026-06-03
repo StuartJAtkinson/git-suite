@@ -36,7 +36,6 @@
     loading = false;
   });
 
-  function patch(key, val) { config = { ...config, [key]: val }; saved = false; }
   function patchKey(p, v) { config = { ...config, llm_keys: { ...(config.llm_keys||{}), [p]: v } }; saved = false; }
   function patchModel(p, v) { config = { ...config, llm_models: { ...(config.llm_models||{}), [p]: v } }; saved = false; }
   function removeProvider(p) {
@@ -192,19 +191,24 @@
 
   <div class="col">
     <div class="card">
-      <h3 class="card-title">Jira</h3>
-      <div class="field-row"><span class="field-label">Instance URL</span><input class="field-input" value={config.jira_url||''} on:change={e=>patch('jira_url',e.target.value)} placeholder="https://yourorg.atlassian.net" /></div>
-      <div class="field-row"><span class="field-label">Email</span><input class="field-input" value={config.email||''} on:change={e=>patch('email',e.target.value)} placeholder="you@company.com" /></div>
-      <div class="field-row"><span class="field-label">API Token</span><input type="password" class="field-input" value={config.api_token||''} on:change={e=>patch('api_token',e.target.value)} placeholder="API token" /></div>
-    </div>
-
-    <div class="card">
-      <h3 class="card-title">Zoho Desk</h3>
-      <p class="hint">Run python zoho_auth.py in the repo root to generate the refresh token.</p>
-      <div class="field-row"><span class="field-label">Org ID</span><input class="field-input" value={config.zoho_org_id||''} on:change={e=>patch('zoho_org_id',e.target.value)} placeholder="20079607586" /></div>
-      <div class="field-row"><span class="field-label">Client ID</span><input class="field-input" value={config.zoho_client_id||''} on:change={e=>patch('zoho_client_id',e.target.value)} /></div>
-      <div class="field-row"><span class="field-label">Client Secret</span><input type="password" class="field-input" value={config.zoho_client_secret||''} on:change={e=>patch('zoho_client_secret',e.target.value)} /></div>
-      <div class="field-row"><span class="field-label">Refresh Token</span><input type="password" class="field-input" value={config.zoho_refresh_token||''} on:change={e=>patch('zoho_refresh_token',e.target.value)} /></div>
+      <h3 class="card-title">Where these are used</h3>
+      <p class="hint">The failover chains are only called at these stages. Without them, each stage degrades to deterministic rules.</p>
+      <div class="use-group">
+        <span class="use-tag llm">LLM (chat)</span>
+        <ul>
+          <li><b>Replan</b> — verdict proposals (categorisation)</li>
+          <li><b>Migration</b> — per-repo checklists</li>
+          <li><b>Commercial</b> — scrape → feature extraction</li>
+        </ul>
+      </div>
+      <div class="use-group">
+        <span class="use-tag emb">Embeddings</span>
+        <ul>
+          <li><b>Cluster</b> — group formation</li>
+          <li><b>Overlap</b> — semantic venn</li>
+          <li><b>Replan</b> — absorb suggestions (classification)</li>
+        </ul>
+      </div>
     </div>
   </div>
 </div>
@@ -220,6 +224,11 @@
 .hint { font-size: 0.78rem; color: #6b7280; margin: 0 0 1rem; }
 .status-box { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 7px; padding: 0.6rem 0.8rem; margin-bottom: 1rem; font-size: 0.78rem; color: #065f46; }
 .status-box.warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.use-group { margin-bottom: 0.9rem; }
+.use-tag { display: inline-block; font-size: 0.7rem; font-weight: 700; border-radius: 4px; padding: 0.15em 0.5em; margin-bottom: 0.3rem; }
+.use-tag.llm { background: #ddd6fe; color: #5b21b6; }
+.use-tag.emb { background: #cffafe; color: #155e75; }
+.use-group ul { margin: 0; padding-left: 1.2rem; font-size: 0.82rem; color: #374151; line-height: 1.55; }
 .status-label { font-weight: 600; }
 .chain-item { background: rgba(255,255,255,0.7); border-radius: 4px; padding: 0.1em 0.45em; font-family: monospace; }
 .chain-item.head { font-weight: 700; }
