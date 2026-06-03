@@ -60,11 +60,31 @@ def _seed_plan() -> dict:
     }
 
 
+def _heal(plan: dict) -> dict:
+    """Backfill hub metadata fields added after the plan was first seeded
+    (e.g. boundary, alternatives) from the seed, without touching any repo
+    assignments. Lets existing plan.json files gain new fields without a reset."""
+    seed = _seed_plan()
+    plan.setdefault("hubs", {})
+    plan.setdefault("archives", {})
+    plan.setdefault("keeps", [])
+    plan.setdefault("layer_names", seed["layer_names"])
+    for name, smeta in seed["hubs"].items():
+        hub = plan["hubs"].get(name)
+        if hub is None:
+            continue  # hub removed on purpose — don't resurrect
+        for field in ("layer", "priority", "description", "boundary", "alternatives"):
+            if not hub.get(field):
+                hub[field] = smeta.get(field)
+        hub.setdefault("absorbs", [])
+    return plan
+
+
 def _load() -> dict:
     """Load the canonical plan, seeding the file on first run."""
     try:
         if _PLAN_FILE.exists():
-            return json.loads(_PLAN_FILE.read_text(encoding="utf-8"))
+            return _heal(json.loads(_PLAN_FILE.read_text(encoding="utf-8")))
     except Exception as exc:  # corrupt file — fall back to seed, don't crash
         log.warning("plan.json unreadable (%s); using seed", exc)
     plan = _seed_plan()

@@ -14,13 +14,16 @@ _LOG_DIR = Path(__file__).parent / "logs"
 _LOG_DIR.mkdir(exist_ok=True)
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s %(levelname)-8s %(name)-28s %(message)s",
     handlers=[
         logging.StreamHandler(),
         logging.FileHandler(_LOG_DIR / "app.log", encoding="utf-8"),
     ],
 )
+# These libraries dump huge DEBUG payloads (full SQL, HTTP bodies) — keep quiet.
+for _noisy in ("aiosqlite", "httpcore", "httpx", "watchfiles"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
 log = logging.getLogger("git-suite.main")
 
 

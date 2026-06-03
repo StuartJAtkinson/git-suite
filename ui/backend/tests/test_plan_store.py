@@ -58,6 +58,21 @@ def test_persistence_roundtrip(isolated_plan):
     assert "foo" in isolated_plan.get_plan()["keeps"]
 
 
+def test_seed_has_boundaries(isolated_plan):
+    p = isolated_plan.get_plan()
+    assert p["hubs"]["map-suite"]["boundary"]      # non-empty boundary rule
+
+
+def test_heal_backfills_missing_boundary(isolated_plan, tmp_path):
+    import json as _json
+    # simulate an old plan.json lacking boundary on a hub
+    plan = isolated_plan.get_plan()
+    del plan["hubs"]["game-hub"]["boundary"]
+    (tmp_path / "plan.json").write_text(_json.dumps(plan))
+    healed = isolated_plan.get_plan()
+    assert healed["hubs"]["game-hub"]["boundary"]  # backfilled from seed
+
+
 def test_blank_clears_assignments_keeps_hub_shells(isolated_plan):
     isolated_plan.set_verdict("foo", "absorb", "media-hub")
     p = isolated_plan.blank()
