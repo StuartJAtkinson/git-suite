@@ -53,6 +53,7 @@ def _save(cfg: dict) -> None:
 class ConfigGetResponse(BaseModel):
     llm_keys: dict[str, str]
     llm_models: dict[str, str]
+    llm_base_urls: dict[str, str]      # provider -> call URL override (optional)
     llm_priority_order: list[str]
     embedding_models: dict[str, str]   # provider -> embedding model (opt-in)
 
@@ -60,6 +61,7 @@ class ConfigGetResponse(BaseModel):
 class ConfigPostRequest(BaseModel):
     llm_keys: dict[str, str] | None = None
     llm_models: dict[str, str] | None = None
+    llm_base_urls: dict[str, str] | None = None
     llm_priority_order: list[str] | None = None
     embedding_models: dict[str, str] | None = None
 
@@ -73,6 +75,7 @@ async def get_config():
             models[p] = _DEFAULT_MODELS[p]
     return ConfigGetResponse(
         llm_keys=cfg.get("llm_keys", {}), llm_models=models,
+        llm_base_urls=cfg.get("llm_base_urls", {}),
         llm_priority_order=cfg.get("llm_priority_order", []),
         embedding_models=cfg.get("embedding_models", {}),
     )
@@ -89,7 +92,21 @@ async def post_config(body: ConfigPostRequest):
 
 @router.get("/config/providers")
 async def list_providers():
-    return [{"id": p, "default_model": _DEFAULT_MODELS[p]} for p in ALL_PROVIDERS]
+    """Provider registry for the Setup UI: display name, default call URL,
+    default model, where to get a key, and whether a key is required."""
+    from llm_providers import PROVIDERS
+    out = []
+    for pid, meta in PROVIDERS.items():
+        out.append({
+            "id": pid,
+            "display_name": meta["display_name"],
+            "api_type": meta["api_type"],
+            "base_url": meta["base_url"],
+            "setup_url": meta["setup_url"],
+            "default_model": meta["default_model"],
+            "needs_key": meta["needs_key"],
+        })
+    return out
 
 
 @router.get("/config/llm-status")

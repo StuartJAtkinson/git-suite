@@ -169,9 +169,15 @@ async def _call_ollama(base_url, model, prompt, system, max_tokens) -> str:
         return r.json()["message"]["content"]
 
 
+def _base_url(name: str) -> str:
+    """Config override (custom call URL) else the registry default."""
+    override = _config().get("llm_base_urls", {}).get(name)
+    return override or PROVIDERS[name]["base_url"]
+
+
 async def _dispatch(name, key, model, prompt, system, max_tokens) -> str:
     api_type = PROVIDERS[name]["api_type"]
-    base = PROVIDERS[name]["base_url"]
+    base = _base_url(name)
     if api_type == "anthropic":
         return await _call_anthropic(key, model, prompt, system, max_tokens)
     if api_type == "openai_compat":

@@ -20,6 +20,7 @@
   }
 
   let config = {};
+  let providers = [];      // registry metadata from /api/config/providers
   let loading = true;
   let saving = false;
   let saved = false;
@@ -31,18 +32,26 @@
   }
 
   onMount(async () => {
-    try { config = await api.getConfig(); } catch (e) { error = e.message; }
+    try {
+      config = await api.getConfig();
+      providers = await api.getProviders();
+    } catch (e) { error = e.message; }
     await refreshStatus();
     loading = false;
   });
 
+  // Adding a provider registers an (empty) key so its form renders — you then
+  // fill in the key / call URL / model and Save.
+  function addProvider(p) { patchKey(p, ''); }
   function patchKey(p, v) { config = { ...config, llm_keys: { ...(config.llm_keys||{}), [p]: v } }; saved = false; }
   function patchModel(p, v) { config = { ...config, llm_models: { ...(config.llm_models||{}), [p]: v } }; saved = false; }
+  function patchBaseUrl(p, v) { config = { ...config, llm_base_urls: { ...(config.llm_base_urls||{}), [p]: v } }; saved = false; }
   function removeProvider(p) {
     const keys = { ...(config.llm_keys||{}) }; delete keys[p];
     const models = { ...(config.llm_models||{}) }; delete models[p];
+    const urls = { ...(config.llm_base_urls||{}) }; delete urls[p];
     const order = (config.llm_priority_order||[]).filter(x => x !== p);
-    config = { ...config, llm_keys: keys, llm_models: models, llm_priority_order: order };
+    config = { ...config, llm_keys: keys, llm_models: models, llm_base_urls: urls, llm_priority_order: order };
     saved = false;
   }
   function movePriority(p, dir) {
@@ -74,12 +83,21 @@
     saved = false;
   }
 
+  $: meta = Object.fromEntries(providers.map(p => [p.id, p]));
+  $: allIds = providers.length ? providers.map(p => p.id) : Object.keys(LLM_PROVIDERS);
   $: llmKeys = config.llm_keys || {};
   $: llmModels = config.llm_models || {};
-  $: configured = Object.keys(llmKeys).filter(p => llmKeys[p]);
-  $: priorityOrder = (config.llm_priority_order?.length ? config.llm_priority_order : configured);
-  $: orderedConfigured = priorityOrder.filter(p => llmKeys[p]);
-  $: unconfigured = Object.keys(LLM_PROVIDERS).filter(p => !llmKeys[p]);
+  $: llmBaseUrls = config.llm_base_urls || {};
+  // "added" = registered in the form (key may still be empty) — NOT "has a key".
+  $: added = Array.from(new Set([
+       ...Object.keys(llmKeys),
+       ...(config.llm_priority_order || []),
+     ])).filter(p => allIds.includes(p));
+  $: priorityOrder = (config.llm_priority_order?.length ? config.llm_priority_order : added);
+  $: orderedConfigured = priorityOrder.filter(p => added.includes(p));
+  $: unconfigured = allIds.filter(p => !added.includes(p));
+  const dispName = (p) => (meta[p]?.display_name) || LLM_PROVIDERS[p] || p;
+  const defModel = (p) => (meta[p]?.default_model) || LLM_DEFAULT_MODELS[p] || '';
 </script>
 
 <div class="page-header">
@@ -123,22 +141,34 @@
       <div class="provider-box">
         <div class="provider-head">
           <span class="provider-num">{i+1}</span>
-          <span class="provider-name">{LLM_PROVIDERS[provider] ?? provider}</span>
+          <span class="provider-name">{dispName(provider)}</span>
+          {#if meta[provider]?.setup_url}
+            <a class="get-key" href={meta[provider].setup_url} target="_blank" rel="noreferrer">get key ↗</a>
+          {/if}
           <div class="provider-controls">
             <button class="btn-icon" on:click={() => movePriority(provider, -1)} disabled={i===0}>↑</button>
             <button class="btn-icon" on:click={() => movePriority(provider, 1)} disabled={i===orderedConfigured.length-1}>↓</button>
             <button class="btn-remove" on:click={() => removeProvider(provider)}>Remove</button>
           </div>
         </div>
+        {#if meta[provider]?.needs_key !== false}
         <div class="field-row">
           <span class="field-label">API Key</span>
           <input type="password" class="field-input" value={llmKeys[provider]||''}
             on:change={e => patchKey(provider, e.target.value)} placeholder="API key" />
         </div>
+        {/if}
+        {#if meta[provider]?.api_type !== 'anthropic'}
+        <div class="field-row">
+          <span class="field-label">Call URL</span>
+          <input type="text" class="field-input" value={llmBaseUrls[provider]||''}
+            on:change={e => patchBaseUrl(provider, e.target.value)} placeholder={meta[provider]?.base_url || 'https://…'} />
+        </div>
+        {/if}
         <div class="field-row">
           <span class="field-label">Model</span>
-          <input type="text" class="field-input" value={llmModels[provider] || LLM_DEFAULT_MODELS[provider] || ''}
-            on:change={e => patchModel(provider, e.target.value)} placeholder={LLM_DEFAULT_MODELS[provider]} />
+          <input type="text" class="field-input" value={llmModels[provider] || defModel(provider)}
+            on:change={e => patchModel(provider, e.target.value)} placeholder={defModel(provider)} />
         </div>
       </div>
       {/each}
@@ -148,7 +178,7 @@
         <p class="add-label">Add provider:</p>
         <div class="add-buttons">
           {#each unconfigured as p}
-          <button class="btn-add" on:click={() => patchKey(p, '')}>+ {LLM_PROVIDERS[p]}</button>
+          <button class="btn-add" on:click={() => addProvider(p)}>+ {dispName(p)}</button>
           {/each}
         </div>
       </div>
@@ -236,7 +266,8 @@
 .provider-box { border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; }
 .provider-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
 .provider-num { font-size: 0.7rem; font-weight: 700; color: #6b7280; width: 20px; text-align: right; }
-.provider-name { font-size: 0.875rem; font-weight: 500; flex: 1; }
+.provider-name { font-size: 0.875rem; font-weight: 500; }
+.get-key { font-size: 0.72rem; color: #0057b7; flex: 1; }
 .provider-controls { display: flex; gap: 0.25rem; }
 .btn-icon { background: none; border: 1px solid #d1d5db; border-radius: 4px; padding: 0.15rem 0.4rem; font-size: 0.75rem; cursor: pointer; color: #6b7280; }
 .btn-icon:disabled { opacity: 0.3; cursor: not-allowed; }
