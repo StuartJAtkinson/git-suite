@@ -87,6 +87,14 @@ async def init_db() -> None:
                 PRIMARY KEY (hub, repo)
             );
 
+            -- Cached embedding vectors, keyed by model+text hash.
+            CREATE TABLE IF NOT EXISTS embedding (
+                key        TEXT PRIMARY KEY,   -- sha256(model + text)
+                model      TEXT NOT NULL,
+                vector     TEXT NOT NULL,      -- JSON array of floats
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+
             -- Append-only log of applied plan changes (how the plan evolved).
             CREATE TABLE IF NOT EXISTS plan_history (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,

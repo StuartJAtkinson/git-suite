@@ -56,8 +56,11 @@
 {#if !loading && data}
   <!-- Overlap matrix -->
   <div class="section">
-    <div class="section-head"><h2>Overlap matrix</h2></div>
-    <p class="hint">Cell = number of repos that score for both hubs (a straddle). Darker = more overlap.</p>
+    <div class="section-head">
+      <h2>Overlap matrix</h2>
+      <span class="method method-{data.method}">{data.method === 'semantic' ? 'semantic (embeddings)' : 'keyword'}</span>
+    </div>
+    <p class="hint">Cell = number of repos that score for both hubs (a straddle). Darker = more overlap. {data.method === 'keyword' ? 'Add an embeddings provider (OpenAI key / Ollama) for semantic scoring.' : ''}</p>
     <div class="matrix-wrap">
       <table class="matrix">
         <thead>
@@ -121,6 +124,9 @@
 
 <style>
   .hint { font-size: 0.8rem; color: #6b7280; margin: 0 0 0.75rem; }
+  .method { font-size: 0.7rem; font-weight: 600; border-radius: 4px; padding: 0.15em 0.5em; }
+  .method-semantic { background: #ddd6fe; color: #5b21b6; }
+  .method-keyword { background: #f3f4f6; color: #6b7280; }
   .matrix-wrap { overflow-x: auto; }
   .matrix { border-collapse: collapse; font-size: 0.75rem; }
   .matrix th, .matrix td { border: 1px solid #e5e7eb; padding: 0.3rem 0.4rem; text-align: center; }

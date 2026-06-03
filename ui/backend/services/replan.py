@@ -155,6 +155,26 @@ Return ONLY this JSON, no markdown:
 
 # --- pass generation -------------------------------------------------------
 
+async def _embed_rank(orphans: list[dict], hubs: list[dict]) -> dict[str, list[tuple[str, float]]]:
+    """Per-orphan hub ranking by embedding similarity. {} if embeddings off."""
+    from services import embeddings
+    if not embeddings.has_embeddings() or not orphans:
+        return {}
+    hub_texts = [f"{h['name']}. {h.get('description', '')}. {h.get('boundary', '')}" for h in hubs]
+    repo_texts = [f"{o['name']}. {o.get('aim', '')}. {' '.join(o.get('topics') or [])}" for o in orphans]
+    hv = await embeddings.embed(hub_texts)
+    rv = await embeddings.embed(repo_texts)
+    if not hv or not rv:
+        return {}
+    out: dict[str, list[tuple[str, float]]] = {}
+    for o, vec in zip(orphans, rv):
+        out[o["name"]] = sorted(
+            ((hubs[i]["name"], embeddings.cosine(vec, h)) for i, h in enumerate(hv)),
+            key=lambda kv: -kv[1],
+        )
+    return out
+
+
 async def generate_proposals(recon: dict) -> tuple[str, list[dict]]:
     """Turn a reconcile result into (phase, proposals).
 
@@ -167,6 +187,7 @@ async def generate_proposals(recon: dict) -> tuple[str, list[dict]]:
     proposals: list[dict] = []
 
     hub_names = {h["name"] for h in hubs}
+    emb_rank = await _embed_rank(recon["orphans"], hubs)
 
     # --- always: fill in orphans (the incremental work) ---
     for orphan in recon["orphans"]:
@@ -187,6 +208,17 @@ async def generate_proposals(recon: dict) -> tuple[str, list[dict]]:
                 "proposed": {"verdict": "archive", "hub": None},
                 "source": "rule", "confidence": 0.7,
                 "rationale": orphan["stub_reason"] + " — archive unless function-distinct",
+            })
+            continue
+        # Semantic match (embeddings) takes precedence over keyword rules when
+        # there's a clear winner.
+        er = emb_rank.get(orphan["name"])
+        if er and er[0][1] >= 0.28 and (er[0][1] - er[1][1]) >= 0.04:
+            proposals.append({
+                "kind": "verdict", "target": orphan["name"],
+                "proposed": {"verdict": "absorb", "hub": er[0][0]},
+                "source": "embedding", "confidence": round(min(0.9, 0.5 + er[0][1]), 2),
+                "rationale": f"semantic match -> {er[0][0]} (cos {er[0][1]:.2f}, next {er[1][0]} {er[1][1]:.2f})",
             })
             continue
         rule = _rule_proposal(orphan)
