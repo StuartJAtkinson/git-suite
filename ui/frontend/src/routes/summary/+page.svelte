@@ -73,6 +73,10 @@
     <div class="stat-value">{stats.ghost}</div>
     <div class="stat-label">Ghosts (planned, not live)</div>
   </div>
+  <div class="stat-card">
+    <div class="stat-value">{stats.stub ?? 0}</div>
+    <div class="stat-label">Stub repos (drop candidates)</div>
+  </div>
 </div>
 
 <div class="section">
@@ -123,6 +127,13 @@
           <span class="action-num">1</span>
           <span>Triage {stats.undecided} undecided repo{stats.undecided > 1 ? 's' : ''} — give each a verdict</span>
           <a href="/triage"><button class="sm secondary">Go to Triage</button></a>
+        </div>
+      {/if}
+      {#if (stats.stub ?? 0) > 0}
+        <div class="action-item">
+          <span class="action-num">!</span>
+          <span>{stats.stub} stub repo{stats.stub > 1 ? 's' : ''} flagged — review for archiving</span>
+          <a href="/triage"><button class="sm secondary">Review in Triage</button></a>
         </div>
       {/if}
       {#if absorbDone < absorbTotal}
