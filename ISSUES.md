@@ -5,7 +5,7 @@
 - [ ] **Functional flow reorder applied; verify pages** — nav now Setup→Scan→Hubs→Overlap→Replan→Triage→Execute→Layers→Summary; Archive folded into Execute (route still exists, unlinked — delete later). Triage shows hint when no hubs *(2026-06-03)*
 
 - [ ] **Browse folder picker errors on some setups** — tkinter subprocess returns "Folder dialog unavailable"; manual path entry works and is the reliable route. Low priority *(found 2026-06-03)*
-- [ ] **Plan editing is repo-verdict only** — can set a repo's fate, but hub meta (layer/priority/description/alternatives) and creating new hubs still require editing plan.py seed. Add hub-level plan editing if needed *(found 2026-06-02)*
+- [ ] **No in-place edit of an existing hub's meta** — Hubs page can create hubs (name/layer/priority/description/boundary via `/plan/hub` upsert) and Cluster forms them, but there's no per-hub edit affordance: changing an existing hub's layer/priority means re-creating with the same name, and `alternatives` (OSS/commercial) is still seed-only. Add per-row edit if needed *(narrowed 2026-06-06; was "creating hubs needs plan.py seed", now false)*
 
 - [ ] **L9 Creative has no hub** — `VTuberLIVE` (live audio-driven generative visuals) is unique with no OSS/commercial equivalent; currently kept as-is but has no layer home. Consider a `creative-hub` if other L9 repos accumulate *(found 2026-05-25)*
 
@@ -15,6 +15,9 @@
 
 ## Resolved
 
+- [x] **Root README was stale (old repo-per-layer model)** — rewritten off current state: describes git-suite as the consolidation *tool* (Setup→Scan→Cluster→Hubs→Overlap→Replan→Triage→Execute→Layers→Summary), the plan-as-data / remote-first / no-assumed-hub principles, the SvelteKit→nginx→FastAPI→SQLite architecture + failover chains, and Docker/dev/test run steps. Removed the dead belzona-tickets listing; points layer/hub detail at PLAN.md *(resolved 2026-06-06)*
+- [x] **Setup: Add-provider opened no form + per-provider call URL** — "Add provider" set an empty key which filtered the form straight back out; now tracks added providers by registration. Each provider configures API Key + Call URL (base_url override) + Model with a "get key" link, sourced from a provider registry (`/api/config/providers` returns display_name/base_url/setup_url/default_model/needs_key). `llm_base_urls` persists and `llm._dispatch` honours the override *(resolved 2026-06-03)*
+- [x] **Setup: dead Jira/Zoho config (belzona carryover)** — removed jira/email/api_token/zoho_* from the config schema and Setup form (git-suite has no ticketing); replaced with a "Where these are used" card mapping each failover chain to its call sites — LLM: Replan/Migration/Commercial; Embeddings: Cluster/Overlap/Replan *(resolved 2026-06-03)*
 - [x] **Assisted clustering stage ("Form groups")** — Cluster page (nav between Scan/Hubs): embeds unassigned repos, union-find clusters over a cosine threshold (tightness slider), suggests a theme; user names a new hub / promotes a member / adds to existing, with a description that feeds the hub's LLM boundary; forms hub + absorbs members. Backend services/cluster.py + routers/cluster.py; degrades to available:false without reachable embeddings. +6 tests (61) *(resolved 2026-06-03)*
 - [x] **Functional flow reorder** — nav: Setup→Scan→Cluster→Hubs→Overlap→Replan→Triage→Execute→Layers→Summary; Archive folded into Execute *(resolved 2026-06-03)*
 - [x] **Portable scan WebSocket (A)** — WS URL derives from window.location (ws/wss), proxied by Vite (ws:true) + nginx (upgrade headers); works dev/docker/https *(resolved 2026-06-03)*
