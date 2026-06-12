@@ -21,9 +21,8 @@ This is a living document. Everything below is the current intent — some repos
   (triage / replan / overlap), not inferred from local presence, repo name, or
   any pre-existing checkout. Hubs are explicit plan definitions; everything
   else earns its verdict from the scan.
-- **`repos_root` is optional.** The folder picked at login is stored only as a
-  future target for local operations (clone / migration). It does not drive the
-  scan, the plan, or hub assignment.
+- **No local paths.** There is no repos-root or folder configuration anywhere;
+  the portfolio is read and acted on entirely through the GitHub API.
 
 ---
 

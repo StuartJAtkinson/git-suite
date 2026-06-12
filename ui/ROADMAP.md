@@ -56,10 +56,10 @@ Health: `http://localhost:2800/health`. API docs: `/docs`.
 4. **Planning is cheap, execution is deliberate** — verdicts/edits are local
    and reversible; outward GitHub actions are previewed, confirmed, batched,
    idempotent, and audited.
-5. **Remote-first, local-equal.** Portfolio is sourced entirely from the GitHub
-   API (`/user/repos` with `visibility=all` — public *and* private). A local
-   checkout carries no meaning: it never qualifies, classifies, or sources a
-   repo. `repos_root` is stored only as a future target for clone/migration.
+5. **Remote-only.** Portfolio is sourced entirely from the GitHub API
+   (`/user/repos` with `visibility=all` — public *and* private). Local
+   checkouts carry no meaning and are never read; there is no local path
+   configuration.
 6. **No repo is assumed a hub.** Hub membership is *derived* through the plan
    (cluster → triage → replan → overlap), not inferred from a name or
    an existing checkout.
@@ -89,7 +89,7 @@ Health: `http://localhost:2800/health`. API docs: `/docs`.
 
 | Page | What it does |
 |------|--------------|
-| **Setup** | GitHub login (PAT or `gh auth`) + `repos_root`; LLM provider config (API key, call URL override, model, failover priority); embedding provider + model; chain readout showing where each is used |
+| **Setup** | First step — GitHub connection (PAT or `gh auth`); LLM provider config (API key, call URL override, model, failover priority); embedding provider + model; chain readout showing where each is used |
 | **Scan** | Streams the live portfolio (incl. private repos) over a same-origin WebSocket; enriched fields (topics, stars, fork, pushed_at, archived, size) |
 | **Cluster** | Assisted group formation — embeds unassigned repos, union-find clusters them, suggests a theme, user names a new hub / promotes a member / adds to existing |
 | **Hubs** | Per-hub card grid; create / remove hubs; per-row edit (re-upsert to change meta) |
@@ -139,7 +139,7 @@ services/
   claude_ai.py     commercial feature extraction (via llm)
   scraper.py       URL scrape (crawl4ai or httpx+bs4)
 routers/
-  auth            login, browse, search-folder, path-complete, defaults, gh-token
+  auth            login, gh-token, session
   scan            start + WebSocket stream + results + latest
   cluster         propose clusters / form hub
   hubs            list / status / per-repo archive+absorb

@@ -14,18 +14,9 @@ async function req(method, path, body) {
 
 export const api = {
   // Auth
-  pickFolder: () => req('POST', '/auth/pick-folder'),
-  browse: (path) =>
-    req('GET', `/auth/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`),
-  searchFolder: (name) =>
-    req('GET', `/auth/search-folder?name=${encodeURIComponent(name)}`),
-
-  pathComplete: (prefix) =>
-    req('GET', `/auth/path-complete?prefix=${encodeURIComponent(prefix)}`),
-  getDefaults: () => req('GET', '/auth/defaults'),
   getGhToken: () => req('GET', '/auth/gh-token'),
-  login: (token, repos_root) =>
-    req('POST', '/auth/login', { token, repos_root }),
+  login: (token) =>
+    req('POST', '/auth/login', { token }),
   getSession: (session_id) =>
     req('GET', `/auth/session/${session_id}`),
   getLatestScan: (session_id) =>

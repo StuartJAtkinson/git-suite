@@ -20,9 +20,9 @@ step that touches GitHub.
 - **Plan is data, not code.** The canonical plan lives in `~/.git-suite/plan.json`
   (seeded once from `plan.py`). Every verdict, hub, and boundary is an edit to that
   file — never a code change.
-- **Remote-first, local-equal.** The portfolio is sourced entirely from the GitHub API.
-  A local checkout carries no meaning: presence in a folder never qualifies, classifies,
-  or sources a repo. `repos_root` is stored only as a future target for clone/migration.
+- **Remote-only.** The portfolio is sourced entirely from the GitHub API. A local
+  checkout carries no meaning: presence in a folder never qualifies, classifies, or
+  sources a repo, and there is no local path configuration.
 - **No repo is assumed a hub.** Hub membership is *derived* through the plan (cluster →
   triage → replan → overlap), not inferred from a name or an existing checkout.
 - **Degrades cleanly.** LLM and embedding features run through failover chains and fall
@@ -37,7 +37,7 @@ writes back to `plan.json`; nothing reaches GitHub until **Execute**.
 
 | Stage | What it does |
 |-------|--------------|
-| **Setup** | GitHub login + `repos_root`; configure LLM and embedding providers (API key + call URL + model, with failover priority). Shows where each chain is actually used. |
+| **Setup** | First step — GitHub connection (PAT or `gh auth`); configure LLM and embedding providers (API key + call URL + model, with failover priority). Shows where each chain is actually used. |
 | **Scan** | Pulls every owned repo (public + private) over a live WebSocket, capturing topics, stars, fork/archived flags, `pushed_at`. |
 | **Cluster** | Embeds unassigned repos and union-find clusters them over a cosine threshold (tightness slider); suggests a theme so you can form a new hub or grow an existing one. |
 | **Hubs** | Create/define hubs (name, layer, priority, description, boundary rule) and see each hub's absorb/archive status. |

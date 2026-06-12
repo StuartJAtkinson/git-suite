@@ -2,7 +2,7 @@
 
 ## Open
 
-- [ ] **Browse folder picker errors on some setups** — tkinter subprocess returns "Folder dialog unavailable"; manual path entry works and is the reliable route. Low priority *(found 2026-06-03)*
+- [ ] **Stars as first-class dedup input** — the product goal is organising owned repos *and* starred repos into one framework that prevents duplicated functionality; today scan only covers owned repos and stars exist only as hand-curated `HUB_ALTERNATIVES` / PLAN.md inspiration lists. Needs: starred-repo scan, embedding match of stars against hubs/owned repos, and a "a starred project already does this" signal in triage/overlap *(found 2026-06-12)*
 - [ ] **No in-place edit of an existing hub's meta** — Hubs page can create hubs (name/layer/priority/description/boundary via `/plan/hub` upsert) and Cluster forms them, but there's no per-hub edit affordance: changing an existing hub's layer/priority means re-creating with the same name, and `alternatives` (OSS/commercial) is still seed-only. Add per-row edit if needed *(narrowed 2026-06-06; was "creating hubs needs plan.py seed", now false)*
 
 - [ ] **L9 Creative has no hub** — `VTuberLIVE` (live audio-driven generative visuals) is unique with no OSS/commercial equivalent; currently kept as-is but has no layer home. Consider a `creative-hub` if other L9 repos accumulate *(found 2026-05-25)*
@@ -13,6 +13,8 @@
 
 ## Resolved
 
+- [x] **repos_root + folder-picker machinery removed (remote-only)** — repos_root never drove anything (stored "for future clone/migration" only) and contradicted the remote-first principle; user confirmed it's not wanted. Removed: Setup form field, `/auth/pick-folder|browse|search-folder|path-complete|defaults` endpoints, api.js methods; login is token-only (DB column kept for schema compat, written as ""). This also retires the "Browse folder picker errors" open issue — the picker no longer exists *(resolved 2026-06-12)*
+- [x] **Plaintext GitHub PAT in ui/backend/logs/app.log** — old aiosqlite DEBUG lines logged full session INSERTs including a `ghp_…` token (logging has since been quieted to INFO). File was gitignored, never committed; deleted from disk. ⚠ Revoke that classic PAT at github.com/settings/tokens if still active *(found & resolved 2026-06-12)*
 - [x] **Login/Setup split — Setup not actually the first step** — GitHub login lived on a separate gate page at `/` while Setup only held LLM/embed config (docs claimed otherwise — drift). Merged: Setup now opens with a GitHub-connection card (token + gh-auth fetch + optional repos_root + connected-user/disconnect state); `/` redirects to `/setup`; `repos_root` made optional in both the form and the backend `LoginRequest` (401 not 422 without it — verified live); dead `FolderBrowser.svelte` removed. 61 tests green, stack rebuilt *(found & resolved 2026-06-12)*
 - [x] **Setup movePriority crash** — `movePriority` referenced undefined `configured`; first reorder before a saved priority order threw ReferenceError. Now starts from the rendered `orderedConfigured` *(found & resolved 2026-06-12)*
 

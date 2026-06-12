@@ -34,11 +34,9 @@
 
   // --- GitHub connection (merged from the old standalone login page) ---
   let ghToken = '';
-  let reposRoot = '';
   let tokenSource = '';
   let ghError = '';
   let loadingToken = false;
-  let picking = false;
   let connecting = false;
 
   async function fetchGhToken() {
@@ -56,24 +54,11 @@
     }
   }
 
-  async function browseNative() {
-    picking = true;
-    ghError = '';
-    try {
-      const res = await api.pickFolder();
-      if (res.path) reposRoot = res.path;   // empty = dialog cancelled
-    } catch (e) {
-      ghError = e.message;
-    } finally {
-      picking = false;
-    }
-  }
-
   async function connect() {
     connecting = true;
     ghError = '';
     try {
-      const res = await api.login(ghToken, reposRoot);
+      const res = await api.login(ghToken);
       session.set(res);
       ghToken = '';
     } catch (e) {
@@ -96,10 +81,8 @@
       providers = await api.getProviders();
     } catch (e) { error = e.message; }
     if (!$session) {
-      try {
-        const defaults = await api.getDefaults();
-        if (defaults.has_env_token) await fetchGhToken();
-      } catch {}
+      // Best-effort prefill from GH_TOKEN env or gh CLI; silent if neither.
+      try { await fetchGhToken(); } catch {} finally { ghError = ''; }
     }
     await refreshStatus();
     loading = false;
@@ -217,14 +200,6 @@
         {#if tokenSource && ghToken}
           <p class="hint" style="margin:0 0 0.5rem">{SOURCE_LABEL[tokenSource] ?? tokenSource}</p>
         {/if}
-        <div class="field-row">
-          <span class="field-label">Repos root</span>
-          <input type="text" class="field-input" bind:value={reposRoot}
-            placeholder="optional — future clone/migration target" />
-          <button class="btn-add" disabled={picking} on:click={browseNative}>
-            {picking ? '…' : 'Browse'}
-          </button>
-        </div>
         {#if ghError}<div class="error-msg" style="margin-top:0.5rem">{ghError}</div>{/if}
         <button class="btn-primary" style="margin-top:0.75rem"
           disabled={connecting || !ghToken} on:click={connect}>
