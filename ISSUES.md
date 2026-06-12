@@ -2,8 +2,6 @@
 
 ## Open
 
-- [ ] **Functional flow reorder applied; verify pages** — nav now Setup→Scan→Hubs→Overlap→Replan→Triage→Execute→Layers→Summary; Archive folded into Execute (route still exists, unlinked — delete later). Triage shows hint when no hubs *(2026-06-03)*
-
 - [ ] **Browse folder picker errors on some setups** — tkinter subprocess returns "Folder dialog unavailable"; manual path entry works and is the reliable route. Low priority *(found 2026-06-03)*
 - [ ] **No in-place edit of an existing hub's meta** — Hubs page can create hubs (name/layer/priority/description/boundary via `/plan/hub` upsert) and Cluster forms them, but there's no per-hub edit affordance: changing an existing hub's layer/priority means re-creating with the same name, and `alternatives` (OSS/commercial) is still seed-only. Add per-row edit if needed *(narrowed 2026-06-06; was "creating hubs needs plan.py seed", now false)*
 
@@ -14,6 +12,10 @@
 
 
 ## Resolved
+
+- [x] **Stack down: 502 Bad Gateway on Save in Setup** — the curl-less healthcheck fix was already committed; rebuilt the stack with `docker compose up -d --build` (first attempt hit a transient Docker Desktop DNS failure to auth.docker.io; retry succeeded). Backend now reports `(healthy)`, nginx serves, `/api/plan` returns 200 through :8080. *(resolved 2026-06-12)*
+- [x] **Frontend container served the wrong build dir — every page 404** — `Dockerfile.frontend` copied `.svelte-kit/output` (SvelteKit's intermediate build) instead of the adapter-static output `build/`; `serve -s output` returned a directory listing at `/` and 404 for every route, so the app was never actually served from Docker. Fixed to `COPY --from=0 /app/build ./build` + `serve -s build`. *(found & resolved 2026-06-12)*
+- [x] **Functional flow reorder applied; verify pages** — all nav pages live-verified through nginx after the rebuild: /, /scan, /hubs, /triage, /summary, /setup all 200 with real app HTML. *(resolved 2026-06-12)*
 
 - [x] **Root README was stale (old repo-per-layer model)** — rewritten off current state: describes git-suite as the consolidation *tool* (Setup→Scan→Cluster→Hubs→Overlap→Replan→Triage→Execute→Layers→Summary), the plan-as-data / remote-first / no-assumed-hub principles, the SvelteKit→nginx→FastAPI→SQLite architecture + failover chains, and Docker/dev/test run steps. Removed the dead belzona-tickets listing; points layer/hub detail at PLAN.md *(resolved 2026-06-06)*
 - [x] **Setup: Add-provider opened no form + per-provider call URL** — "Add provider" set an empty key which filtered the form straight back out; now tracks added providers by registration. Each provider configures API Key + Call URL (base_url override) + Model with a "get key" link, sourced from a provider registry (`/api/config/providers` returns display_name/base_url/setup_url/default_model/needs_key). `llm_base_urls` persists and `llm._dispatch` honours the override *(resolved 2026-06-03)*
@@ -55,3 +57,4 @@
 - [x] **Conflicting final outputs** — both competing pipelines removed; one script, one output *(resolved 2026-05-24)*
 - [x] **No README / pipeline documentation** — replaced by `--help` text and inline usage comment *(resolved 2026-05-24)*
 - [x] **All file paths hardcoded to H:\GitHub\\** — both scripts now use `Path(__file__).parent`; outputs live in the project folder *(resolved 2026-05-24)*
+

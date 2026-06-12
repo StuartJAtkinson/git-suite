@@ -4,12 +4,24 @@ A guided cockpit for consolidating a sprawling GitHub portfolio into a small set
 of hub platforms. It treats the plan as **data**, continuously **reconciles**
 intent against live GitHub, and turns decisions into real, idempotent actions.
 
-> Status: the staged plan (login → scan → … → summary) is built and well past
-> its original scope. This doc describes what actually exists.
+> Status: the staged plan (Setup → Scan → Cluster → Hubs → Overlap → Replan →
+> Triage → Execute → Layers → Summary) is built and well past its original
+> scope. This doc describes what actually exists.
 
 ---
 
 ## Run it
+
+### Docker (production)
+
+```bash
+docker compose up -d            # frontend + backend + nginx, served on :8080
+```
+
+Then open `http://localhost:8080` and configure everything from the **Setup**
+page. (`HTTP_PORT` overrides the host port.)
+
+### Local development
 
 ```powershell
 # backend (port 2800)
@@ -23,7 +35,12 @@ npm install
 npm run dev          # http://localhost:2173
 ```
 
-Tests: `cd ui/backend && python -m pytest` (49 tests).
+### Tests
+
+```bash
+cd ui/backend && python -m pytest        # 61 tests
+```
+
 Health: `http://localhost:2800/health`. API docs: `/docs`.
 
 ---
@@ -39,9 +56,16 @@ Health: `http://localhost:2800/health`. API docs: `/docs`.
 4. **Planning is cheap, execution is deliberate** — verdicts/edits are local
    and reversible; outward GitHub actions are previewed, confirmed, batched,
    idempotent, and audited.
-5. **Hybrid intelligence with failover** — deterministic rules for the obvious,
+5. **Remote-first, local-equal.** Portfolio is sourced entirely from the GitHub
+   API (`/user/repos` with `visibility=all` — public *and* private). A local
+   checkout carries no meaning: it never qualifies, classifies, or sources a
+   repo. `repos_root` is stored only as a future target for clone/migration.
+6. **No repo is assumed a hub.** Hub membership is *derived* through the plan
+   (cluster → triage → replan → overlap), not inferred from a name or
+   an existing checkout.
+7. **Hybrid intelligence with failover** — deterministic rules for the obvious,
    LLM for the ambiguous, across a multi-provider failover chain; degrades to
-   rules-only with no API key.
+   rules-only with no API key. Same for embeddings.
 
 ---
 
@@ -50,31 +74,32 @@ Health: `http://localhost:2800/health`. API docs: `/docs`.
 ```
         Start fresh (blank plan)
                  │
-   Scan ──► Reconcile ──► Triage / Replan ──► Execute ──► Migration plan
-   (live    (intent vs    (give each repo    (archive /   (per-repo
-    repos,   reality:      a verdict;         create hub / checklists +
-    enriched orphans,      replan proposes    push README/ MIGRATION.md)
-    fields)  ghosts,       changes)           hub lifecycle)
-             stubs,                               │
-             overlap)         ◄─────── repeat ────┘
+   Scan ──► Reconcile ──► Cluster ──► Triage / Replan ──► Execute
+   (live    (intent vs    (group     (give each repo      (archive /
+    repos,   reality:      orphans    a verdict;          create hub /
+    enriched orphans,      into       replan proposes      push README/
+    fields)  ghosts,       hubs)      changes)            MIGRATION.md)
+             stubs,                                │
+             overlap)         ◄─────── repeat ─────┘
 ```
 
 ---
 
-## Pages
+## Pages (nav order = workflow order)
 
 | Page | What it does |
 |------|--------------|
-| **Login** | GitHub PAT (or `gh auth`) + repos-root path |
-| **Scan** | Streams the live portfolio (incl. private repos) with enriched fields (topics, stars, fork, last-push, size) |
+| **Setup** | GitHub login (PAT or `gh auth`) + `repos_root`; LLM provider config (API key, call URL override, model, failover priority); embedding provider + model; chain readout showing where each is used |
+| **Scan** | Streams the live portfolio (incl. private repos) over a same-origin WebSocket; enriched fields (topics, stars, fork, pushed_at, archived, size) |
+| **Cluster** | Assisted group formation — embeds unassigned repos, union-find clusters them, suggests a theme, user names a new hub / promotes a member / adds to existing |
+| **Hubs** | Per-hub card grid; create / remove hubs; per-row edit (re-upsert to change meta) |
+| **Hub detail** (`/hubs/{hub}`) | Per-hub absorbs, alternatives (OSS/commercial), commercial scrape, README preview/push, migration checklist per absorb + push MIGRATION.md |
+| **Overlap** | Hub×hub overlap matrix (semantic when embeddings configured, keyword fallback), boundary-case repos, editable hub boundaries |
+| **Replan** | Two-phase proposal loop (incremental → structural); accept/reject proposals; prune ghosts; blank/reset plan; history |
 | **Triage** | Keyboard-fast verdict queue (1–N absorb, a/k/o/s); stub badges |
-| **Replan** | Two-phase proposal loop + history; Prune ghosts; Start fresh |
-| **Overlap** | Hub×hub overlap matrix, boundary-case repos, editable hub boundaries |
-| **Hubs / Hub detail** | Per-hub absorbs, alternatives, commercial scrape, README, Migration plan |
-| **Execute** | Dry-run + confirm: archive repos · create hubs · push READMEs · hub lifecycle |
+| **Execute** | Dry-run preview diffed against live GitHub, then idempotent batch actions: archive repos, create missing hubs, push composed hub READMEs; hub lifecycle (archive / return / delete) |
 | **Layers** | Layer 0–9 view of hubs and their repos |
-| **Summary** | Cycle stats + recommended next actions |
-| **Setup** | LLM provider keys/models + failover-chain readout; Jira/Zoho |
+| **Summary** | Reconciliation dashboard: live / absorbed / archived / undecided / ghost / stub counts, per-hub progress, next-action list |
 
 ---
 
@@ -84,15 +109,15 @@ Health: `http://localhost:2800/health`. API docs: `/docs`.
   `orphan` (undecided). Hubs are implicitly `keep`.
 - **Ghost** — a planned repo no longer on GitHub. Treated as a conscious
   deletion: prune it from the plan.
-- **Stub** — a low-signal repo (tiny, no description/stars/topics). Flagged as a
-  drop candidate; replan proposes archiving it unless it's function-distinct.
+- **Stub** — a low-signal repo (tiny, no description/stars/topics). Flagged as
+  a drop candidate; replan proposes archiving it unless it's function-distinct.
 - **Boundary** — each hub's scope rule (what's in, what's delegated elsewhere),
   fed to the LLM so it assigns repos correctly and flags cross-boundary cases.
 - **Two-phase replan** — *incremental* (fill orphans / prune ghosts) until
   nothing is undecided, then *replan* (structural: splits, new hubs).
-- **Hub lifecycle** — archive empty hub stubs now; later *return* the one that
-  becomes the real hub, or *delete* once absorbed (delete requires archived
-  first; needs the `delete_repo` PAT scope).
+- **Hub lifecycle** — archive empty hub stubs now; later *return* the one
+  that becomes the real hub, or *delete* once absorbed (delete requires the
+  hub to be archived first; needs the `delete_repo` PAT scope).
 
 ---
 
@@ -105,19 +130,35 @@ database.py        aiosqlite schema + column migrations
 llm_providers.py   provider registry (api_type, base_url, exhaust patterns)
 services/
   llm.py           async failover chain (complete)
+  embeddings.py    async failover chain + DB cache (cosine)
   github.py        REST: list/archive/unarchive/delete/create, files, readme
-  replan.py        proposal engine (rules + LLM, two-phase)
+  replan.py        proposal engine (rules + LLM + embedding, two-phase)
   migration.py     checklist + scaffold + MIGRATION.md
+  cluster.py       union-find over cosine threshold + theme suggest
+  overlap.py       boundary cases + hub×hub matrix (semantic / keyword)
   claude_ai.py     commercial feature extraction (via llm)
-  scraper.py       URL scrape
+  scraper.py       URL scrape (crawl4ai or httpx+bs4)
 routers/
-  auth scan hubs reconcile plan replan execute migration overlap
-  commercial readme config
+  auth            login, browse, search-folder, path-complete, defaults, gh-token
+  scan            start + WebSocket stream + results + latest
+  cluster         propose clusters / form hub
+  hubs            list / status / per-repo archive+absorb
+  commercial      scrape + list + delete commercial refs
+  readme          preview + push composed hub README
+  config          get/post config + provider registry + llm-status
+  reconcile       intent vs reality (single source for every screen)
+  plan            get / reset / blank / clear / hub upsert+remove / verdict / hub-boundary
+  replan          state / pass / proposals / accept / reject / prune-ghosts / history
+  execute         preview / archive / create-hubs / push-readmes / archive-hubs / unarchive-hubs / delete-hubs
+  migration       hub status / checklist (LLM or rule) / push MIGRATION.md
+  overlap         hub×hub matrix + boundary cases (semantic / keyword)
 ```
 
 State: `~/.git-suite/plan.json` (plan), `~/.git-suite/config.json` (keys),
-`ui/backend/state.db` (sessions, scans, actions, proposals, history, checklists).
+`ui/backend/state.db` (sessions, scans, actions, proposals, history, checklists,
+embeddings cache).
 
 ---
 
-*Last updated: 2026-06 — reflects the reconcile/replan/execute/migration/overlap build.*
+*Last updated: 2026-06-07 — reflects the Setup form fix, Cluster stage, plan
+clear, hub lifecycle, embedding chain, and 61 tests.*

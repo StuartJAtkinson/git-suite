@@ -147,7 +147,7 @@
         <div class="action-item">
           <span class="action-num">3</span>
           <span>Clear archive queue — {archiveTotal - archiveDone} remaining</span>
-          <a href="/archive"><button class="sm secondary">Go to Archives</button></a>
+          <a href="/execute"><button class="sm secondary">Go to Execute</button></a>
         </div>
       {/if}
     {/if}

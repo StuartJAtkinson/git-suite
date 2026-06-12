@@ -1,6 +1,11 @@
 """
 plan.py — hub plan data for the backend API.
-Keep in sync with portfolio_review.py and init_hub_readmes.py in the repo root.
+
+Canonical seed for the plan. Also re-used by:
+  - portfolio_review.py  (CLI review tool, imports this as the seed)
+  - init_hub_readmes.py  (standalone README writer — has its own copy, drift-prone)
+
+If you edit a hub here, run `portfolio_review.py --check-hubs` to confirm parity.
 """
 
 HUB_ABSORBS: dict[str, list[str]] = {

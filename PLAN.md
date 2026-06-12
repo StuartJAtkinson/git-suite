@@ -1,6 +1,7 @@
 # git-suite Roadmap
 
-**Generated:** May 2026 | **Owner:** Stuart Atkinson
+**Last updated:** 2026-06-12 | **Owner:** Stuart Atkinson
+*(Previously dated "May 2026" — refreshed with hub boundaries, cluster stage, and the correct archive count.)*
 
 ---
 
@@ -43,7 +44,7 @@ LAYER 9 — CREATIVE & GRAPHICS
 
 ---
 
-## REPOS TO ARCHIVE (35 repos — remove from active work)
+## REPOS TO ARCHIVE (37 repos — remove from active work)
 
 These have been superseded, are duplicates, or are hobby projects with no clear path to production.
 
@@ -213,4 +214,24 @@ This roadmap is grounded in the following starred patterns (684 starred repos):
 
 ---
 
-*Last updated: May 2026*
+*Last updated: 2026-06-12*
+
+### What changed since May 2026
+
+- Each of the 8 hubs now carries a **boundary** rule (scope + what it excludes),
+  stored in `HUB_META[*].boundary`. The LLM is fed these so it assigns repos to
+  the correct hub and Overlap can flag cross-boundary cases. The boundary text
+  here in PLAN.md is the intent; `ui/backend/plan.py` is the runtime source.
+- The `Cluster` stage is now in the workflow loop (between Scan and Hubs). It
+  embeds unassigned repos, union-finds them at a cosine threshold, and
+  suggests a theme + per-cluster assignments. Use it to form a brand-new hub
+  before promoting cluster members into it.
+- `init_hub_readmes.py` (standalone README writer) keeps its own copy of the
+  hub list. Drift risk — if you edit a hub here, regenerate the README and
+  cross-check `ui/backend/plan.py` against `init_hub_readmes.py`.
+
+### Source-of-truth pointers
+
+- Runtime canonical plan: `~/.git-suite/plan.json`, seeded from `ui/backend/plan.py`.
+- UI architecture / workflow loop: `ui/ROADMAP.md`.
+- LLM/embedding failover: `ui/backend/services/llm.py`, `ui/backend/services/embeddings.py`.
