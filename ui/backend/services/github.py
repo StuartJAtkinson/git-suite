@@ -46,6 +46,27 @@ async def list_repos(token: str, username: str | None = None) -> AsyncIterator[d
             page += 1
 
 
+async def list_starred(token: str) -> AsyncIterator[dict]:
+    """Yield every repo the authenticated user has starred."""
+    async with httpx.AsyncClient() as client:
+        page = 1
+        while True:
+            r = await client.get(
+                f"{GH_API}/user/starred",
+                headers=_headers(token),
+                params={"per_page": 100, "page": page},
+            )
+            r.raise_for_status()
+            batch = r.json()
+            if not batch:
+                break
+            for repo in batch:
+                yield repo
+            if len(batch) < 100:
+                break
+            page += 1
+
+
 async def archive_repo(token: str, owner: str, repo: str) -> None:
     """Archive a repo via the GitHub API."""
     async with httpx.AsyncClient() as client:

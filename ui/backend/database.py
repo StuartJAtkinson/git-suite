@@ -87,6 +87,23 @@ async def init_db() -> None:
                 PRIMARY KEY (hub, repo)
             );
 
+            -- Snapshot of the user's starred repos (refreshed on demand).
+            -- Stars are a first-class dedup input: "a project you starred
+            -- already does this" signals in the Stars page.
+            CREATE TABLE IF NOT EXISTS starred_repo (
+                full_name  TEXT PRIMARY KEY,   -- owner/name
+                name       TEXT NOT NULL,
+                owner      TEXT NOT NULL,
+                description TEXT,
+                topics     TEXT,               -- JSON array of strings
+                language   TEXT,
+                stars      INTEGER,
+                pushed_at  TEXT,
+                archived   INTEGER,            -- 0/1
+                url        TEXT,
+                fetched_at TEXT DEFAULT (datetime('now'))
+            );
+
             -- Cached embedding vectors, keyed by model+text hash.
             CREATE TABLE IF NOT EXISTS embedding (
                 key        TEXT PRIMARY KEY,   -- sha256(model + text)

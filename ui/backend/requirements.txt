@@ -7,5 +7,6 @@ beautifulsoup4>=4.12.0
 pydantic-settings>=2.0.0
 python-multipart>=0.0.9
 websockets>=13.0
+numpy>=1.26.0
 # crawl4ai is optional — requires playwright + MSVC on Windows (Python 3.14 has no wheel).
 # Install manually if you want the richer scraper: pip install crawl4ai

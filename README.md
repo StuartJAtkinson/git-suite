@@ -39,6 +39,7 @@ writes back to `plan.json`; nothing reaches GitHub until **Execute**.
 |-------|--------------|
 | **Setup** | First step — GitHub connection (PAT or `gh auth`); configure LLM and embedding providers (API key + call URL + model, with failover priority). Shows where each chain is actually used. |
 | **Scan** | Pulls every owned repo (public + private) over a live WebSocket, capturing topics, stars, fork/archived flags, `pushed_at`. |
+| **Stars** | Starred repos as a dedup input: snapshot everything you've starred, then surface owned repos a starred project already covers (build-vs-adopt — archive yours) and starred OSS alternatives per hub. Semantic when embeddings are configured, keyword overlap otherwise. |
 | **Cluster** | Embeds unassigned repos and union-find clusters them over a cosine threshold (tightness slider); suggests a theme so you can form a new hub or grow an existing one. |
 | **Hubs** | Create/define hubs (name, layer, priority, description, boundary rule) and see each hub's absorb/archive status. |
 | **Overlap** | Semantic venn — scores repos against hub profiles to surface boundary cases and a hub×hub overlap matrix; edit per-hub boundaries here. |
@@ -60,11 +61,11 @@ SvelteKit frontend ──► nginx ──► FastAPI backend ──► SQLite (s
                                       └── Embeddings    (failover: cluster, overlap, replan)
 ```
 
-- **Backend** (`ui/backend`) — FastAPI. Routers under `/api` (`scan`, `cluster`, `hubs`,
-  `plan`, `replan`, `overlap`, `reconcile`, `execute`, `migration`, `readme`,
+- **Backend** (`ui/backend`) — FastAPI. Routers under `/api` (`scan`, `stars`, `cluster`,
+  `hubs`, `plan`, `replan`, `overlap`, `reconcile`, `execute`, `migration`, `readme`,
   `commercial`, `config`) and `/auth`. Services: `github`, `llm`, `embeddings`,
-  `cluster`, `replan`, `migration`, `scraper`, `claude_ai`. Plan persistence in
-  `plan_store.py`; provider registry in `llm_providers.py`.
+  `stars`, `cluster`, `replan`, `migration`, `scraper`, `claude_ai`. Plan persistence
+  in `plan_store.py`; provider registry in `llm_providers.py`.
 - **Frontend** (`ui/frontend`) — SvelteKit, one route per workflow stage.
 - **Config** — no env files for app config; everything is set through the Setup page and
   stored in `~/.git-suite/config.json`.
@@ -106,7 +107,7 @@ npm run dev                      # :5173, proxies /api and WS to :8000
 ### Tests
 
 ```bash
-cd ui/backend && python -m pytest        # 61 tests
+cd ui/backend && python -m pytest        # 69 tests
 ```
 
 ---

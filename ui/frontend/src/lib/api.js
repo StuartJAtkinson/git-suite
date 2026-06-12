@@ -76,6 +76,11 @@ export const api = {
   // Overlap (hub venn / boundaries)
   getOverlap: (session_id) => req('GET', `/api/overlap/${session_id}`),
 
+  // Stars (dedup: owned + starred in one framework)
+  refreshStars: (session_id) => req('POST', `/api/stars/refresh/${session_id}`),
+  getStars: () => req('GET', '/api/stars'),
+  getStarsDedup: (session_id) => req('GET', `/api/stars/dedup/${session_id}`),
+
   // Cluster (assisted group formation)
   getClusters: (session_id, threshold) =>
     req('GET', `/api/cluster/${session_id}${threshold ? `?threshold=${threshold}` : ''}`),

@@ -4,9 +4,9 @@ A guided cockpit for consolidating a sprawling GitHub portfolio into a small set
 of hub platforms. It treats the plan as **data**, continuously **reconciles**
 intent against live GitHub, and turns decisions into real, idempotent actions.
 
-> Status: the staged plan (Setup → Scan → Cluster → Hubs → Overlap → Replan →
-> Triage → Execute → Layers → Summary) is built and well past its original
-> scope. This doc describes what actually exists.
+> Status: the staged plan (Setup → Scan → Stars → Cluster → Hubs → Overlap →
+> Replan → Triage → Execute → Layers → Summary) is built and well past its
+> original scope. This doc describes what actually exists.
 
 ---
 
@@ -38,7 +38,7 @@ npm run dev          # http://localhost:2173
 ### Tests
 
 ```bash
-cd ui/backend && python -m pytest        # 61 tests
+cd ui/backend && python -m pytest        # 69 tests
 ```
 
 Health: `http://localhost:2800/health`. API docs: `/docs`.
@@ -91,6 +91,7 @@ Health: `http://localhost:2800/health`. API docs: `/docs`.
 |------|--------------|
 | **Setup** | First step — GitHub connection (PAT or `gh auth`); LLM provider config (API key, call URL override, model, failover priority); embedding provider + model; chain readout showing where each is used |
 | **Scan** | Streams the live portfolio (incl. private repos) over a same-origin WebSocket; enriched fields (topics, stars, fork, pushed_at, archived, size) |
+| **Stars** | Starred repos as a dedup input — snapshot all starred repos, then match owned repos ("a starred project already does this" → archive-mine action) and hubs (starred OSS-alternative suggestions); semantic with keyword fallback |
 | **Cluster** | Assisted group formation — embeds unassigned repos, union-find clusters them, suggests a theme, user names a new hub / promotes a member / adds to existing |
 | **Hubs** | Per-hub card grid; create / remove hubs; per-row edit (re-upsert to change meta) |
 | **Hub detail** (`/hubs/{hub}`) | Per-hub absorbs, alternatives (OSS/commercial), commercial scrape, README preview/push, migration checklist per absorb + push MIGRATION.md |
@@ -135,6 +136,7 @@ services/
   replan.py        proposal engine (rules + LLM + embedding, two-phase)
   migration.py     checklist + scaffold + MIGRATION.md
   cluster.py       union-find over cosine threshold + theme suggest
+  stars.py         owned-vs-starred dedup + per-hub suggestions (semantic / keyword)
   overlap.py       boundary cases + hub×hub matrix (semantic / keyword)
   claude_ai.py     commercial feature extraction (via llm)
   scraper.py       URL scrape (crawl4ai or httpx+bs4)
@@ -142,6 +144,7 @@ routers/
   auth            login, gh-token, session
   scan            start + WebSocket stream + results + latest
   cluster         propose clusters / form hub
+  stars           refresh starred snapshot / list / dedup vs scan + hubs
   hubs            list / status / per-repo archive+absorb
   commercial      scrape + list + delete commercial refs
   readme          preview + push composed hub README
@@ -155,10 +158,10 @@ routers/
 ```
 
 State: `~/.git-suite/plan.json` (plan), `~/.git-suite/config.json` (keys),
-`ui/backend/state.db` (sessions, scans, actions, proposals, history, checklists,
-embeddings cache).
+`ui/backend/state.db` (sessions, scans, starred snapshot, actions, proposals,
+history, checklists, embeddings cache).
 
 ---
 
-*Last updated: 2026-06-07 — reflects the Setup form fix, Cluster stage, plan
-clear, hub lifecycle, embedding chain, and 61 tests.*
+*Last updated: 2026-06-12 — reflects the login/Setup merge (remote-only,
+token-only login), the Stars dedup stage, and 69 tests.*
