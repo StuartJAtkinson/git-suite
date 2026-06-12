@@ -13,6 +13,9 @@
 
 ## Resolved
 
+- [x] **Login/Setup split — Setup not actually the first step** — GitHub login lived on a separate gate page at `/` while Setup only held LLM/embed config (docs claimed otherwise — drift). Merged: Setup now opens with a GitHub-connection card (token + gh-auth fetch + optional repos_root + connected-user/disconnect state); `/` redirects to `/setup`; `repos_root` made optional in both the form and the backend `LoginRequest` (401 not 422 without it — verified live); dead `FolderBrowser.svelte` removed. 61 tests green, stack rebuilt *(found & resolved 2026-06-12)*
+- [x] **Setup movePriority crash** — `movePriority` referenced undefined `configured`; first reorder before a saved priority order threw ReferenceError. Now starts from the rendered `orderedConfigured` *(found & resolved 2026-06-12)*
+
 - [x] **Stack down: 502 Bad Gateway on Save in Setup** — the curl-less healthcheck fix was already committed; rebuilt the stack with `docker compose up -d --build` (first attempt hit a transient Docker Desktop DNS failure to auth.docker.io; retry succeeded). Backend now reports `(healthy)`, nginx serves, `/api/plan` returns 200 through :8080. *(resolved 2026-06-12)*
 - [x] **Frontend container served the wrong build dir — every page 404** — `Dockerfile.frontend` copied `.svelte-kit/output` (SvelteKit's intermediate build) instead of the adapter-static output `build/`; `serve -s output` returned a directory listing at `/` and 404 for every route, so the app was never actually served from Docker. Fixed to `COPY --from=0 /app/build ./build` + `serve -s build`. *(found & resolved 2026-06-12)*
 - [x] **Functional flow reorder applied; verify pages** — all nav pages live-verified through nginx after the rebuild: /, /scan, /hubs, /triage, /summary, /setup all 200 with real app HTML. *(resolved 2026-06-12)*

@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
+  import { session } from '$lib/stores';
 
   const LLM_PROVIDERS = {
     anthropic: "Anthropic", openai: "OpenAI", openrouter: "OpenRouter",
@@ -31,11 +32,75 @@
     try { llmStatus = await api.getLlmStatus(); } catch { llmStatus = null; }
   }
 
+  // --- GitHub connection (merged from the old standalone login page) ---
+  let ghToken = '';
+  let reposRoot = '';
+  let tokenSource = '';
+  let ghError = '';
+  let loadingToken = false;
+  let picking = false;
+  let connecting = false;
+
+  async function fetchGhToken() {
+    loadingToken = true;
+    ghError = '';
+    try {
+      const res = await api.getGhToken();
+      ghToken = res.token;
+      tokenSource = res.source;
+    } catch (e) {
+      ghError = e.message;
+      tokenSource = '';
+    } finally {
+      loadingToken = false;
+    }
+  }
+
+  async function browseNative() {
+    picking = true;
+    ghError = '';
+    try {
+      const res = await api.pickFolder();
+      if (res.path) reposRoot = res.path;   // empty = dialog cancelled
+    } catch (e) {
+      ghError = e.message;
+    } finally {
+      picking = false;
+    }
+  }
+
+  async function connect() {
+    connecting = true;
+    ghError = '';
+    try {
+      const res = await api.login(ghToken, reposRoot);
+      session.set(res);
+      ghToken = '';
+    } catch (e) {
+      ghError = e.message;
+    } finally {
+      connecting = false;
+    }
+  }
+
+  function disconnect() {
+    session.set(null);
+  }
+
+  const SOURCE_LABEL = { env: 'from GH_TOKEN / Infisical', 'gh-cli': 'from gh CLI' };
+  // ---------------------------------------------------------------------
+
   onMount(async () => {
     try {
       config = await api.getConfig();
       providers = await api.getProviders();
     } catch (e) { error = e.message; }
+    if (!$session) {
+      try {
+        const defaults = await api.getDefaults();
+        if (defaults.has_env_token) await fetchGhToken();
+      } catch {}
+    }
     await refreshStatus();
     loading = false;
   });
@@ -55,7 +120,9 @@
     saved = false;
   }
   function movePriority(p, dir) {
-    const order = [...(config.llm_priority_order||configured)];
+    // Start from the order the user actually sees, so the first reorder
+    // works even before llm_priority_order has ever been saved.
+    const order = [...orderedConfigured];
     const i = order.indexOf(p); if (i < 0) return;
     const j = i + dir; if (j < 0 || j >= order.length) return;
     [order[i], order[j]] = [order[j], order[i]];
@@ -104,7 +171,7 @@
   <div class="header-row">
     <div>
       <h1>Setup</h1>
-      <p class="sub">Reads and writes ~/.git-suite/config.json</p>
+      <p class="sub">GitHub session + provider config (~/.git-suite/config.json)</p>
     </div>
     <div class="header-actions">
       {#if saved}<span class="ok-badge">Saved</span>{/if}
@@ -120,6 +187,52 @@
 {:else}
 <div class="two-col">
   <div class="col">
+    <div class="card">
+      <h3 class="card-title">GitHub connection</h3>
+      {#if $session}
+        <div class="gh-connected">
+          {#if $session.avatar_url}
+            <img class="gh-avatar" src={$session.avatar_url} alt={$session.github_user} />
+          {/if}
+          <div class="gh-id">
+            <span class="gh-user">{$session.github_user}</span>
+            <span class="gh-sub">connected</span>
+          </div>
+          <button class="btn-remove" on:click={disconnect}>Disconnect</button>
+        </div>
+        <p class="hint" style="margin:0.75rem 0 0">Next step: run a <a href="/scan">Scan</a> to pull the live portfolio.</p>
+      {:else}
+        <p class="hint">
+          Connect first — every other stage needs a GitHub session. Token needs the
+          <code>repo</code> scope (<a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer">create one</a>).
+        </p>
+        <div class="field-row">
+          <span class="field-label">Token</span>
+          <input type="password" class="field-input" bind:value={ghToken}
+            placeholder="ghp_…" autocomplete="off" />
+          <button class="btn-add" disabled={loadingToken} on:click={fetchGhToken}>
+            {loadingToken ? '…' : 'gh auth'}
+          </button>
+        </div>
+        {#if tokenSource && ghToken}
+          <p class="hint" style="margin:0 0 0.5rem">{SOURCE_LABEL[tokenSource] ?? tokenSource}</p>
+        {/if}
+        <div class="field-row">
+          <span class="field-label">Repos root</span>
+          <input type="text" class="field-input" bind:value={reposRoot}
+            placeholder="optional — future clone/migration target" />
+          <button class="btn-add" disabled={picking} on:click={browseNative}>
+            {picking ? '…' : 'Browse'}
+          </button>
+        </div>
+        {#if ghError}<div class="error-msg" style="margin-top:0.5rem">{ghError}</div>{/if}
+        <button class="btn-primary" style="margin-top:0.75rem"
+          disabled={connecting || !ghToken} on:click={connect}>
+          {connecting ? 'Connecting…' : 'Connect'}
+        </button>
+      {/if}
+    </div>
+
     <div class="card">
       <h3 class="card-title">LLM Providers</h3>
       <p class="hint">First in list is used. On credit exhaustion or error, the next is tried automatically.</p>
@@ -285,4 +398,9 @@
 .btn-primary:disabled { opacity: 0.5; }
 .ok-badge { font-size: 0.8rem; color: #16a34a; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; padding: 0.2rem 0.6rem; }
 .err-badge { font-size: 0.8rem; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; padding: 0.2rem 0.6rem; }
+.gh-connected { display: flex; align-items: center; gap: 0.75rem; }
+.gh-avatar { width: 36px; height: 36px; border-radius: 50%; }
+.gh-id { display: flex; flex-direction: column; flex: 1; }
+.gh-user { font-size: 0.875rem; font-weight: 600; }
+.gh-sub { font-size: 0.72rem; color: #16a34a; }
 </style>

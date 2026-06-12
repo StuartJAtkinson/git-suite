@@ -37,7 +37,9 @@ def _find_gh() -> str | None:
 
 class LoginRequest(BaseModel):
     token: str
-    repos_root: str
+    # Optional by design: stored only as a future clone/migration target —
+    # it never sources, qualifies, or classifies a repo.
+    repos_root: str = ""
 
 
 class LoginResponse(BaseModel):
