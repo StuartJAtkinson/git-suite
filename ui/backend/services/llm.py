@@ -142,20 +142,6 @@ async def _call_openai_compat(base_url, key, model, prompt, system, max_tokens) 
         return r.json()["choices"][0]["message"]["content"]
 
 
-async def _call_minimax(base_url, key, model, prompt, system, max_tokens) -> str:
-    msgs = ([{"role": "system", "content": system}] if system else []) + \
-           [{"role": "user", "content": prompt}]
-    async with httpx.AsyncClient(timeout=120) as client:
-        r = await client.post(
-            base_url,  # full chatcompletion_v2 URL
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-            json={"model": model, "messages": msgs, "max_tokens": max(max_tokens, 1024)},
-        )
-        if r.status_code >= 400:
-            raise RuntimeError(f"HTTP {r.status_code}: {r.text[:300]}")
-        return r.json()["choices"][0]["message"]["content"]
-
-
 async def _call_ollama(base_url, model, prompt, system, max_tokens) -> str:
     msgs = ([{"role": "system", "content": system}] if system else []) + \
            [{"role": "user", "content": prompt}]
@@ -179,8 +165,6 @@ async def _dispatch(name, key, model, prompt, system, max_tokens) -> str:
         return await _call_anthropic(key, model, prompt, system, max_tokens)
     if api_type == "openai_compat":
         return await _call_openai_compat(base, key, model, prompt, system, max_tokens)
-    if api_type == "minimax":
-        return await _call_minimax(base, key, model, prompt, system, max_tokens)
     if api_type == "ollama":
         return await _call_ollama(key or base, model, prompt, system, max_tokens)
     raise RuntimeError(f"unknown api_type {api_type}")

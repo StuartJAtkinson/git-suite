@@ -6,7 +6,8 @@ present, the provider's own models endpoint is the source of truth. The
 api_type (dialect) drives the query shape, not the vendor:
 
   anthropic      GET {base}/v1/models?limit=1000 — dual auth (x-api-key for
-                 real Anthropic, Bearer for Anthropic-compatible endpoints)
+                 real Anthropic, Bearer for Anthropic-compatible endpoints
+                 like MiniMax at api.minimax.io/anthropic)
   openai_compat  GET {base}/models — Bearer
   ollama         GET {base}/api/tags — keyless
 

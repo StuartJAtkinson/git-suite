@@ -42,9 +42,14 @@ def test_ollama_spec_keyless_tags():
     assert headers == {}
 
 
-def test_minimax_has_no_listing():
-    with pytest.raises(ValueError, match="no model-listing endpoint"):
-        models.request_spec("minimax", "k")
+def test_minimax_uses_anthropic_dialect():
+    # MiniMax's API is Anthropic-compatible at api.minimax.io/anthropic, so
+    # listing reuses the dual-auth GET .../v1/models shape (Atelier pattern).
+    url, headers = models.request_spec("minimax", "jwt-test")
+    assert url == "https://api.minimax.io/anthropic/v1/models?limit=1000"
+    assert headers["x-api-key"] == "jwt-test"
+    assert headers["Authorization"] == "Bearer jwt-test"
+    assert "anthropic-version" in headers
 
 
 def test_unknown_provider_rejected():

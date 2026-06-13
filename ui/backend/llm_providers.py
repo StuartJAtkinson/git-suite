@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Literal, TypedDict
 
-ApiType = Literal["anthropic", "openai_compat", "minimax", "ollama"]
+ApiType = Literal["anthropic", "openai_compat", "ollama"]
 
 
 class ProviderMeta(TypedDict):
@@ -95,9 +95,12 @@ PROVIDERS: dict[str, ProviderMeta] = {
     },
     "minimax": {
         "display_name": "MiniMax",
-        "api_type": "minimax",
-        "base_url": "https://api.minimaxi.chat/v1/text/chatcompletion_v2",
-        "setup_url": "https://www.minimaxi.chat/",
+        # Anthropic-compatible endpoint — same /v1/messages + /v1/models shape
+        # as api.anthropic.com, just a different host. Listing + completions
+        # both go through the Anthropic branch with this base_url.
+        "api_type": "anthropic",
+        "base_url": "https://api.minimax.io/anthropic",
+        "setup_url": "https://platform.minimax.io/user-center/basic-information/interface-key",
         "default_model": "MiniMax-M2",
         "needs_key": True,
         "exhaust_patterns": ["insufficient balance", "account has been limited", "quota exceeded"],
