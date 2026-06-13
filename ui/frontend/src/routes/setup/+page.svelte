@@ -249,13 +249,7 @@
           <span class="field-label">Token</span>
           <input type="password" class="field-input" bind:value={ghToken}
             placeholder="ghp_…" autocomplete="off" />
-          <button class="btn-add" disabled={loadingToken} on:click={fetchGhToken}>
-            {loadingToken ? '…' : 'gh auth'}
-          </button>
         </div>
-        {#if tokenSource && ghToken}
-          <p class="hint" style="margin:0 0 0.5rem">{SOURCE_LABEL[tokenSource] ?? tokenSource}</p>
-        {/if}
         {#if ghError}<div class="error-msg" style="margin-top:0.5rem">{ghError}</div>{/if}
         <button class="btn-primary" style="margin-top:0.75rem"
           disabled={connecting || !ghToken} on:click={connect}>

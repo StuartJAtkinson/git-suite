@@ -1,12 +1,19 @@
 // All calls go through Vite's dev proxy (/api -> :2800/api, /auth -> :2800/auth)
 // so no hard-coded base URL is needed in dev or prod.
 
+import { session } from './stores';
+
 async function req(method, path, body) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
   if (body !== undefined) opts.body = JSON.stringify(body);
   const r = await fetch(path, opts);
   if (!r.ok) {
     const err = await r.json().catch(() => ({ detail: r.statusText }));
+    // Stale session_id (e.g. the SQLite row was wiped by a backend restart):
+    // clear local state so the Setup page surfaces the Connect form again.
+    if (r.status === 401 && /invalid session/i.test(err.detail || '')) {
+      session.set(null);
+    }
     throw new Error(err.detail || r.statusText);
   }
   return r.json();

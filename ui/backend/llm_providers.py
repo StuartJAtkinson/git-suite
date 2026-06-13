@@ -108,13 +108,22 @@ PROVIDERS: dict[str, ProviderMeta] = {
     "ollama": {
         "display_name": "Ollama (local)",
         "api_type": "ollama",
-        "base_url": "http://localhost:11434",
+        # host.docker.internal so the backend (running in Docker) can reach
+        # the host's Ollama daemon. If you run git-suite without Docker,
+        # override via the LLM_OLLAMA_BASE_URL env var.
+        "base_url": "http://host.docker.internal:11434",
         "setup_url": "https://ollama.com",
         "default_model": "llama3.2",
         "needs_key": False,
         "exhaust_patterns": [],  # local — no credit concept
     },
 }
+
+# Local providers: env var override (lets a non-Docker run keep using
+# localhost). Applied at import time below.
+import os as _os
+if _os.environ.get("LLM_OLLAMA_BASE_URL"):
+    PROVIDERS["ollama"]["base_url"] = _os.environ["LLM_OLLAMA_BASE_URL"]
 
 # Default failover order when config has no explicit priority list.
 DEFAULT_PRIORITY: list[str] = [
