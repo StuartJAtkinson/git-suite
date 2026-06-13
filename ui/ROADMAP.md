@@ -38,7 +38,7 @@ npm run dev          # http://localhost:2173
 ### Tests
 
 ```bash
-cd ui/backend && python -m pytest        # 69 tests
+cd ui/backend && python -m pytest        # 77 tests
 ```
 
 Health: `http://localhost:2800/health`. API docs: `/docs`.
@@ -89,7 +89,7 @@ Health: `http://localhost:2800/health`. API docs: `/docs`.
 
 | Page | What it does |
 |------|--------------|
-| **Setup** | First step — GitHub connection (PAT or `gh auth`); LLM provider config (API key, call URL override, model, failover priority); embedding provider + model; chain readout showing where each is used |
+| **Setup** | First step — GitHub connection (PAT or `gh auth`); LLM provider config (API key + failover priority; call URLs are hardcoded per provider, models are fetched live from each provider's own listing endpoint and filtered to completion-capable ones); embedding provider + live-listed embedding models; chain readout showing where each is used |
 | **Scan** | Streams the live portfolio (incl. private repos) over a same-origin WebSocket; enriched fields (topics, stars, fork, pushed_at, archived, size) |
 | **Stars** | Starred repos as a dedup input — snapshot all starred repos, then match owned repos ("a starred project already does this" → archive-mine action) and hubs (starred OSS-alternative suggestions); semantic with keyword fallback |
 | **Cluster** | Assisted group formation — embeds unassigned repos, union-find clusters them, suggests a theme, user names a new hub / promotes a member / adds to existing |
@@ -137,6 +137,7 @@ services/
   migration.py     checklist + scaffold + MIGRATION.md
   cluster.py       union-find over cosine threshold + theme suggest
   stars.py         owned-vs-starred dedup + per-hub suggestions (semantic / keyword)
+  models.py        live model listing per provider dialect (no static lists)
   overlap.py       boundary cases + hub×hub matrix (semantic / keyword)
   claude_ai.py     commercial feature extraction (via llm)
   scraper.py       URL scrape (crawl4ai or httpx+bs4)
@@ -148,7 +149,8 @@ routers/
   hubs            list / status / per-repo archive+absorb
   commercial      scrape + list + delete commercial refs
   readme          preview + push composed hub README
-  config          get/post config + provider registry + llm-status
+  config          get/post config + provider registry + llm-status + live
+                  model listing (POST /config/models/{provider})
   reconcile       intent vs reality (single source for every screen)
   plan            get / reset / blank / clear / hub upsert+remove / verdict / hub-boundary
   replan          state / pass / proposals / accept / reject / prune-ghosts / history
@@ -163,5 +165,6 @@ history, checklists, embeddings cache).
 
 ---
 
-*Last updated: 2026-06-12 — reflects the login/Setup merge (remote-only,
-token-only login), the Stars dedup stage, and 69 tests.*
+*Last updated: 2026-06-13 — call URLs hardcoded per provider; models are
+fetched live from each provider's listing endpoint (POST /config/models/{provider})
+and filtered to completion-capable ones. 77 tests green.*

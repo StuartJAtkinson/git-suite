@@ -86,21 +86,75 @@
     }
     await refreshStatus();
     loading = false;
+    // Background-prefetch live model lists for every provider that can answer
+    // (has a stored key, or is keyless like Ollama).
+    const k = config.llm_keys || {};
+    for (const p of Object.keys(k)) {
+      if (k[p] || meta[p]?.needs_key === false) fetchModels(p);
+    }
+    if (embedProvider) fetchEmbedModels();
   });
 
   // Adding a provider registers an (empty) key so its form renders — you then
   // fill in the key / call URL / model and Save.
-  function addProvider(p) { patchKey(p, ''); }
+  function addProvider(p) {
+    patchKey(p, '');
+    if (!meta[p] || meta[p].needs_key === false) fetchModels(p);  // keyless: list immediately
+  }
   function patchKey(p, v) { config = { ...config, llm_keys: { ...(config.llm_keys||{}), [p]: v } }; saved = false; }
   function patchModel(p, v) { config = { ...config, llm_models: { ...(config.llm_models||{}), [p]: v } }; saved = false; }
-  function patchBaseUrl(p, v) { config = { ...config, llm_base_urls: { ...(config.llm_base_urls||{}), [p]: v } }; saved = false; }
   function removeProvider(p) {
     const keys = { ...(config.llm_keys||{}) }; delete keys[p];
     const models = { ...(config.llm_models||{}) }; delete models[p];
-    const urls = { ...(config.llm_base_urls||{}) }; delete urls[p];
     const order = (config.llm_priority_order||[]).filter(x => x !== p);
-    config = { ...config, llm_keys: keys, llm_models: models, llm_base_urls: urls, llm_priority_order: order };
+    config = { ...config, llm_keys: keys, llm_models: models, llm_priority_order: order };
     saved = false;
+  }
+
+  // --- live model listing (no static lists — the provider's API is the
+  // source of truth once a key is present) ------------------------------
+  let modelLists = {};   // provider -> [model ids]
+  let modelBusy = {};
+  let modelErr = {};
+
+  async function fetchModels(p) {
+    modelBusy = { ...modelBusy, [p]: true };
+    modelErr = { ...modelErr, [p]: '' };
+    try {
+      const res = await api.listModels(p, (config.llm_keys || {})[p] || '', 'llm');
+      modelLists = { ...modelLists, [p]: res.models };
+      if (!res.models.length) modelErr = { ...modelErr, [p]: 'Provider reported no completion models' };
+    } catch (e) {
+      modelLists = { ...modelLists, [p]: [] };
+      modelErr = { ...modelErr, [p]: e.message };
+    } finally {
+      modelBusy = { ...modelBusy, [p]: false };
+    }
+  }
+
+  function keyChanged(p, v) {
+    patchKey(p, v);
+    if (v || meta[p]?.needs_key === false) fetchModels(p);
+  }
+
+  let embedModels = [];
+  let embedBusy = false;
+  let embedErr = '';
+
+  async function fetchEmbedModels(p = embedProvider) {
+    if (!p) { embedModels = []; return; }
+    embedBusy = true;
+    embedErr = '';
+    try {
+      const res = await api.listModels(p, (config.llm_keys || {})[p] || '', 'embedding');
+      embedModels = res.models;
+      if (!res.models.length) embedErr = 'Provider reported no embedding models';
+    } catch (e) {
+      embedModels = [];
+      embedErr = e.message;
+    } finally {
+      embedBusy = false;
+    }
   }
   function movePriority(p, dir) {
     // Start from the order the user actually sees, so the first reorder
@@ -126,6 +180,9 @@
   function setEmbedProvider(p) {
     config = { ...config, embedding_models: p ? { [p]: EMBED_DEFAULTS[p] || '' } : {} };
     saved = false;
+    embedModels = [];
+    embedErr = '';
+    if (p) fetchEmbedModels(p);
   }
   function setEmbedModel(m) {
     if (!embedProvider) return;
@@ -137,7 +194,6 @@
   $: allIds = providers.length ? providers.map(p => p.id) : Object.keys(LLM_PROVIDERS);
   $: llmKeys = config.llm_keys || {};
   $: llmModels = config.llm_models || {};
-  $: llmBaseUrls = config.llm_base_urls || {};
   // "added" = registered in the form (key may still be empty) — NOT "has a key".
   $: added = Array.from(new Set([
        ...Object.keys(llmKeys),
@@ -243,21 +299,31 @@
         <div class="field-row">
           <span class="field-label">API Key</span>
           <input type="password" class="field-input" value={llmKeys[provider]||''}
-            on:change={e => patchKey(provider, e.target.value)} placeholder="API key" />
-        </div>
-        {/if}
-        {#if meta[provider]?.api_type !== 'anthropic'}
-        <div class="field-row">
-          <span class="field-label">Call URL</span>
-          <input type="text" class="field-input" value={llmBaseUrls[provider]||''}
-            on:change={e => patchBaseUrl(provider, e.target.value)} placeholder={meta[provider]?.base_url || 'https://…'} />
+            on:change={e => keyChanged(provider, e.target.value)} placeholder="API key" />
         </div>
         {/if}
         <div class="field-row">
           <span class="field-label">Model</span>
-          <input type="text" class="field-input" value={llmModels[provider] || defModel(provider)}
-            on:change={e => patchModel(provider, e.target.value)} placeholder={defModel(provider)} />
+          {#if (modelLists[provider] || []).length}
+            <select class="field-input" value={llmModels[provider] || defModel(provider)}
+              on:change={e => patchModel(provider, e.target.value)}>
+              {#if llmModels[provider] && !modelLists[provider].includes(llmModels[provider])}
+                <option value={llmModels[provider]}>{llmModels[provider]} (saved)</option>
+              {/if}
+              {#each modelLists[provider] as m}<option value={m}>{m}</option>{/each}
+            </select>
+          {:else}
+            <input type="text" class="field-input" value={llmModels[provider] || defModel(provider)}
+              on:change={e => patchModel(provider, e.target.value)} placeholder={defModel(provider)} />
+          {/if}
+          <button class="btn-add" title="Fetch the live model list from the provider"
+            disabled={!!modelBusy[provider]} on:click={() => fetchModels(provider)}>
+            {modelBusy[provider] ? '…' : '↻'}
+          </button>
         </div>
+        {#if modelErr[provider]}
+          <p class="hint" style="color:#92400e; margin:0.2rem 0 0">{modelErr[provider]} — type a model name manually.</p>
+        {/if}
       </div>
       {/each}
 
@@ -296,10 +362,27 @@
       {#if embedProvider}
         <div class="field-row">
           <span class="field-label">Model</span>
-          <input class="field-input" value={embedModel}
-            on:change={e => setEmbedModel(e.target.value)}
-            placeholder={EMBED_DEFAULTS[embedProvider]} />
+          {#if embedModels.length}
+            <select class="field-input" value={embedModel}
+              on:change={e => setEmbedModel(e.target.value)}>
+              {#if embedModel && !embedModels.includes(embedModel)}
+                <option value={embedModel}>{embedModel} (saved)</option>
+              {/if}
+              {#each embedModels as m}<option value={m}>{m}</option>{/each}
+            </select>
+          {:else}
+            <input class="field-input" value={embedModel}
+              on:change={e => setEmbedModel(e.target.value)}
+              placeholder={EMBED_DEFAULTS[embedProvider]} />
+          {/if}
+          <button class="btn-add" title="Fetch embedding models from the provider"
+            disabled={embedBusy} on:click={() => fetchEmbedModels()}>
+            {embedBusy ? '…' : '↻'}
+          </button>
         </div>
+        {#if embedErr}
+          <p class="hint" style="color:#92400e; margin:0.2rem 0 0">{embedErr} — type a model name manually.</p>
+        {/if}
         {#if embedProvider === 'openai' && !llmKeys.openai}
           <p class="hint" style="color:#92400e">Add an OpenAI key above for embeddings to work.</p>
         {/if}

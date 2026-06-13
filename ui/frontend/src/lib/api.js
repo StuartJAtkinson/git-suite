@@ -56,6 +56,9 @@ export const api = {
   saveConfig: (body) => req('POST', '/api/config', body),
   getProviders: () => req('GET', '/api/config/providers'),
   getLlmStatus: () => req('GET', '/api/config/llm-status'),
+  // POST so an unsaved key never lands in URLs/access logs.
+  listModels: (provider, key, kind = 'llm') =>
+    req('POST', `/api/config/models/${provider}`, { key, kind }),
 
   // Reconcile (intent vs reality)
   reconcile: (session_id) => req('GET', `/api/reconcile/${session_id}`),

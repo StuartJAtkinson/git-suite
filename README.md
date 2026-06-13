@@ -37,7 +37,7 @@ writes back to `plan.json`; nothing reaches GitHub until **Execute**.
 
 | Stage | What it does |
 |-------|--------------|
-| **Setup** | First step — GitHub connection (PAT or `gh auth`); configure LLM and embedding providers (API key + call URL + model, with failover priority). Shows where each chain is actually used. |
+| **Setup** | First step — GitHub connection (PAT or `gh auth`); configure LLM and embedding providers (API key + model + failover priority — call URLs are hardcoded per provider and models are fetched live from each provider's own listing endpoint). Shows where each chain is actually used. |
 | **Scan** | Pulls every owned repo (public + private) over a live WebSocket, capturing topics, stars, fork/archived flags, `pushed_at`. |
 | **Stars** | Starred repos as a dedup input: snapshot everything you've starred, then surface owned repos a starred project already covers (build-vs-adopt — archive yours) and starred OSS alternatives per hub. Semantic when embeddings are configured, keyword overlap otherwise. |
 | **Cluster** | Embeds unassigned repos and union-find clusters them over a cosine threshold (tightness slider); suggests a theme so you can form a new hub or grow an existing one. |
@@ -107,7 +107,7 @@ npm run dev                      # :5173, proxies /api and WS to :8000
 ### Tests
 
 ```bash
-cd ui/backend && python -m pytest        # 69 tests
+cd ui/backend && python -m pytest        # 77 tests
 ```
 
 ---

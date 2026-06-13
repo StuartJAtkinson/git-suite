@@ -8,11 +8,11 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 _CONFIG_DIR = Path.home() / ".git-suite"
 _CONFIG_FILE = _CONFIG_DIR / "config.json"
-_DEFAULT_MODELS = {
-    "anthropic": "claude-sonnet-4-6", "openai": "gpt-4o",
-    "openrouter": "anthropic/claude-sonnet-4-6", "deepseek": "deepseek-chat",
-    "xai": "grok-beta", "minimax": "abab6.5-chat", "ollama": "llama3.2",
-}
+# Defaults come from the provider registry — one source of truth. They are
+# only fallbacks: the real model list is fetched live from each provider
+# (POST /config/models/{provider}) once a key is present.
+from llm_providers import PROVIDERS as _PROVIDERS
+_DEFAULT_MODELS = {pid: meta["default_model"] for pid, meta in _PROVIDERS.items()}
 ALL_PROVIDERS = list(_DEFAULT_MODELS.keys())
 
 
@@ -53,7 +53,6 @@ def _save(cfg: dict) -> None:
 class ConfigGetResponse(BaseModel):
     llm_keys: dict[str, str]
     llm_models: dict[str, str]
-    llm_base_urls: dict[str, str]      # provider -> call URL override (optional)
     llm_priority_order: list[str]
     embedding_models: dict[str, str]   # provider -> embedding model (opt-in)
 
@@ -61,7 +60,6 @@ class ConfigGetResponse(BaseModel):
 class ConfigPostRequest(BaseModel):
     llm_keys: dict[str, str] | None = None
     llm_models: dict[str, str] | None = None
-    llm_base_urls: dict[str, str] | None = None
     llm_priority_order: list[str] | None = None
     embedding_models: dict[str, str] | None = None
 
@@ -75,7 +73,6 @@ async def get_config():
             models[p] = _DEFAULT_MODELS[p]
     return ConfigGetResponse(
         llm_keys=cfg.get("llm_keys", {}), llm_models=models,
-        llm_base_urls=cfg.get("llm_base_urls", {}),
         llm_priority_order=cfg.get("llm_priority_order", []),
         embedding_models=cfg.get("embedding_models", {}),
     )
@@ -85,9 +82,34 @@ async def get_config():
 async def post_config(body: ConfigPostRequest):
     cfg = _load()
     cfg.update(body.model_dump(exclude_none=True))
+    # Legacy: call URLs are hardcoded per provider now (they're a standard
+    # element of each API) — scrub any old override from saved configs.
+    cfg.pop("llm_base_urls", None)
     _save(cfg)
     log.info("config saved")
     return {"saved": True}
+
+
+class ModelsRequest(BaseModel):
+    key: str | None = None     # unsaved key from the form; falls back to stored
+    kind: str = "llm"          # 'llm' (one-off completion) | 'embedding'
+
+
+@router.post("/config/models/{provider}")
+async def list_provider_models(provider: str, body: ModelsRequest):
+    """Live model listing from the provider's own endpoint (static lists rot).
+
+    POST rather than GET so an unsaved key never lands in URLs/access logs.
+    """
+    from services.models import list_models
+    key = body.key or _load().get("llm_keys", {}).get(provider, "")
+    try:
+        models = await list_models(provider, key, body.kind)
+    except ValueError as exc:    # unknown provider / no listing endpoint
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:     # network / auth / provider error
+        raise HTTPException(status_code=502, detail=str(exc)[:200])
+    return {"provider": provider, "kind": body.kind, "models": models}
 
 
 @router.get("/config/providers")
