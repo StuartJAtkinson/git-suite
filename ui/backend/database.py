@@ -1,7 +1,12 @@
 import aiosqlite
+import os
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "state.db"
+# All persistent state (this file + config.json + plan.json) lives under one
+# directory so a single host mount in docker-compose.yml covers everything.
+# Defaults to ~/.git-suite for non-Docker runs; docker sets GIT_SUITE_HOME=/app/data.
+_HOME = Path(os.environ.get("GIT_SUITE_HOME", str(Path.home() / ".git-suite")))
+DB_PATH = _HOME / "state.db"
 
 
 async def init_db() -> None:

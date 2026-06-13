@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
 router = APIRouter()
-_CONFIG_DIR = Path.home() / ".git-suite"
+_CONFIG_DIR = Path(os.environ.get("GIT_SUITE_HOME", str(Path.home() / ".git-suite")))
 _CONFIG_FILE = _CONFIG_DIR / "config.json"
 # Defaults come from the provider registry — one source of truth. They are
 # only fallbacks: the real model list is fetched live from each provider

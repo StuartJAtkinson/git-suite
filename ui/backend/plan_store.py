@@ -33,7 +33,7 @@ import plan as seed  # the immutable defaults
 
 log = logging.getLogger(__name__)
 
-_CONFIG_DIR = Path.home() / ".git-suite"
+_CONFIG_DIR = Path(os.environ.get("GIT_SUITE_HOME", str(Path.home() / ".git-suite")))
 _PLAN_FILE = _CONFIG_DIR / "plan.json"
 _LOCK = threading.Lock()
 
