@@ -17,9 +17,10 @@ The portfolio target (which hubs exist, what they absorb, the layer structure) l
 Planning is **cheap, local, and reversible**; execution is a **separate, deliberate**
 step that touches GitHub.
 
-- **Plan is data, not code.** The canonical plan lives in `~/.git-suite/plan.json`
-  (seeded once from `plan.py`). Every verdict, hub, and boundary is an edit to that
-  file — never a code change.
+- **Plan is data, not code.** The canonical plan lives in `plan.json` under
+  `GIT_SUITE_HOME` (defaults to `~/.git-suite`; in Docker, `/app/data` so the
+  existing host mount covers it). Seeded once from `plan.py`. Every verdict,
+  hub, and boundary is an edit to that file — never a code change.
 - **Remote-only.** The portfolio is sourced entirely from the GitHub API. A local
   checkout carries no meaning: presence in a folder never qualifies, classifies, or
   sources a repo, and there is no local path configuration.
@@ -37,7 +38,7 @@ writes back to `plan.json`; nothing reaches GitHub until **Execute**.
 
 | Stage | What it does |
 |-------|--------------|
-| **Setup** | First step — GitHub connection (PAT or `gh auth`); configure LLM and embedding providers (API key + model + failover priority — call URLs are hardcoded per provider and models are fetched live from each provider's own listing endpoint). Shows where each chain is actually used. |
+| **Setup** | First step — GitHub connection (PAT); configure LLM and embedding providers (API key + model + failover priority — call URLs are hardcoded per provider and models are fetched live from each provider's own listing endpoint). Shows where each chain is actually used. |
 | **Scan** | Pulls every owned repo (public + private) over a live WebSocket, capturing topics, stars, fork/archived flags, `pushed_at`. |
 | **Stars** | Starred repos as a dedup input: snapshot everything you've starred, then surface owned repos a starred project already covers (build-vs-adopt — archive yours) and starred OSS alternatives per hub. Semantic when embeddings are configured, keyword overlap otherwise. |
 | **Cluster** | Embeds unassigned repos and union-find clusters them over a cosine threshold (tightness slider); suggests a theme so you can form a new hub or grow an existing one. |
@@ -68,7 +69,9 @@ SvelteKit frontend ──► nginx ──► FastAPI backend ──► SQLite (s
   in `plan_store.py`; provider registry in `llm_providers.py`.
 - **Frontend** (`ui/frontend`) — SvelteKit, one route per workflow stage.
 - **Config** — no env files for app config; everything is set through the Setup page and
-  stored in `~/.git-suite/config.json`.
+  stored in `config.json` under `GIT_SUITE_HOME`. All persistent state
+  (`state.db`, `config.json`, `plan.json`) lives under that one directory so a
+  single host volume covers everything.
 
 ### Standalone scripts
 
@@ -119,4 +122,6 @@ cd ui/backend && python -m pytest        # 77 tests
 
 ---
 
-*Last updated: June 2026*
+*Last updated: 2026-06-18 — `gh auth` button removed; state persistence
+centralized under `GIT_SUITE_HOME` (Docker uses `/app/data` on the existing
+host mount so `state.db` + `config.json` + `plan.json` all survive rebuilds).*
