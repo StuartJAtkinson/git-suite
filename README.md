@@ -110,7 +110,7 @@ npm run dev                      # :5173, proxies /api and WS to :8000
 ### Tests
 
 ```bash
-cd ui/backend && python -m pytest        # 77 tests
+cd ui/backend && python -m pytest        # 99 tests
 ```
 
 ---

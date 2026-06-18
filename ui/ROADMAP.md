@@ -38,7 +38,7 @@ npm run dev          # http://localhost:2173
 ### Tests
 
 ```bash
-cd ui/backend && python -m pytest        # 77 tests
+cd ui/backend && python -m pytest        # 99 tests
 ```
 
 Health: `http://localhost:2800/health`. API docs: `/docs`.
@@ -89,16 +89,17 @@ Health: `http://localhost:2800/health`. API docs: `/docs`.
 
 | Page | What it does |
 |------|--------------|
-| **Setup** | First step — GitHub connection (PAT or `gh auth`); LLM provider config (API key + failover priority; call URLs are hardcoded per provider, models are fetched live from each provider's own listing endpoint and filtered to completion-capable ones); embedding provider + live-listed embedding models; chain readout showing where each is used |
+| **Setup** | First step — GitHub connection (PAT); LLM provider config (API key + failover priority; call URLs are hardcoded per provider, models are fetched live from each provider's own listing endpoint and filtered to completion-capable ones); embedding provider + live-listed embedding models; chain readout showing where each is used |
 | **Scan** | Streams the live portfolio (incl. private repos) over a same-origin WebSocket; enriched fields (topics, stars, fork, pushed_at, archived, size) |
+| **Hubs** | Per-hub card grid; create / remove hubs; per-row edit (re-upsert to change meta); `→ Order` link to the per-hub ToK layout |
+| **Order** | Per-hub Tree-of-Knowledge layout — one ordered list of a hub's absorbs (foundational first, presentation last); three classification checkboxes (Gather / Analyse / Display) act as filters; per-row arrow reordering + per-row and per-hub LLM Suggest; per-hub compat-tag vocabulary override |
 | **Stars** | Starred repos as a dedup input — snapshot all starred repos, then match owned repos ("a starred project already does this" → archive-mine action) and hubs (starred OSS-alternative suggestions); semantic with keyword fallback |
-| **Cluster** | Assisted group formation — embeds unassigned repos, union-find clusters them, suggests a theme, user names a new hub / promotes a member / adds to existing |
-| **Hubs** | Per-hub card grid; create / remove hubs; per-row edit (re-upsert to change meta) |
+| **Cluster** | Assisted group formation — embeds **owned + forks + stars in one space** (mixed-source, default) or owned-only (legacy), union-find clusters them, suggests a theme, user names a new hub / promotes a member / adds to existing; per-member `[O]/[F]/[S]` prefix symbols show source at a glance |
 | **Hub detail** (`/hubs/{hub}`) | Per-hub absorbs, alternatives (OSS/commercial), commercial scrape, README preview/push, migration checklist per absorb + push MIGRATION.md |
 | **Overlap** | Hub×hub overlap matrix (semantic when embeddings configured, keyword fallback), boundary-case repos, editable hub boundaries |
 | **Replan** | Two-phase proposal loop (incremental → structural); accept/reject proposals; prune ghosts; blank/reset plan; history |
 | **Triage** | Keyboard-fast verdict queue (1–N absorb, a/k/o/s); stub badges |
-| **Execute** | Dry-run preview diffed against live GitHub, then idempotent batch actions: archive repos, create missing hubs, push composed hub READMEs; hub lifecycle (archive / return / delete) |
+| **Execute** | Dry-run preview diffed against live GitHub, then idempotent batch actions: archive repos, create missing hubs, push composed hub READMEs (which now include the ToK ordering subsection); hub lifecycle (archive / return / delete) |
 | **Layers** | Layer 0–9 view of hubs and their repos |
 | **Summary** | Reconciliation dashboard: live / absorbed / archived / undecided / ghost / stub counts, per-hub progress, next-action list |
 
@@ -116,6 +117,15 @@ Health: `http://localhost:2800/health`. API docs: `/docs`.
   fed to the LLM so it assigns repos correctly and flags cross-boundary cases.
 - **Two-phase replan** — *incremental* (fill orphans / prune ghosts) until
   nothing is undecided, then *replan* (structural: splits, new hubs).
+- **Tree-of-Knowledge ordering** — per-hub ontological layout. Each
+  hub's absorbs are arranged in a single global rank from foundational
+  (what reality is — Gather) through transformation (Analyse) to
+  presentation (Display). The three checkboxes are classification
+  filters, not slots: a repo can belong to more than one column.
+  Order + column flags + compat tags + feature annotations live in
+  `state.db` (the `hub_order` table); plan.json is untouched. The hub
+  README's `compose_section` renders the ordering as a
+  `### Tree-of-Knowledge ordering` subsection when rows exist.
 - **Hub lifecycle** — archive empty hub stubs now; later *return* the one
   that becomes the real hub, or *delete* once absorbed (delete requires the
   hub to be archived first; needs the `delete_repo` PAT scope).
@@ -144,8 +154,10 @@ services/
 routers/
   auth            login, gh-token, session
   scan            start + WebSocket stream + results + latest
-  cluster         propose clusters / form hub
+  cluster         propose clusters (mixed: owned+fork+star) / form hub / refresh forks
   stars           refresh starred snapshot / list / dedup vs scan + hubs
+  order           per-hub ToK layout: get/save/suggest-order/suggest-column/
+                  compat-tags/annotate
   hubs            list / status / per-repo archive+absorb
   commercial      scrape + list + delete commercial refs
   readme          preview + push composed hub README
@@ -165,6 +177,7 @@ history, checklists, embeddings cache).
 
 ---
 
-*Last updated: 2026-06-13 — call URLs hardcoded per provider; models are
-fetched live from each provider's listing endpoint (POST /config/models/{provider})
-and filtered to completion-capable ones. 77 tests green.*
+*Last updated: 2026-06-18 — cross-source cluster (owned + forks + stars
+in one embedding space) + new Order page (per-hub Tree-of-Knowledge
+layout with three classification columns and LLM Suggest). Hub README
+compose_section now renders the ToK ordering subsection. 99 tests green.*
