@@ -91,11 +91,27 @@ export const api = {
   getStars: () => req('GET', '/api/stars'),
   getStarsDedup: (session_id) => req('GET', `/api/stars/dedup/${session_id}`),
 
-  // Cluster (assisted group formation)
-  getClusters: (session_id, threshold) =>
-    req('GET', `/api/cluster/${session_id}${threshold ? `?threshold=${threshold}` : ''}`),
+  // Cluster (assisted group formation — mixed: owned + forks + stars)
+  getClusters: (session_id, threshold, source = 'mixed') =>
+    req('GET', `/api/cluster/${session_id}?threshold=${threshold}&source=${source}`),
   formHub: (session_id, body) =>
     req('POST', `/api/cluster/form/${session_id}`, body),
+  refreshForks: (session_id) =>
+    req('POST', `/api/cluster/refresh-forks/${session_id}`, {}),
+
+  // Order (per-hub ontological ordering, Tree of Knowledge layout)
+  getOrder: (session_id, hub) =>
+    req('GET', `/api/order/${session_id}/${hub}`),
+  saveOrder: (session_id, hub, rows) =>
+    req('POST', `/api/order/${session_id}/${hub}`, { rows }),
+  suggestOrder: (session_id, hub) =>
+    req('POST', `/api/order/${session_id}/${hub}/suggest-order`, {}),
+  suggestColumn: (session_id, hub, repo) =>
+    req('POST', `/api/order/${session_id}/${hub}/suggest-column`, { repo }),
+  setCompatTags: (session_id, hub, tags) =>
+    req('POST', `/api/order/${session_id}/${hub}/compat-tags`, { tags }),
+  annotate: (session_id, hub, repo, annotations) =>
+    req('POST', `/api/order/${session_id}/${hub}/annotate`, { repo, annotations }),
 
   // Execute (plan -> real GitHub actions)
   executePreview: (session_id) => req('GET', `/api/execute/preview/${session_id}`),

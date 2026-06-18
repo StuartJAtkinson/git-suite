@@ -104,6 +104,7 @@
           <span class="badge p{h.priority}">{PRIORITY[h.priority]}</span>
         </div>
       </a>
+      <a class="order-link" href="/order?hub={encodeURIComponent(h.name)}" title="Order this hub's repos (Tree of Knowledge layout)">→ Order</a>
       <button class="del" title="Remove hub from plan" on:click={() => removeHub(h.name)}>✕</button>
     </div>
   {/each}
@@ -118,4 +119,6 @@
   .hub-card-wrap { position: relative; }
   .del { position: absolute; top: 0.5rem; right: 0.5rem; background: transparent; color: #9ca3af; border: none; padding: 0.1rem 0.4rem; font-size: 0.85rem; cursor: pointer; }
   .del:hover { color: #dc2626; background: #fef2f2; }
+  .order-link { position: absolute; top: 0.5rem; right: 2.2rem; font-size: 0.78rem; color: #4f46e5; text-decoration: none; padding: 0.15rem 0.45rem; border-radius: 4px; }
+  .order-link:hover { background: #eef2ff; }
 </style>

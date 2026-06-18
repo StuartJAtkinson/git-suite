@@ -18,6 +18,7 @@
     <a href="/setup" class={active('/setup')}>Setup</a>
     <a href="/scan" class={active('/scan')}>Scan</a>
     <a href="/hubs" class={active('/hubs')}>Hubs</a>
+    <a href="/order" class={active('/order')}>Order</a>
     <a href="/stars" class={active('/stars')}>Stars</a>
     <a href="/cluster" class={active('/cluster')}>Cluster</a>
     <a href="/overlap" class={active('/overlap')}>Overlap</a>

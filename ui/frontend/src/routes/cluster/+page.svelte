@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { session } from '$lib/stores';
   import { api } from '$lib/api';
+  import { SOURCE_GLYPH } from '$lib/columns';
 
   // Assisted group formation: cluster the unassigned repos by function, then
   // for each cluster name a new hub OR promote a member as the hub, with a
@@ -15,6 +16,7 @@
   let msg = '';
   let threshold = 0.6;
   let busy = null;
+  let source = 'mixed';   // 'mixed' (default) | 'owned' (legacy)
 
   const LAYER_NAMES = {
     0: 'Event Bus', 1: 'Ontology', 2: 'Automation', 3: 'Knowledge & RAG',
@@ -29,7 +31,7 @@
   async function load() {
     loading = true; errorMsg = '';
     try {
-      data = await api.getClusters($session.session_id, threshold);
+      data = await api.getClusters($session.session_id, threshold, source);
       clusters = (data.clusters || []).map((c, i) => ({
         id: i,
         members: c.members,
@@ -90,12 +92,32 @@
 
 {#if !loading && data && data.available}
   <div class="bar">
-    <span>{data.orphan_count} unassigned · {clusters.length} clusters</span>
+    <span>
+      {data.orphan_count} unassigned · {clusters.length} clusters
+      {#if data.source === 'mixed' && data.counts}
+        · <span class="src-pill src-O">{data.counts.owned} owned</span>
+        <span class="src-pill src-F">{data.counts.forks} forks</span>
+        <span class="src-pill src-S">{data.counts.stars} stars</span>
+      {/if}
+    </span>
+    <label class="src">source
+      <select bind:value={source} on:change={load}>
+        <option value="mixed">mixed (owned + forks + stars)</option>
+        <option value="owned">owned only (legacy)</option>
+      </select>
+    </label>
     <label class="thr">tightness
       <input type="range" min="0.45" max="0.8" step="0.05" bind:value={threshold} on:change={load} />
       {threshold}
     </label>
     <button class="ghost sm" on:click={load}>↻ Re-cluster</button>
+  </div>
+
+  <div class="legend">
+    Prefix symbols mark each node's source so type is scannable without a hover:
+    <span class="src-pill src-O">{SOURCE_GLYPH.owned} owned</span>
+    <span class="src-pill src-F">{SOURCE_GLYPH.fork} fork</span>
+    <span class="src-pill src-S">{SOURCE_GLYPH.star} star</span>
   </div>
 
   {#if clusters.length === 0}
@@ -148,6 +170,8 @@
         {#each c.members as m}
           <label class="mem" class:off={!c.selected.has(m.repo)}>
             <input type="checkbox" checked={c.selected.has(m.repo)} on:change={() => toggle(c, m.repo)} />
+            <span class="src-pill src-{m.source?.[0]?.toUpperCase() || 'O'}"
+                  title={m.source || 'owned'}>{SOURCE_GLYPH[m.source] || SOURCE_GLYPH.owned}</span>
             <span class="mname">{m.repo}</span>
             {#if m.language}<span class="lt">{m.language}</span>{/if}
             <span class="maim">{m.aim || ''}</span>
@@ -177,4 +201,10 @@
   .mname { font-family: monospace; font-weight: 600; }
   .lt { font-size: 0.7rem; background: #eff6ff; color: #1e40af; border-radius: 4px; padding: 0.05em 0.35em; }
   .maim { color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .src { font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem; }
+  .legend { font-size: 0.78rem; color: #6b7280; margin: 0.4rem 0 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+  .src-pill { display: inline-block; font-family: monospace; font-size: 0.72rem; padding: 0.05em 0.45em; border-radius: 4px; font-weight: 600; }
+  .src-pill.src-O { background: #eff6ff; color: #1e40af; }
+  .src-pill.src-F { background: #fef3c7; color: #92400e; }
+  .src-pill.src-S { background: #f3e8ff; color: #6b21a8; }
 </style>
