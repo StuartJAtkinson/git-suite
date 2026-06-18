@@ -117,6 +117,55 @@ async def init_db() -> None:
                 created_at TEXT DEFAULT (datetime('now'))
             );
 
+            -- Snapshot of the user's owned FORKED repos (refreshed on demand).
+            -- Forks are a first-class cluster input: they cluster alongside
+            -- owned repos and stars in services/cluster.build_clusters_mixed.
+            CREATE TABLE IF NOT EXISTS fork (
+                full_name  TEXT PRIMARY KEY,   -- owner/name
+                name       TEXT NOT NULL,
+                owner      TEXT NOT NULL,
+                description TEXT,
+                topics     TEXT,               -- JSON array of strings
+                language   TEXT,
+                parent_full_name TEXT,         -- what it was forked from
+                pushed_at  TEXT,
+                archived   INTEGER,            -- 0/1
+                url        TEXT,
+                fetched_at TEXT DEFAULT (datetime('now'))
+            );
+
+            -- Per-hub order + column classification + compat tags + annotations.
+            -- One row per (hub, repo). The Order page reads/writes through
+            -- routers/order.py. plan.json is NOT touched — this is the only
+            -- state-bearing piece of the Order feature.
+            --
+            -- position: 0-based global ToK rank within the hub (lower = earlier).
+            -- is_gather / is_analyse / is_display: 0/1 column flags (a repo can
+            --   be in more than one — the checkboxes are classification only).
+            -- compat_tags: JSON array of strings (user-named per hub).
+            -- feature_annotations: JSON array of strings (populated manually
+            --   or by the per-repo LLM Suggest endpoint).
+            CREATE TABLE IF NOT EXISTS hub_order (
+                hub         TEXT NOT NULL,
+                repo        TEXT NOT NULL,
+                position    INTEGER NOT NULL,
+                is_gather   INTEGER DEFAULT 0,
+                is_analyse  INTEGER DEFAULT 0,
+                is_display  INTEGER DEFAULT 0,
+                compat_tags TEXT,            -- JSON array of strings
+                feature_annotations TEXT,   -- JSON array of strings
+                updated_at  TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (hub, repo)
+            );
+
+            -- Per-hub override of the global compat-tag vocabulary. If a hub
+            -- has no row here it inherits services/columns.default_compat_tags().
+            CREATE TABLE IF NOT EXISTS hub_compat_tags (
+                hub     TEXT PRIMARY KEY,
+                tags    TEXT NOT NULL,   -- JSON array of strings
+                updated_at TEXT DEFAULT (datetime('now'))
+            );
+
             -- Append-only log of applied plan changes (how the plan evolved).
             CREATE TABLE IF NOT EXISTS plan_history (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,

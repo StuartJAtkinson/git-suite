@@ -1,8 +1,9 @@
-"""cluster: theme suggestion, union-find grouping, form action."""
+"""cluster: theme suggestion, union-find grouping, form action, mixed-source."""
 import asyncio
+import json
 
 from services import cluster
-from routers.cluster import form, FormRequest
+from routers.cluster import form, FormRequest, propose, refresh_forks
 
 
 def test_suggest_theme_from_topics():
@@ -49,3 +50,116 @@ def test_form_promote_keeps_member_as_hub(isolated_plan):
     plan = isolated_plan.get_plan()
     # promoted repo is the hub, not absorbed into itself
     assert plan["hubs"]["streets-gl"]["absorbs"] == ["tilemaker"]
+
+
+# -- mixed-source clustering --------------------------------------------------
+
+
+def _fake_embed_factory(plan: dict[str, list[float]]):
+    """Return an `embed` coroutine that maps each text to a deterministic
+    vector from `plan`, with a tiny perturbation for unknown texts."""
+    import math
+    def _vec(text: str) -> list[float]:
+        for key, v in plan.items():
+            if key in text:
+                return list(v)
+        # Unknown: map to a fresh unit vector derived from the hash so
+        # unknown items form their own cluster.
+        h = abs(hash(text))
+        return [math.sin(h), math.cos(h), 0.0]
+    async def embed(texts):
+        return [_vec(t) for t in texts]
+    return embed
+
+
+def test_build_clusters_mixed_returns_none_without_embeddings(monkeypatch):
+    from services import embeddings
+    monkeypatch.setattr(embeddings, "has_embeddings", lambda: False)
+    assert asyncio.run(cluster.build_clusters_mixed(
+        [{"name": "x", "aim": "", "topics": [], "language": "", "stars": 0}],
+        [], [],
+    )) is None
+
+
+def test_build_clusters_mixed_tags_sources_and_groups(temp_db, monkeypatch):
+    from services import embeddings
+    monkeypatch.setattr(embeddings, "has_embeddings", lambda: True)
+    # owned + fork + star that all point at "maps" get one vector; a star
+    # about audio points elsewhere and ends up alone.
+    maps_vec = [1.0, 0.0, 0.0]
+    other_vec = [0.0, 1.0, 0.0]
+    monkeypatch.setattr(embeddings, "embed", _fake_embed_factory({
+        "maps": maps_vec, "audio": other_vec,
+    }))
+
+    owned = [{"name": "tilemaker", "aim": "build maps", "topics": ["maps"],
+              "language": "Python", "stars": 0}]
+    forks = [{"name": "map-fork", "description": "fork of maps", "topics": ["maps"],
+              "language": "Python", "stars": 0, "full_name": "u/map-fork"}]
+    stars = [
+        {"name": "osm-tools", "description": "maps stuff", "topics": ["maps"],
+         "language": "JS", "stars": 100, "full_name": "ext/osm-tools"},
+        {"name": "audio-fx", "description": "audio dsp", "topics": ["audio"],
+         "language": "C++", "stars": 50, "full_name": "ext/audio-fx"},
+    ]
+
+    clusters = asyncio.run(cluster.build_clusters_mixed(owned, forks, stars,
+                                                        threshold=0.9))
+    assert clusters is not None
+    # Largest first; the maps cluster has 3 members, the audio one has 1.
+    assert clusters[0]["size"] == 3
+    assert clusters[-1]["size"] == 1
+    sources = sorted(m["source"] for m in clusters[0]["members"])
+    assert sources == ["fork", "owned", "star"]
+
+
+def test_propose_mixed_includes_counts_and_source(temp_db, isolated_plan, monkeypatch):
+    from services import embeddings
+    monkeypatch.setattr(embeddings, "has_embeddings", lambda: True)
+    monkeypatch.setattr(embeddings, "embed", _fake_embed_factory({"x": [1.0, 0.0, 0.0]}))
+
+    # Seed: a session + scan with one orphan, plus a fork + a star.
+    from tests.conftest import insert_scan
+    insert_scan(temp_db, repos=[{"name": "x-repo", "aim": "x"}])
+    # In-memory fork + star rows (skip the github round-trip).
+    async def _seed_snapshots():
+        async for db in temp_db.get_db():
+            await db.execute(
+                "INSERT INTO fork (full_name, name, owner, description, topics, "
+                "language, parent_full_name, pushed_at, archived, url) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                ("u/x-fork", "x-fork", "u", "fork of x", "[]", "Python",
+                 "ext/x", "", 0, ""),
+            )
+            await db.execute(
+                "INSERT INTO starred_repo (full_name, name, owner, description, "
+                "topics, language, stars, pushed_at, archived, url) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                ("ext/x-star", "x-star", "ext", "x", "[]", "Python", 1, "", 0, ""),
+            )
+            await db.commit()
+    asyncio.run(_seed_snapshots())
+
+    res = asyncio.run(propose("s1", threshold=0.5, source="mixed"))
+    assert res["source"] == "mixed"
+    assert res["counts"] == {"owned": 1, "forks": 1, "stars": 1}
+    assert res["available"] is True
+    # All three sources land in the one big cluster.
+    assert res["clusters"][0]["size"] == 3
+    sources = sorted(m["source"] for m in res["clusters"][0]["members"])
+    assert sources == ["fork", "owned", "star"]
+
+
+def test_propose_owned_legacy_path_still_works(temp_db, isolated_plan, monkeypatch):
+    """?source=owned keeps the old behaviour so users can compare shapes."""
+    from services import embeddings
+    monkeypatch.setattr(embeddings, "has_embeddings", lambda: True)
+    monkeypatch.setattr(embeddings, "embed", _fake_embed_factory({"a": [1.0, 0.0, 0.0]}))
+
+    from tests.conftest import insert_scan
+    insert_scan(temp_db, repos=[{"name": "a-repo", "aim": "a thing"}])
+    res = asyncio.run(propose("s1", threshold=0.5, source="owned"))
+    assert res["source"] == "owned"
+    assert "counts" not in res
+    # No fork or star in the input; only the owned repo shows up.
+    assert res["clusters"][0]["members"][0]["source"] == "owned"

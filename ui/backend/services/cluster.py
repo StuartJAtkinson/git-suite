@@ -76,3 +76,91 @@ async def build_clusters(repos: list[dict], threshold: float = DEFAULT_THRESHOLD
     clusters = [[repos[i] for i in idxs] for idxs in groups]
     clusters.sort(key=len, reverse=True)
     return clusters
+
+
+def _text_for(r: dict) -> str:
+    """Build the embedding text for any source dict. Branches the field names
+    so owned repos (aim/topics), forks (description/topics) and stars
+    (description/topics) all feed the same vector space."""
+    parts = [r.get("name", "")]
+    parts.append(r.get("aim") or r.get("description") or "")
+    topics = r.get("topics") or []
+    if isinstance(topics, str):
+        import json as _j
+        try:
+            topics = _j.loads(topics)
+        except Exception:
+            topics = []
+    parts.append(" ".join(topics))
+    return ". ".join(p for p in parts if p)
+
+
+async def build_clusters_mixed(
+    owned: list[dict],
+    forks: list[dict],
+    stars: list[dict],
+    threshold: float = DEFAULT_THRESHOLD,
+) -> list[dict] | None:
+    """Cluster owned + forks + stars in one embedding space.
+
+    Returns a list of cluster dicts:
+        {
+          "members": [{"repo": ..., "source": "owned"|"fork"|"star", ...}, ...],
+          "suggested_name": ...,
+          "suggested_description": ...,
+        }
+
+    Returns None if embeddings are unavailable (caller can show a clear
+    "configure embeddings" message). Cluster ordering is largest-first.
+    Each member is tagged with its source so the UI can render the
+    [O]/[F]/[S] prefix symbol.
+    """
+    if not embeddings.has_embeddings():
+        return None
+    if not (owned or forks or stars):
+        return None
+
+    def _tag(r: dict, source: str) -> dict:
+        out = dict(r)
+        out["source"] = source
+        # Normalise the description field so the router can render the same
+        # `aim` key for all sources.
+        if source != "owned" and not out.get("aim"):
+            out["aim"] = out.get("description") or ""
+        return out
+
+    pool: list[dict] = []
+    for r in owned:
+        pool.append(_tag(r, "owned"))
+    for r in forks:
+        pool.append(_tag(r, "fork"))
+    for r in stars:
+        pool.append(_tag(r, "star"))
+
+    texts = [_text_for(r) for r in pool]
+    vecs = await embeddings.embed(texts)
+    if not vecs:
+        return None
+    groups = _union_find(vecs, threshold)
+
+    clusters: list[dict] = []
+    for idxs in groups:
+        members = [pool[i] for i in idxs]
+        s = suggest_theme(members)
+        clusters.append({
+            "members": [
+                {"repo": m.get("repo") or m.get("name"),
+                 "full_name": m.get("full_name"),
+                 "source": m["source"],
+                 "language": m.get("language", ""),
+                 "stars": m.get("stars", 0),
+                 "aim": m.get("aim") or m.get("description") or ""}
+                for m in members
+            ],
+            "suggested_name": s["name"],
+            "suggested_description": s["description"],
+            "size": len(members),
+        })
+    # Largest first; ties broken by name for determinism in tests.
+    clusters.sort(key=lambda c: (-c["size"], c["suggested_name"]))
+    return clusters

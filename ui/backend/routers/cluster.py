@@ -1,51 +1,157 @@
 """
 cluster.py (router) — assisted hub formation from the scan.
 
-  GET  /api/cluster/{session}        propose clusters of unassigned repos
-  POST /api/cluster/form/{session}   form a hub from a cluster (create/promote/
-                                     add-to-existing) and absorb its members
+  GET  /api/cluster/{session_id}        propose clusters of unassigned repos
+                                         (source=owned legacy behaviour, or
+                                         source=mixed default which mixes
+                                         owned + forks + stars in one space)
+  POST /api/cluster/form/{session_id}   form a hub from a cluster (create/promote/
+                                         add-to-existing) and absorb its members
+  POST /api/cluster/refresh-forks/{sid} snapshot the user's owned forks so the
+                                         mixed-source cluster can include them
 """
+import json
 import logging
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 import plan_store
+from database import get_db
 from routers.reconcile import reconcile
 from services import cluster
+from services.github import list_repos
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 
 
+async def _session(session_id: str) -> dict:
+    async for db in get_db():
+        rows = await db.execute_fetchall(
+            "SELECT github_token, github_user FROM session WHERE id = ?", (session_id,)
+        )
+    if not rows:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    return dict(rows[0])
+
+
+async def _load_forks() -> list[dict]:
+    async for db in get_db():
+        rows = await db.execute_fetchall(
+            "SELECT * FROM fork ORDER BY pushed_at DESC"
+        )
+    out = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["topics"] = json.loads(d.get("topics") or "[]")
+        except Exception:
+            d["topics"] = []
+        out.append(d)
+    return out
+
+
+async def _load_stars() -> list[dict]:
+    async for db in get_db():
+        rows = await db.execute_fetchall(
+            "SELECT * FROM starred_repo"
+        )
+    out = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["topics"] = json.loads(d.get("topics") or "[]")
+        except Exception:
+            d["topics"] = []
+        out.append(d)
+    return out
+
+
+def _own_member_dicts(orphans: list[dict]) -> list[dict]:
+    """Normalise the reconcile `orphans` rows into the shape the cluster
+    service expects (name, aim, topics, language, stars)."""
+    out = []
+    for r in orphans:
+        topics = r.get("topics")
+        if isinstance(topics, str):
+            try:
+                topics = json.loads(topics)
+            except Exception:
+                topics = []
+        out.append({
+            "name": r.get("name", ""),
+            "aim": r.get("aim") or "",
+            "topics": topics or [],
+            "language": r.get("language") or "",
+            "stars": r.get("stars") or 0,
+        })
+    return out
+
+
 @router.get("/cluster/{session_id}")
-async def propose(session_id: str, threshold: float = cluster.DEFAULT_THRESHOLD):
+async def propose(
+    session_id: str,
+    threshold: float = cluster.DEFAULT_THRESHOLD,
+    source: str = "mixed",
+):
+    """Propose clusters.
+
+    source=owned  legacy behaviour: only owned orphans (one embedding pass).
+    source=mixed   default: owned + forks + stars in one embedding space.
+                   Each cluster member is tagged with `source` so the UI can
+                   render the [O]/[F]/[S] prefix symbol.
+    """
     recon = await reconcile(session_id)
     orphans = recon["orphans"]                      # unassigned, live repos
     hubs = list(plan_store.get_plan().get("hubs", {}).keys())
 
-    groups = await cluster.build_clusters(orphans, threshold)
+    if source == "owned":
+        repos = _own_member_dicts(orphans)
+        groups = await cluster.build_clusters(repos, threshold)
+        if groups is None:
+            return {"available": False,
+                    "reason": "Embeddings not configured/reachable — set Setup → "
+                              "Embeddings (Ollama nomic-embed-text) and ensure "
+                              "Ollama is running.",
+                    "clusters": [], "hubs": hubs, "orphan_count": len(orphans),
+                    "source": "owned"}
+        out = []
+        for members in groups:
+            s = cluster.suggest_theme(members)
+            out.append({
+                "suggested_name": s["name"],
+                "suggested_description": s["description"],
+                "size": len(members),
+                "members": [
+                    {"repo": m["name"], "source": "owned",
+                     "language": m.get("language", ""),
+                     "stars": m.get("stars", 0), "aim": m.get("aim", "")}
+                    for m in members
+                ],
+            })
+        return {"available": True, "threshold": threshold,
+                "clusters": out, "hubs": hubs, "orphan_count": len(orphans),
+                "source": "owned"}
+
+    # source=mixed: owned + forks + stars
+    owned = _own_member_dicts(orphans)
+    forks = await _load_forks()
+    stars = await _load_stars()
+
+    groups = await cluster.build_clusters_mixed(owned, forks, stars, threshold)
     if groups is None:
         return {"available": False,
-                "reason": "Embeddings not configured/reachable — set Setup → Embeddings "
-                          "(Ollama nomic-embed-text) and ensure Ollama is running.",
-                "clusters": [], "hubs": hubs, "orphan_count": len(orphans)}
-
-    out = []
-    for members in groups:
-        s = cluster.suggest_theme(members)
-        out.append({
-            "suggested_name": s["name"],
-            "suggested_description": s["description"],
-            "size": len(members),
-            "members": [
-                {"repo": m["name"], "language": m.get("language", ""),
-                 "stars": m.get("stars", 0), "aim": m.get("aim", "")}
-                for m in members
-            ],
-        })
+                "reason": "Embeddings not configured/reachable — set Setup → "
+                          "Embeddings (Ollama nomic-embed-text) and ensure "
+                          "Ollama is running.",
+                "clusters": [], "hubs": hubs, "orphan_count": len(orphans),
+                "source": "mixed",
+                "counts": {"owned": len(owned), "forks": len(forks), "stars": len(stars)}}
     return {"available": True, "threshold": threshold,
-            "clusters": out, "hubs": hubs, "orphan_count": len(orphans)}
+            "clusters": groups, "hubs": hubs, "orphan_count": len(orphans),
+            "source": "mixed",
+            "counts": {"owned": len(owned), "forks": len(forks), "stars": len(stars)}}
 
 
 class FormRequest(BaseModel):
@@ -78,3 +184,47 @@ async def form(session_id: str, body: FormRequest):
         absorbed.append(m)
     log.info("formed hub %s from cluster (%d absorbed)", name, len(absorbed))
     return {"hub": name, "absorbed": absorbed, "promoted": body.promote}
+
+
+@router.post("/cluster/refresh-forks/{session_id}")
+async def refresh_forks(session_id: str):
+    """Snapshot the user's owned forked repos into the `fork` table.
+
+    Replacement strategy: DELETE then INSERT in one transaction. Forks are
+    cheap to re-fetch; the alternative (incremental diff) saves no meaningful
+    work and complicates the schema.
+    """
+    sess = await _session(session_id)
+
+    rows = []
+    async for r in list_repos(sess["github_token"]):
+        if not r.get("fork"):
+            continue
+        parent = r.get("parent") or {}
+        rows.append((
+            r.get("full_name", ""),
+            r.get("name", ""),
+            (r.get("owner") or {}).get("login", ""),
+            r.get("description") or "",
+            json.dumps(r.get("topics") or []),
+            r.get("language") or "",
+            parent.get("full_name") or "",
+            r.get("pushed_at") or "",
+            1 if r.get("archived") else 0,
+            r.get("html_url") or "",
+        ))
+
+    async for db in get_db():
+        await db.execute("DELETE FROM fork")
+        await db.executemany(
+            """INSERT OR REPLACE INTO fork
+               (full_name, name, owner, description, topics, language,
+                parent_full_name, pushed_at, archived, url)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            rows,
+        )
+        await db.commit()
+
+    log.info("forks refresh: %d forks snapshotted for %s",
+             len(rows), sess["github_user"])
+    return {"count": len(rows)}
