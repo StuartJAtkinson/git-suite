@@ -8,7 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from database import init_db
 from routers import (auth, scan, hubs, commercial, readme, config, reconcile,
-                     plan, replan, execute, migration, overlap, cluster, stars)
+                     plan, replan, execute, migration, overlap, cluster, stars,
+                     order)
 
 _LOG_DIR = Path(__file__).parent / "logs"
 _LOG_DIR.mkdir(exist_ok=True)
@@ -69,6 +70,7 @@ app.include_router(migration.router,  prefix="/api",   tags=["migration"])
 app.include_router(overlap.router,    prefix="/api",   tags=["overlap"])
 app.include_router(cluster.router,    prefix="/api",   tags=["cluster"])
 app.include_router(stars.router,      prefix="/api",   tags=["stars"])
+app.include_router(order.router,      prefix="/api",   tags=["order"])
 
 
 @app.get("/health")
