@@ -12,7 +12,6 @@ MIGRATION.md the hub repo can carry.
 """
 from __future__ import annotations
 
-import json
 import logging
 import re
 
@@ -87,12 +86,7 @@ useful functionality into the hub. Be specific to THIS repo — reference its
 actual capabilities. Each step is one imperative sentence.
 
 Return ONLY a JSON array of strings, no markdown."""
-        text = (await llm.complete(prompt, max_tokens=700)).strip()
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        steps = json.loads(text)
+        steps = await llm.complete_json(prompt, max_tokens=700)
         if isinstance(steps, list) and steps:
             return [str(s) for s in steps]
     except Exception as exc:

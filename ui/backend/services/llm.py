@@ -15,8 +15,10 @@ Usage:
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
+import re
 
 import httpx
 
@@ -86,7 +88,7 @@ def chain_summary() -> list[dict]:
     chain = build_chain()
     return [
         {"provider": n, "display": PROVIDERS[n]["display_name"],
-         "model": m, "active": i >= _floor and i == _floor}
+         "model": m, "active": i == _floor}
         for i, (n, _k, m) in enumerate(chain)
     ]
 
@@ -205,3 +207,13 @@ async def complete(prompt: str, system: str = "", max_tokens: int = 1024) -> str
         return text
 
     raise AllProvidersFailed(f"all providers failed; last error: {last_exc}")
+
+
+_FENCE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)
+
+
+async def complete_json(prompt: str, system: str = "", max_tokens: int = 1024):
+    """complete() + JSON parse, stripping any ```json fences the model adds."""
+    raw = (await complete(prompt, system=system, max_tokens=max_tokens)).strip()
+    m = _FENCE.match(raw)
+    return json.loads(m.group(1) if m else raw)

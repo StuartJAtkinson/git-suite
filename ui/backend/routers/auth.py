@@ -81,7 +81,8 @@ async def login(body: LoginRequest):
 
     session_id = str(uuid.uuid4())
     async for db in get_db():
-        # repos_root column kept for schema compat; the app is remote-only.
+        # repos_root is a dead column (app is remote-only) but stays NOT NULL on
+        # existing DBs, so keep passing "" — dropping it breaks login on old DBs.
         await db.execute(
             "INSERT INTO session (id, github_token, github_user, repos_root) VALUES (?, ?, ?, ?)",
             (session_id, body.token, user["login"], ""),

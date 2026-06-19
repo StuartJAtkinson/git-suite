@@ -16,7 +16,7 @@ async def init_db() -> None:
                 id          TEXT PRIMARY KEY,
                 github_token TEXT NOT NULL,
                 github_user  TEXT NOT NULL,
-                repos_root   TEXT NOT NULL,
+                repos_root   TEXT NOT NULL,  -- dead: app is remote-only, always ""; kept because existing DBs enforce NOT NULL
                 created_at   TEXT DEFAULT (datetime('now'))
             );
 
@@ -25,7 +25,6 @@ async def init_db() -> None:
                 name       TEXT NOT NULL,
                 super_cat  TEXT,
                 mid_cat    TEXT,
-                fine_cat   TEXT,
                 aim        TEXT,
                 url        TEXT,
                 visibility TEXT,

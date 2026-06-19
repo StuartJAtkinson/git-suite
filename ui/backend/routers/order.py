@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -247,19 +246,6 @@ async def save_order(session_id: str, hub: str, body: OrderSaveRequest):
 
 # --- LLM Suggest -----------------------------------------------------------
 
-def _strip_fences(text: str) -> str:
-    """Strip ```json ... ``` fences if the model added them."""
-    text = text.strip()
-    m = re.match(r"^```(?:json)?\s*(.*?)\s*```$", text, re.DOTALL)
-    return m.group(1) if m else text
-
-
-async def _llm_json(prompt: str, system: str, max_tokens: int = 1024) -> dict | list:
-    """Run the LLM and parse the response as JSON. Raises on parse error."""
-    raw = await llm.complete(prompt, system=system, max_tokens=max_tokens)
-    return json.loads(_strip_fences(raw))
-
-
 @router.post("/order/{session_id}/{hub}/suggest-order")
 async def suggest_order(session_id: str, hub: str):
     """LLM: propose a reorder of the current list.
@@ -281,10 +267,7 @@ async def suggest_order(session_id: str, hub: str):
     # annotations for ordering.
     repo_lines = []
     for r in rows:
-        cols = [c for c in COLUMNS if r[f"is_{c.lower()}"] or
-                (c == "Gather" and r["is_gather"]) or
-                (c == "Analyse" and r["is_analyse"]) or
-                (c == "Display" and r["is_display"])]
+        cols = [c for c in COLUMNS if r[COL_FLAGS[c]]]
         col_str = ",".join(cols) or "unassigned"
         repo_lines.append(
             f"- {r['repo']} [lang={r['language']}, stars={r['stars']}, "
@@ -321,8 +304,7 @@ Rules:
 - `moves` lists only repos whose position changed; omit unmoved ones.
 - Reply with JSON only — no prose, no fences.
 """
-    out = await _llm_json(prompt, system=system, max_tokens=2048)
-    return out
+    return await llm.complete_json(prompt, system=system, max_tokens=2048)
 
 
 class SuggestColumnRequest(BaseModel):
@@ -372,7 +354,7 @@ Display). Reply with JSON in EXACTLY this shape:
 }}
 Reply with JSON only — no prose, no fences.
 """
-    out = await _llm_json(prompt, system=system, max_tokens=512)
+    out = await llm.complete_json(prompt, system=system, max_tokens=512)
     out["repo"] = body.repo
     return out
 

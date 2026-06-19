@@ -1,9 +1,8 @@
 """
 plan.py — hub plan data for the backend API.
 
-Canonical seed for the plan. Also re-used by:
-  - portfolio_review.py  (CLI review tool, imports this as the seed)
-  - init_hub_readmes.py  (standalone README writer — has its own copy, drift-prone)
+Canonical seed for the plan. Also re-used by portfolio_review.py (CLI review
+tool, imports this as the seed).
 
 If you edit a hub here, run `portfolio_review.py --check-hubs` to confirm parity.
 """

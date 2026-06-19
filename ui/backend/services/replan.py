@@ -18,7 +18,6 @@ Proposals are advisory until a human accepts them (see routers/replan.py).
 """
 from __future__ import annotations
 
-import json
 import logging
 
 log = logging.getLogger(__name__)
@@ -132,12 +131,7 @@ Verdicts:
 
 Return ONLY this JSON, no markdown:
 {{"verdict":"absorb|archive|keep","hub":"<hub name or null>","confidence":0.0,"rationale":"one short sentence"}}"""
-        text = (await llm.complete(prompt, max_tokens=300)).strip()
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        data = json.loads(text)
+        data = await llm.complete_json(prompt, max_tokens=300)
         verdict = data.get("verdict", "keep")
         hub = data.get("hub") if verdict == "absorb" else None
         return {

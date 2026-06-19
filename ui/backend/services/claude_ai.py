@@ -1,5 +1,3 @@
-import json
-
 from services import llm
 
 
@@ -29,11 +27,5 @@ Rules:
 - No marketing fluff ("best-in-class", "powerful", etc.)
 - If the page is not a product page, return {{"name": "Unknown", "features": []}}
 """
-    text = (await llm.complete(prompt, max_tokens=1024)).strip()
-    # Strip markdown code fences if present
-    if text.startswith("```"):
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
-    data = json.loads(text)
+    data = await llm.complete_json(prompt, max_tokens=1024)
     return data["name"], data.get("features", [])

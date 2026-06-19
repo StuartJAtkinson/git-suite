@@ -46,10 +46,10 @@ def insert_scan(database, session_id="s1", scan_id="sc1", repos=None):
             )
             for r in repos:
                 await db.execute(
-                    """INSERT INTO repos (scan_id, name, super_cat, mid_cat, fine_cat,
+                    """INSERT INTO repos (scan_id, name, super_cat, mid_cat,
                        aim, url, visibility, language, stars, is_fork, pushed_at, topics, archived)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (scan_id, r["name"], "", "", "", r.get("aim", ""), "", "public",
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (scan_id, r["name"], "", "", r.get("aim", ""), "", "public",
                      r.get("language", ""), r.get("stars", 0), 0, "", "[]", 0),
                 )
             await db.commit()
