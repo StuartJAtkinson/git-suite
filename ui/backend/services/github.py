@@ -1,3 +1,4 @@
+import base64
 import httpx
 from typing import AsyncIterator
 
@@ -136,7 +137,6 @@ async def get_file_sha(token: str, owner: str, repo: str, path: str) -> str | No
 
 async def get_file(token: str, owner: str, repo: str, path: str) -> dict | None:
     """Return {'content': str, 'sha': str} for a file, or None if absent."""
-    import base64
     async with httpx.AsyncClient() as client:
         r = await client.get(
             f"{GH_API}/repos/{owner}/{repo}/contents/{path}",
@@ -155,7 +155,6 @@ async def get_file(token: str, owner: str, repo: str, path: str) -> dict | None:
 async def get_readme(token: str, owner: str, repo: str, limit: int = 2000) -> str | None:
     """Return the repo's README text (excerpt), or None. Uses the readme endpoint
     so it finds README.md / README.rst / etc. regardless of name."""
-    import base64
     async with httpx.AsyncClient() as client:
         r = await client.get(
             f"{GH_API}/repos/{owner}/{repo}/readme",

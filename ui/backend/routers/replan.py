@@ -29,6 +29,17 @@ router = APIRouter()
 _APPLICABLE = {"verdict", "ghost-prune", "reassign"}
 
 
+async def _log_history(target: str, kind: str, change: dict, source: str, rationale: str) -> None:
+    """Append one row to the plan_history audit log."""
+    async for db in get_db():
+        await db.execute(
+            """INSERT INTO plan_history (target, kind, change, source, rationale)
+               VALUES (?, ?, ?, ?, ?)""",
+            (target, kind, json.dumps(change), source, rationale),
+        )
+        await db.commit()
+
+
 @router.get("/replan/state/{session_id}")
 async def state(session_id: str):
     recon = await reconcile(session_id)
@@ -112,25 +123,12 @@ async def accept(proposal_id: int):
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         applied = True
-        async for db in get_db():
-            await db.execute(
-                """INSERT INTO plan_history (target, kind, change, source, rationale)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (p["target"], p["kind"],
-                 json.dumps({"from": before, "to": proposed}),
-                 p["source"], p["rationale"]),
-            )
-            await db.commit()
+        await _log_history(p["target"], p["kind"], {"from": before, "to": proposed},
+                           p["source"], p["rationale"])
     else:
         # advisory (split / new-hub): record acknowledgement only
-        async for db in get_db():
-            await db.execute(
-                """INSERT INTO plan_history (target, kind, change, source, rationale)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (p["target"], p["kind"], json.dumps({"advisory": proposed}),
-                 p["source"], p["rationale"]),
-            )
-            await db.commit()
+        await _log_history(p["target"], p["kind"], {"advisory": proposed},
+                           p["source"], p["rationale"])
 
     async for db in get_db():
         await db.execute(
@@ -162,14 +160,8 @@ async def prune_ghosts(session_id: str):
         name = ghost["name"]
         before = plan_store.repo_placement().get(name)
         plan_store.set_verdict(name, "orphan")   # unassign = remove from plan
-        async for db in get_db():
-            await db.execute(
-                """INSERT INTO plan_history (target, kind, change, source, rationale)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (name, "ghost-prune", json.dumps({"from": before, "to": None}),
-                 "manual", "repo no longer on GitHub — pruned from plan"),
-            )
-            await db.commit()
+        await _log_history(name, "ghost-prune", {"from": before, "to": None},
+                           "manual", "repo no longer on GitHub — pruned from plan")
         pruned.append(name)
     log.info("pruned %d ghosts", len(pruned))
     return {"pruned": len(pruned), "repos": pruned}
