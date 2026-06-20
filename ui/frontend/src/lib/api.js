@@ -24,10 +24,6 @@ export const api = {
   getGhToken: () => req('GET', '/auth/gh-token'),
   login: (token) =>
     req('POST', '/auth/login', { token }),
-  getSession: (session_id) =>
-    req('GET', `/auth/session/${session_id}`),
-  getLatestScan: (session_id) =>
-    req('GET', `/api/scan/latest/${session_id}`),
 
   // Hubs
   getHubs: () => req('GET', '/api/hubs'),
@@ -41,14 +37,10 @@ export const api = {
   // Scan
   startScan: (session_id) =>
     req('POST', '/api/scan/start', { session_id }),
-  getScanResults: (scan_id, super_cat) =>
-    req('GET', `/api/scan/${scan_id}/results${super_cat ? `?super_cat=${super_cat}` : ''}`),
 
   // Commercial refs
   scrapeUrl: (hub, url) =>
     req('POST', '/api/commercial/scrape', { hub, url }),
-  getCommercialRefs: (hub) =>
-    req('GET', `/api/commercial/${hub}`),
   deleteRef: (ref_id) =>
     req('DELETE', `/api/commercial/${ref_id}`),
 
@@ -71,7 +63,6 @@ export const api = {
   reconcile: (session_id) => req('GET', `/api/reconcile/${session_id}`),
 
   // Plan (editable single source of truth)
-  getPlan: () => req('GET', '/api/plan'),
   setVerdict: (repo, verdict, hub) =>
     req('POST', '/api/plan/verdict', { repo, verdict, hub }),
   resetPlan: () => req('POST', '/api/plan/reset'),
