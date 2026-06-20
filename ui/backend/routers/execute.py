@@ -17,11 +17,12 @@ check current GitHub state, so re-running is safe):
 import asyncio
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 import plan_store
 from database import get_db
+from routers.auth import require_session
 from routers.reconcile import reconcile
 from routers.readme import readme_status, push_hub_readme
 from services.github import (list_repos, archive_repo, create_repo,
@@ -29,16 +30,6 @@ from services.github import (list_repos, archive_repo, create_repo,
 
 log = logging.getLogger(__name__)
 router = APIRouter()
-
-
-async def _session(session_id: str) -> tuple[str, str]:
-    async for db in get_db():
-        rows = await db.execute_fetchall(
-            "SELECT github_token, github_user FROM session WHERE id = ?", (session_id,)
-        )
-    if not rows:
-        raise HTTPException(status_code=401, detail="Invalid session")
-    return rows[0]["github_token"], rows[0]["github_user"]
 
 
 async def _github_state(token: str, user: str) -> dict[str, bool]:
@@ -68,7 +59,7 @@ def _archive_plan(recon: dict, plan: dict, gh: dict[str, bool]) -> dict:
 
 @router.get("/execute/preview/{session_id}")
 async def preview(session_id: str):
-    token, user = await _session(session_id)
+    token, user = await require_session(session_id)
     recon = await reconcile(session_id)
     plan = plan_store.get_plan()
     gh = await _github_state(token, user)
@@ -112,7 +103,7 @@ class HubBatch(BaseModel):
 
 @router.post("/execute/archive/{session_id}")
 async def execute_archive(session_id: str, body: RepoBatch):
-    token, user = await _session(session_id)
+    token, user = await require_session(session_id)
     recon = await reconcile(session_id)
     plan = plan_store.get_plan()
     gh = await _github_state(token, user)
@@ -143,7 +134,7 @@ async def execute_archive(session_id: str, body: RepoBatch):
 
 @router.post("/execute/create-hubs/{session_id}")
 async def execute_create_hubs(session_id: str, body: HubBatch):
-    token, user = await _session(session_id)
+    token, user = await require_session(session_id)
     plan = plan_store.get_plan()
     gh = await _github_state(token, user)
 
@@ -169,7 +160,7 @@ async def execute_create_hubs(session_id: str, body: HubBatch):
 
 @router.post("/execute/push-readmes/{session_id}")
 async def execute_push_readmes(session_id: str, body: HubBatch):
-    token, user = await _session(session_id)
+    token, user = await require_session(session_id)
     plan = plan_store.get_plan()
 
     results = []
@@ -193,7 +184,7 @@ async def execute_push_readmes(session_id: str, body: HubBatch):
 @router.post("/execute/archive-hubs/{session_id}")
 async def execute_archive_hubs(session_id: str, body: HubBatch):
     """Archive empty hub stub repos (idempotent: skip absent/already-archived)."""
-    token, user = await _session(session_id)
+    token, user = await require_session(session_id)
     gh = await _github_state(token, user)
     results = []
     for hub in body.hubs:
@@ -213,7 +204,7 @@ async def execute_archive_hubs(session_id: str, body: HubBatch):
 @router.post("/execute/unarchive-hubs/{session_id}")
 async def execute_unarchive_hubs(session_id: str, body: HubBatch):
     """'Return' a hub repo by un-archiving it (idempotent)."""
-    token, user = await _session(session_id)
+    token, user = await require_session(session_id)
     gh = await _github_state(token, user)
     results = []
     for hub in body.hubs:
@@ -235,7 +226,7 @@ async def execute_delete_hubs(session_id: str, body: HubBatch):
     """Delete a hub repo once its content is absorbed. SAFETY: only deletes a
     repo that is already archived, so an active hub can never be deleted by
     accident. Needs the PAT's `delete_repo` scope."""
-    token, user = await _session(session_id)
+    token, user = await require_session(session_id)
     gh = await _github_state(token, user)
     results = []
     for hub in body.hubs:

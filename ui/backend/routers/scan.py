@@ -9,6 +9,7 @@ log = logging.getLogger(__name__)
 
 import plan_store
 from database import get_db
+from routers.auth import require_session
 from services.github import list_repos
 
 router = APIRouter()
@@ -49,12 +50,7 @@ class ScanRequest(BaseModel):
 
 @router.post("/scan/start")
 async def start_scan(body: ScanRequest):
-    async for db in get_db():
-        row = await db.execute_fetchall(
-            "SELECT github_token, github_user FROM session WHERE id = ?", (body.session_id,)
-        )
-        if not row:
-            raise HTTPException(status_code=401, detail="Invalid session")
+    await require_session(body.session_id)
 
     scan_id = str(uuid.uuid4())
     async for db in get_db():

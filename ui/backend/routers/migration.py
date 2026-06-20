@@ -14,21 +14,12 @@ from pydantic import BaseModel
 
 import plan_store
 from database import get_db
+from routers.auth import require_session
 from services import migration
 from services.github import get_readme, get_file_sha, push_file
 
 log = logging.getLogger(__name__)
 router = APIRouter()
-
-
-async def _session(session_id: str) -> tuple[str, str]:
-    async for db in get_db():
-        rows = await db.execute_fetchall(
-            "SELECT github_token, github_user FROM session WHERE id = ?", (session_id,)
-        )
-    if not rows:
-        raise HTTPException(status_code=401, detail="Invalid session")
-    return rows[0]["github_token"], rows[0]["github_user"]
 
 
 async def _scan_repo_map(session_id: str) -> dict[str, dict]:
@@ -123,7 +114,7 @@ async def gen_checklist(session_id: str, body: ChecklistRequest):
         if body.repo in cached:
             return {"hub": body.hub, "repo": body.repo, **cached[body.repo], "cached": True}
 
-    token, owner = await _session(session_id)
+    token, owner = await require_session(session_id)
     scan = await _scan_repo_map(session_id)
     repo_row = _enrich_topics(scan.get(body.repo, {"name": body.repo}))
     repo_row.setdefault("name", body.repo)
@@ -159,7 +150,7 @@ async def push_migration_md(session_id: str, body: PushRequest):
     meta = plan.get("hubs", {}).get(body.hub)
     if not meta:
         raise HTTPException(status_code=404, detail="Unknown hub")
-    token, owner = await _session(session_id)
+    token, owner = await require_session(session_id)
 
     data = await hub_migration(body.hub, session_id)   # reuse the assembled items
     content = migration.build_migration_md(body.hub, {**meta, "name": body.hub}, data["absorbs"])

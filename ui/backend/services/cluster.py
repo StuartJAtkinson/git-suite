@@ -10,6 +10,7 @@ No heavy ML deps: clustering is connected-components over a cosine graph.
 """
 from __future__ import annotations
 
+import json
 import logging
 from collections import Counter
 
@@ -61,23 +62,6 @@ def suggest_theme(members: list[dict]) -> dict:
     return {"name": name, "description": desc, "keywords": top}
 
 
-async def build_clusters(repos: list[dict], threshold: float = DEFAULT_THRESHOLD):
-    """Return [ [member dict, ...], ... ] sorted largest first, or None if
-    embeddings are unavailable."""
-    if not embeddings.has_embeddings() or not repos:
-        return None
-    texts = [
-        f"{r['name']}. {r.get('aim', '')}. {' '.join(r.get('topics') or [])}" for r in repos
-    ]
-    vecs = await embeddings.embed(texts)
-    if not vecs:
-        return None
-    groups = _union_find(vecs, threshold)
-    clusters = [[repos[i] for i in idxs] for idxs in groups]
-    clusters.sort(key=len, reverse=True)
-    return clusters
-
-
 def _text_for(r: dict) -> str:
     """Build the embedding text for any source dict. Branches the field names
     so owned repos (aim/topics), forks (description/topics) and stars
@@ -86,9 +70,8 @@ def _text_for(r: dict) -> str:
     parts.append(r.get("aim") or r.get("description") or "")
     topics = r.get("topics") or []
     if isinstance(topics, str):
-        import json as _j
         try:
-            topics = _j.loads(topics)
+            topics = json.loads(topics)
         except Exception:
             topics = []
     parts.append(" ".join(topics))

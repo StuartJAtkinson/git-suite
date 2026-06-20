@@ -19,6 +19,8 @@ import math
 
 import httpx
 
+from services.llm import _config
+
 log = logging.getLogger(__name__)
 
 EMBED_PROVIDERS: dict[str, dict] = {
@@ -28,14 +30,6 @@ EMBED_PROVIDERS: dict[str, dict] = {
                "default_model": "nomic-embed-text", "needs_key": False},
 }
 DEFAULT_PRIORITY = ["openai", "ollama"]
-
-
-def _config() -> dict:
-    try:
-        from routers.config import _load
-        return _load()
-    except Exception:
-        return {}
 
 
 def build_chain() -> list[tuple[str, str, str]]:

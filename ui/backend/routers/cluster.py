@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 import plan_store
 from database import get_db
+from routers.auth import require_session
 from routers.reconcile import reconcile
 from services import cluster
 from services.github import list_repos
@@ -26,37 +27,10 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
-async def _session(session_id: str) -> dict:
+async def _load_with_topics(sql: str) -> list[dict]:
+    """Fetch rows and JSON-decode the `topics` column to a list."""
     async for db in get_db():
-        rows = await db.execute_fetchall(
-            "SELECT github_token, github_user FROM session WHERE id = ?", (session_id,)
-        )
-    if not rows:
-        raise HTTPException(status_code=401, detail="Invalid session")
-    return dict(rows[0])
-
-
-async def _load_forks() -> list[dict]:
-    async for db in get_db():
-        rows = await db.execute_fetchall(
-            "SELECT * FROM fork ORDER BY pushed_at DESC"
-        )
-    out = []
-    for r in rows:
-        d = dict(r)
-        try:
-            d["topics"] = json.loads(d.get("topics") or "[]")
-        except Exception:
-            d["topics"] = []
-        out.append(d)
-    return out
-
-
-async def _load_stars() -> list[dict]:
-    async for db in get_db():
-        rows = await db.execute_fetchall(
-            "SELECT * FROM starred_repo"
-        )
+        rows = await db.execute_fetchall(sql)
     out = []
     for r in rows:
         d = dict(r)
@@ -106,38 +80,13 @@ async def propose(
     orphans = recon["orphans"]                      # unassigned, live repos
     hubs = list(plan_store.get_plan().get("hubs", {}).keys())
 
-    if source == "owned":
-        repos = _own_member_dicts(orphans)
-        groups = await cluster.build_clusters(repos, threshold)
-        if groups is None:
-            return {"available": False,
-                    "reason": "Embeddings not configured/reachable — set Setup → "
-                              "Embeddings (Ollama nomic-embed-text) and ensure "
-                              "Ollama is running.",
-                    "clusters": [], "hubs": hubs, "orphan_count": len(orphans),
-                    "source": "owned"}
-        out = []
-        for members in groups:
-            s = cluster.suggest_theme(members)
-            out.append({
-                "suggested_name": s["name"],
-                "suggested_description": s["description"],
-                "size": len(members),
-                "members": [
-                    {"repo": m["name"], "source": "owned",
-                     "language": m.get("language", ""),
-                     "stars": m.get("stars", 0), "aim": m.get("aim", "")}
-                    for m in members
-                ],
-            })
-        return {"available": True, "threshold": threshold,
-                "clusters": out, "hubs": hubs, "orphan_count": len(orphans),
-                "source": "owned"}
-
-    # source=mixed: owned + forks + stars
+    # owned is mixed-with-no-forks-no-stars; the `source` toggle only decides
+    # whether forks/stars join the same embedding space.
     owned = _own_member_dicts(orphans)
-    forks = await _load_forks()
-    stars = await _load_stars()
+    forks = [] if source == "owned" else await _load_with_topics(
+        "SELECT * FROM fork ORDER BY pushed_at DESC")
+    stars = [] if source == "owned" else await _load_with_topics(
+        "SELECT * FROM starred_repo")
 
     groups = await cluster.build_clusters_mixed(owned, forks, stars, threshold)
     if groups is None:
@@ -146,11 +95,11 @@ async def propose(
                           "Embeddings (Ollama nomic-embed-text) and ensure "
                           "Ollama is running.",
                 "clusters": [], "hubs": hubs, "orphan_count": len(orphans),
-                "source": "mixed",
+                "source": source,
                 "counts": {"owned": len(owned), "forks": len(forks), "stars": len(stars)}}
     return {"available": True, "threshold": threshold,
             "clusters": groups, "hubs": hubs, "orphan_count": len(orphans),
-            "source": "mixed",
+            "source": source,
             "counts": {"owned": len(owned), "forks": len(forks), "stars": len(stars)}}
 
 
@@ -194,7 +143,7 @@ async def refresh_forks(session_id: str):
     cheap to re-fetch; the alternative (incremental diff) saves no meaningful
     work and complicates the schema.
     """
-    sess = await _session(session_id)
+    sess = await require_session(session_id)
 
     rows = []
     async for r in list_repos(sess["github_token"]):

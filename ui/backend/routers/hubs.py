@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 import plan_store
 from database import get_db
+from routers.auth import require_session
 from services.github import archive_repo
 
 log = logging.getLogger(__name__)
@@ -78,14 +79,7 @@ class ArchiveRequest(BaseModel):
 
 @router.post("/hubs/archive")
 async def do_archive(body: ArchiveRequest):
-    async for db in get_db():
-        row = await db.execute_fetchall(
-            "SELECT github_token, github_user FROM session WHERE id = ?", (body.session_id,)
-        )
-        if not row:
-            raise HTTPException(status_code=401, detail="Invalid session")
-        token = row[0]["github_token"]
-        owner = row[0]["github_user"]
+    token, owner = await require_session(body.session_id)
 
     log.info("archiving %s/%s for hub=%s", owner, body.repo, body.hub)
     try:

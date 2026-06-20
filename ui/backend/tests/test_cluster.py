@@ -23,12 +23,6 @@ def test_union_find_components():
     assert sizes == [1, 2]                     # {0,1} together, {2} alone
 
 
-def test_build_clusters_none_without_embeddings(monkeypatch):
-    from services import embeddings
-    monkeypatch.setattr(embeddings, "has_embeddings", lambda: False)
-    assert asyncio.run(cluster.build_clusters([{"name": "x"}])) is None
-
-
 def test_form_creates_hub_and_absorbs(isolated_plan):
     isolated_plan.clear()
     res = asyncio.run(form("s1", FormRequest(
@@ -151,7 +145,7 @@ def test_propose_mixed_includes_counts_and_source(temp_db, isolated_plan, monkey
 
 
 def test_propose_owned_legacy_path_still_works(temp_db, isolated_plan, monkeypatch):
-    """?source=owned keeps the old behaviour so users can compare shapes."""
+    """?source=owned is mixed-with-no-forks-no-stars: same clustering, owned-only."""
     from services import embeddings
     monkeypatch.setattr(embeddings, "has_embeddings", lambda: True)
     monkeypatch.setattr(embeddings, "embed", _fake_embed_factory({"a": [1.0, 0.0, 0.0]}))
@@ -160,6 +154,7 @@ def test_propose_owned_legacy_path_still_works(temp_db, isolated_plan, monkeypat
     insert_scan(temp_db, repos=[{"name": "a-repo", "aim": "a thing"}])
     res = asyncio.run(propose("s1", threshold=0.5, source="owned"))
     assert res["source"] == "owned"
-    assert "counts" not in res
+    # owned now reports counts too — forks/stars are simply zero.
+    assert res["counts"] == {"owned": 1, "forks": 0, "stars": 0}
     # No fork or star in the input; only the owned repo shows up.
     assert res["clusters"][0]["members"][0]["source"] == "owned"

@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 import plan_store
 from database import get_db
+from routers.auth import require_session
 from services.columns import COLUMNS
 from services.github import get_file, push_file
 
@@ -221,16 +222,6 @@ async def push_hub_readme(token: str, owner: str, hub: str, plan: dict | None = 
     return {"pushed": True, "hub": hub, "sha_was": sha}
 
 
-async def _session(session_id: str) -> tuple[str, str]:
-    async for db in get_db():
-        rows = await db.execute_fetchall(
-            "SELECT github_token, github_user FROM session WHERE id = ?", (session_id,)
-        )
-    if not rows:
-        raise HTTPException(status_code=401, detail="Invalid session")
-    return rows[0]["github_token"], rows[0]["github_user"]
-
-
 class PushReadmeRequest(BaseModel):
     session_id: str
     hub: str
@@ -238,7 +229,7 @@ class PushReadmeRequest(BaseModel):
 
 @router.post("/readme/push")
 async def push_readme(body: PushReadmeRequest):
-    token, owner = await _session(body.session_id)
+    token, owner = await require_session(body.session_id)
     if body.hub not in plan_store.get_plan().get("hubs", {}):
         raise HTTPException(status_code=404, detail="Unknown hub")
     return await push_hub_readme(token, owner, body.hub)
@@ -246,7 +237,7 @@ async def push_readme(body: PushReadmeRequest):
 
 @router.get("/readme/preview/{hub}")
 async def preview_readme(hub: str, session_id: str):
-    await _session(session_id)
+    await require_session(session_id)
     refs = await _refs_for(hub)
     hub_order_rows = await _hub_order_for(hub)
     return {"hub": hub, "section": compose_section(hub, refs, None, hub_order_rows)}

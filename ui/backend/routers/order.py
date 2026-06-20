@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 import plan_store
 from database import get_db
+from routers.auth import require_session
 from routers.reconcile import reconcile
 from services import llm
 from services.columns import COLUMNS, COL_FLAGS, default_compat_tags
@@ -31,16 +32,6 @@ router = APIRouter()
 
 
 # --- helpers ---------------------------------------------------------------
-
-async def _session(session_id: str) -> dict:
-    async for db in get_db():
-        rows = await db.execute_fetchall(
-            "SELECT github_token, github_user FROM session WHERE id = ?", (session_id,)
-        )
-    if not rows:
-        raise HTTPException(status_code=401, detail="Invalid session")
-    return dict(rows[0])
-
 
 async def _hub_meta(hub: str) -> dict:
     plan = plan_store.get_plan()
@@ -99,7 +90,7 @@ async def get_order(session_id: str, hub: str):
     with `position = -1` and all column flags false. `compat_tags_vocab` is
     the per-hub override or the global default.
     """
-    await _session(session_id)
+    await require_session(session_id)
     meta = await _hub_meta(hub)
     absorbs = list(meta.get("absorbs", []))
     # Always include the hub repo itself at position 0 — it's the
@@ -196,7 +187,7 @@ async def save_order(session_id: str, hub: str, body: OrderSaveRequest):
     for absorbs that are no longer present (so removing a member from the
     hub cleans its order row too). The hub repo itself is always preserved
     at position 0."""
-    await _session(session_id)
+    await require_session(session_id)
     await _hub_meta(hub)
     plan = plan_store.get_plan()
     absorbs = set(plan["hubs"][hub].get("absorbs", [])) | {hub}
@@ -257,7 +248,7 @@ async def suggest_order(session_id: str, hub: str):
         "rationale_overall": str
       }
     """
-    await _session(session_id)
+    await require_session(session_id)
     meta = await _hub_meta(hub)
     current = await get_order(session_id, hub)
     rows = current["rows"]
@@ -322,7 +313,7 @@ async def suggest_column(session_id: str, hub: str, body: SuggestColumnRequest):
         "rationale": str
       }
     """
-    await _session(session_id)
+    await require_session(session_id)
     meta = await _hub_meta(hub)
     descs = await _repo_descriptions(session_id, [body.repo])
     d = descs.get(body.repo, {})
@@ -369,7 +360,7 @@ class CompatTagsRequest(BaseModel):
 async def set_compat_tags(session_id: str, hub: str, body: CompatTagsRequest):
     """Set the per-hub compat-tag vocabulary override. Pass an empty list to
     reset to the global default."""
-    await _session(session_id)
+    await require_session(session_id)
     await _hub_meta(hub)
     cleaned = [t.strip() for t in body.tags if t and t.strip()]
     async for db in get_db():
@@ -394,7 +385,7 @@ async def annotate(session_id: str, hub: str, body: AnnotateRequest):
     """Set feature annotations for one repo. Stage-5 stub — populates the
     `feature_annotations` JSON column so the README compose_section can
     render them. UI for this is intentionally out of scope for now."""
-    await _session(session_id)
+    await require_session(session_id)
     await _hub_meta(hub)
     plan = plan_store.get_plan()
     if body.repo != hub and body.repo not in plan["hubs"][hub].get("absorbs", []):

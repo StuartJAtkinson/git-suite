@@ -14,6 +14,20 @@ from services.github import validate_token
 log = logging.getLogger(__name__)
 router = APIRouter()
 
+
+async def require_session(session_id: str):
+    """The (github_token, github_user) session row, or 401. aiosqlite.Row
+    supports both `row["github_token"]` and `token, owner = row`, so every
+    caller's old `_session` shape (dict-like or 2-tuple) keeps working."""
+    async for db in get_db():
+        rows = await db.execute_fetchall(
+            "SELECT github_token, github_user FROM session WHERE id = ?", (session_id,)
+        )
+    if not rows:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    return rows[0]
+
+
 # Common Windows install locations for the gh CLI
 _GH_FALLBACKS = [
     r"C:\Program Files\GitHub CLI\gh.exe",

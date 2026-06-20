@@ -9,10 +9,11 @@ GET  /stars/dedup/{session_id}    — owned-vs-starred duplicates + per-hub
 import json
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 import plan_store
 from database import get_db
+from routers.auth import require_session
 from routers.reconcile import reconcile
 from services import stars as stars_svc
 from services.github import list_starred
@@ -21,20 +22,10 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
-async def _session(session_id: str) -> dict:
-    async for db in get_db():
-        rows = await db.execute_fetchall(
-            "SELECT github_token, github_user FROM session WHERE id = ?", (session_id,)
-        )
-    if not rows:
-        raise HTTPException(status_code=401, detail="Invalid session")
-    return dict(rows[0])
-
-
 @router.post("/stars/refresh/{session_id}")
 async def refresh_stars(session_id: str):
     """Snapshot the user's starred repos (replaces the previous snapshot)."""
-    sess = await _session(session_id)
+    sess = await require_session(session_id)
     me = sess["github_user"]
 
     rows = []
