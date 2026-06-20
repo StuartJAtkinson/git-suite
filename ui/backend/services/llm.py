@@ -117,17 +117,24 @@ def _should_failover(exc: Exception, provider: str) -> bool:
 
 # --- per-provider calls ----------------------------------------------------
 
-async def _call_anthropic(key: str, model: str, prompt: str, system: str, max_tokens: int) -> str:
-    from anthropic import AsyncAnthropic
-    client = AsyncAnthropic(api_key=key)
-    kwargs = dict(model=model, max_tokens=max_tokens,
-                  messages=[{"role": "user", "content": prompt}])
+async def _call_anthropic(base_url, key, model, prompt, system, max_tokens) -> str:
+    body = {"model": model, "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": prompt}]}
     if system:
-        kwargs["system"] = system
-    resp = await client.messages.create(**kwargs)
-    if not resp.content:
-        raise RuntimeError("anthropic returned empty content")
-    return resp.content[0].text
+        body["system"] = system
+    async with httpx.AsyncClient(timeout=120) as client:
+        r = await client.post(
+            f"{base_url or 'https://api.anthropic.com/v1'}/messages",
+            headers={"x-api-key": key, "anthropic-version": "2023-06-01",
+                     "content-type": "application/json"},
+            json=body,
+        )
+        if r.status_code >= 400:                # body carries the exhaust/quota text
+            raise RuntimeError(f"HTTP {r.status_code}: {r.text[:300]}")
+        data = r.json()
+        if not data.get("content"):
+            raise RuntimeError("anthropic returned empty content")
+        return data["content"][0]["text"]
 
 
 async def _call_openai_compat(base_url, key, model, prompt, system, max_tokens) -> str:
@@ -164,7 +171,7 @@ async def _dispatch(name, key, model, prompt, system, max_tokens) -> str:
     api_type = PROVIDERS[name]["api_type"]
     base = PROVIDERS[name]["base_url"]
     if api_type == "anthropic":
-        return await _call_anthropic(key, model, prompt, system, max_tokens)
+        return await _call_anthropic(base, key, model, prompt, system, max_tokens)
     if api_type == "openai_compat":
         return await _call_openai_compat(base, key, model, prompt, system, max_tokens)
     if api_type == "ollama":

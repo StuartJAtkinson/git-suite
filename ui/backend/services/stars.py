@@ -21,8 +21,6 @@ import logging
 import math
 import re
 
-import numpy as np
-
 from services import embeddings
 
 log = logging.getLogger(__name__)
@@ -69,11 +67,13 @@ def _star_payload(s: dict, score: float) -> dict:
     }
 
 
-def _normalise(vecs: list[list[float]]) -> np.ndarray:
-    m = np.asarray(vecs, dtype=np.float32)
-    norms = np.linalg.norm(m, axis=1, keepdims=True)
-    norms[norms == 0] = 1.0
-    return m / norms
+def _top_matches(query_vec, star_vecs, stars, keep, floor) -> list[dict]:
+    """Top `keep` stars by cosine to query_vec, kept only if >= floor."""
+    scored = sorted(
+        ((j, embeddings.cosine(query_vec, sv)) for j, sv in enumerate(star_vecs)),
+        key=lambda js: -js[1],
+    )[:keep]
+    return [_star_payload(stars[j], s) for j, s in scored if s >= floor]
 
 
 async def _semantic(owned: list[dict], stars: list[dict],
@@ -94,29 +94,18 @@ async def _semantic(owned: list[dict], stars: list[dict],
     if not star_vecs or not owned_vecs:
         return None
 
-    sm = _normalise(star_vecs)                      # (S, d)
     duplicates = []
-    if owned:
-        om = _normalise(owned_vecs)                 # (O, d)
-        sim = om @ sm.T                             # (O, S) cosine matrix
-        for i, r in enumerate(owned):
-            idx = np.argsort(-sim[i])[:TOP_MATCHES]
-            matches = [_star_payload(stars[j], float(sim[i][j]))
-                       for j in idx if sim[i][j] >= SEM_DUP_MIN]
-            if matches:
-                duplicates.append({"repo": r["name"], "verdict": r.get("verdict"),
-                                   "hub": r.get("hub"), "matches": matches})
+    for r, ov in zip(owned, owned_vecs):
+        matches = _top_matches(ov, star_vecs, stars, TOP_MATCHES, SEM_DUP_MIN)
+        if matches:
+            duplicates.append({"repo": r["name"], "verdict": r.get("verdict"),
+                               "hub": r.get("hub"), "matches": matches})
 
     suggestions: dict[str, list[dict]] = {}
-    if hub_texts and hub_vecs:
-        hm = _normalise(hub_vecs)
-        hsim = hm @ sm.T                            # (H, S)
-        for i, h in enumerate(hub_names):
-            idx = np.argsort(-hsim[i])[:TOP_SUGGESTIONS]
-            picks = [_star_payload(stars[j], float(hsim[i][j]))
-                     for j in idx if hsim[i][j] >= SEM_HUB_MIN]
-            if picks:
-                suggestions[h] = picks
+    for h, hv in zip(hub_names, hub_vecs):
+        picks = _top_matches(hv, star_vecs, stars, TOP_SUGGESTIONS, SEM_HUB_MIN)
+        if picks:
+            suggestions[h] = picks
     return duplicates, suggestions
 
 
