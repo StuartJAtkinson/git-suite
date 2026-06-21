@@ -52,6 +52,8 @@ async def state(session_id: str):
         "phase": "incremental" if undecided > 0 else "replan",
         "undecided": undecided,
         "ghosts": recon["stats"]["ghost"],
+        "ghosts_deletable": recon["stats"]["ghost_deletable"],
+        "ghosts_external": recon["stats"]["ghost_external"],
         "pending_proposals": pending[0]["n"],
         "stats": recon["stats"],
     }
@@ -152,11 +154,15 @@ async def reject(proposal_id: int):
 
 @router.post("/replan/prune-ghosts/{session_id}")
 async def prune_ghosts(session_id: str):
-    """Drop every planned repo that no longer exists on GitHub — a repo that's
-    gone is a conscious deletion, so it should leave the plan entirely."""
+    """Drop every planned repo that was scanned before and is now gone from
+    GitHub — a conscious deletion, so it should leave the plan entirely. Ghosts
+    that were never owned (external 'absorb the functionality of' targets) are
+    skipped: they're never live by design and pruning them would lose them."""
     recon = await reconcile(session_id)
     pruned = []
     for ghost in recon["ghosts"]:
+        if not ghost.get("was_live"):
+            continue
         name = ghost["name"]
         before = plan_store.repo_placement().get(name)
         plan_store.set_verdict(name, "orphan")   # unassign = remove from plan

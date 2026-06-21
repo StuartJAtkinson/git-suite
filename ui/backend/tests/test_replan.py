@@ -42,12 +42,18 @@ def test_incremental_phase_verdicts_and_ghosts():
             {"name": "tilemaker", "aim": "osm vector tiles", "language": "C++", "topics": ["maps"]},
             {"name": "map-suite", "aim": "the hub", "language": "", "topics": []},  # a hub
         ],
-        ghosts=[{"name": "deadrepo", "hub": "map-suite", "verdict": "absorb"}],
+        ghosts=[
+            {"name": "deadrepo", "hub": "map-suite", "verdict": "absorb", "was_live": True},
+            {"name": "external-lib", "hub": "map-suite", "verdict": "absorb", "was_live": False},
+        ],
     )
     phase, proposals = asyncio.run(replan.generate_proposals(recon))
     assert phase == "incremental"
     kinds = [p["kind"] for p in proposals]
     assert "verdict" in kinds and "ghost-prune" in kinds
+    # only the once-live ghost is proposed for pruning; external one is left alone
+    prune_targets = {p["target"] for p in proposals if p["kind"] == "ghost-prune"}
+    assert prune_targets == {"deadrepo"}
     # the hub repo self-keeps
     hub_p = next(p for p in proposals if p["target"] == "map-suite")
     assert hub_p["proposed"]["verdict"] == "keep"

@@ -77,7 +77,7 @@
   }
 
   async function pruneGhosts() {
-    if (!confirm(`Prune ${state.ghosts} ghost(s) — repos no longer on GitHub — from the plan?`)) return;
+    if (!confirm(`Prune ${state.ghosts_deletable} ghost(s) — repos scanned before but no longer on GitHub — from the plan? External absorb targets (never owned) are left in place.`)) return;
     running = true; errorMsg = '';
     try {
       await api.pruneGhosts($session.session_id);
@@ -126,7 +126,8 @@
     </div>
     <div class="phase-stats">
       <span>{state.undecided} undecided</span>
-      <span>{state.ghosts} ghosts</span>
+      <span>{state.ghosts_deletable} ghosts</span>
+      {#if state.ghosts_external}<span title="External absorb targets — never owned, never pruned">{state.ghosts_external} external</span>{/if}
       <span>{state.pending_proposals} pending</span>
     </div>
   </div>
@@ -140,8 +141,8 @@
         ✓ Accept all high-confidence
       </button>
     {/if}
-    {#if state.ghosts > 0}
-      <button class="ghost" on:click={pruneGhosts} disabled={running}>🗑 Prune {state.ghosts} ghosts</button>
+    {#if state.ghosts_deletable > 0}
+      <button class="ghost" on:click={pruneGhosts} disabled={running}>🗑 Prune {state.ghosts_deletable} ghosts</button>
     {/if}
     <button class="ghost" on:click={load} disabled={running}>↻ Reload</button>
     <button class="ghost danger-ghost" on:click={startFresh} disabled={running}>Start fresh</button>

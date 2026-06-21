@@ -95,6 +95,15 @@
     }
   }
 
+  async function removeAlt(kind, name) {
+    try {
+      await api.removeHubAlternative(hub, name, kind);
+      await load();
+    } catch (e) {
+      errorMsg = e.message;
+    }
+  }
+
   async function deleteRef(ref_id) {
     try {
       await api.deleteRef(ref_id);
@@ -160,6 +169,7 @@
   const LAYER = {
     0: 'Event Bus', 1: 'Ontology', 2: 'Automation', 3: 'Knowledge & RAG',
     4: 'Media', 5: 'GIS & Maps', 6: 'Gaming', 7: 'Dev Tools', 8: 'Homelab',
+    9: 'Creative & Graphics',
   };
 
   // styles for alternative chips live in app.css-adjacent block below
@@ -291,7 +301,7 @@
     <div class="alt-row">
       <span class="alt-label oss">OSS</span>
       <div class="alt-chips">
-        {#each hubMeta.alternatives.oss as a}<span class="alt-chip">{a}</span>{/each}
+        {#each hubMeta.alternatives.oss as a}<span class="alt-chip">{a}<button class="chip-x" title="Remove" on:click={() => removeAlt('oss', a)}>×</button></span>{/each}
       </div>
     </div>
   {/if}
@@ -299,7 +309,7 @@
     <div class="alt-row">
       <span class="alt-label comm">Commercial</span>
       <div class="alt-chips">
-        {#each hubMeta.alternatives.commercial as a}<span class="alt-chip">{a}</span>{/each}
+        {#each hubMeta.alternatives.commercial as a}<span class="alt-chip">{a}<button class="chip-x" title="Remove" on:click={() => removeAlt('commercial', a)}>×</button></span>{/each}
       </div>
     </div>
   {/if}
@@ -376,7 +386,9 @@
   .alt-label.oss { background: #d1fae5; color: #065f46; }
   .alt-label.comm { background: #e0e7ff; color: #3730a3; }
   .alt-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-  .alt-chip { font-size: 0.78rem; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; padding: 0.1rem 0.5rem; }
+  .alt-chip { font-size: 0.78rem; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; padding: 0.1rem 0.5rem; display: inline-flex; align-items: center; gap: 0.3rem; }
+  .chip-x { background: transparent; border: none; color: #9ca3af; cursor: pointer; padding: 0; font-size: 0.9rem; line-height: 1; }
+  .chip-x:hover { color: #dc2626; }
 
   .mig-item { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.55rem 0.75rem; }
   .mig-head { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; }

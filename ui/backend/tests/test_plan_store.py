@@ -4,7 +4,7 @@ import pytest
 
 def test_seed_shape(isolated_plan):
     p = isolated_plan.get_plan()
-    assert len(p["hubs"]) == 8
+    assert len(p["hubs"]) == 9               # +creative-hub (L9 home for VTuberLIVE)
     assert len(p["archives"]) == 37          # canonical (drift fixed)
     assert "git-suite" in p["keeps"]
 
@@ -78,6 +78,38 @@ def test_upsert_and_remove_hub(isolated_plan):
     assert "data-hub" not in isolated_plan.get_plan()["hubs"]
 
 
+def test_upsert_edits_existing_hub_keeping_absorbs(isolated_plan):
+    isolated_plan.clear()
+    isolated_plan.upsert_hub("data-hub", layer=3, priority=3, description="old")
+    isolated_plan.set_verdict("foo", "absorb", "data-hub")
+    # re-upsert same name = edit meta; absorbs must survive
+    isolated_plan.upsert_hub("data-hub", layer=5, priority=1, description="new",
+                             boundary="b")
+    hub = isolated_plan.get_plan()["hubs"]["data-hub"]
+    assert hub["layer"] == 5 and hub["priority"] == 1 and hub["description"] == "new"
+    assert hub["boundary"] == "b" and hub["absorbs"] == ["foo"]
+
+
+def test_add_and_remove_hub_alternative(isolated_plan):
+    isolated_plan.add_hub_alternative("media-hub", "Stash", "oss")
+    isolated_plan.add_hub_alternative("media-hub", "Stash", "oss")  # idempotent
+    oss = isolated_plan.get_plan()["hubs"]["media-hub"]["alternatives"]["oss"]
+    assert oss.count("Stash") == 1
+    isolated_plan.remove_hub_alternative("media-hub", "Stash", "oss")
+    assert "Stash" not in isolated_plan.get_plan()["hubs"]["media-hub"]["alternatives"]["oss"]
+    with pytest.raises(ValueError):
+        isolated_plan.add_hub_alternative("media-hub", "X", "bogus")
+    with pytest.raises(ValueError):
+        isolated_plan.add_hub_alternative("no-such-hub", "X", "oss")
+
+
+def test_creative_hub_homes_vtuberlive(isolated_plan):
+    p = isolated_plan.get_plan()
+    assert p["hubs"]["creative-hub"]["layer"] == 9
+    assert "VTuberLIVE" in p["hubs"]["creative-hub"]["absorbs"]
+    assert "VTuberLIVE" not in p["keeps"]      # moved out of keep-as-is
+
+
 def test_seed_has_boundaries(isolated_plan):
     p = isolated_plan.get_plan()
     assert p["hubs"]["map-suite"]["boundary"]      # non-empty boundary rule
@@ -96,7 +128,7 @@ def test_heal_backfills_missing_boundary(isolated_plan, tmp_path):
 def test_blank_clears_assignments_keeps_hub_shells(isolated_plan):
     isolated_plan.set_verdict("foo", "absorb", "media-hub")
     p = isolated_plan.blank()
-    assert len(p["hubs"]) == 8                 # hub shells remain
+    assert len(p["hubs"]) == 9                 # hub shells remain
     assert all(h["absorbs"] == [] for h in p["hubs"].values())
     assert p["archives"] == {} and p["keeps"] == []
     # a hub is still implicitly keep

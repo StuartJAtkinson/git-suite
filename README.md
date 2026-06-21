@@ -73,13 +73,6 @@ SvelteKit frontend ──► nginx ──► FastAPI backend ──► SQLite (s
   (`state.db`, `config.json`, `plan.json`) lives under that one directory so a
   single host volume covers everything.
 
-### Standalone scripts
-
-Predate the web app; still useful for offline analysis:
-
-- `generate_github_index.py` — flat CSV/Excel of all repos for pivot analysis (`--no-sbom` to skip the stack fetch).
-- `portfolio_review.py` — iterative portfolio health check (hub targets, archive queue, absorptions, layer audit).
-
 ---
 
 ## Running it

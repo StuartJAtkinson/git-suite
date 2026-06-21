@@ -22,6 +22,7 @@ async def list_hubs():
             "layer": meta["layer"],
             "priority": meta["priority"],
             "description": meta["description"],
+            "boundary": meta.get("boundary", ""),
             "absorbs": meta.get("absorbs", []),
             "alternatives": meta.get("alternatives", {}),
         })

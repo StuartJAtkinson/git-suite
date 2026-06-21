@@ -1,10 +1,8 @@
 """
 plan.py — hub plan data for the backend API.
 
-Canonical seed for the plan. Also re-used by portfolio_review.py (CLI review
-tool, imports this as the seed).
-
-If you edit a hub here, run `portfolio_review.py --check-hubs` to confirm parity.
+Canonical seed for the plan: plan_store loads this into ~/.git-suite/plan.json
+on first run, and everything else reads from there.
 """
 
 HUB_ABSORBS: dict[str, list[str]] = {
@@ -45,6 +43,9 @@ HUB_ABSORBS: dict[str, list[str]] = {
         "ClickTheseThings", "Page-Manipulator", "RepoReader", "bytebytego-grabber",
         "bloop", "all-repos", "astral",
     ],
+    "creative-hub": [
+        "VTuberLIVE",
+    ],
 }
 
 HUB_META: dict[str, dict] = {
@@ -64,6 +65,8 @@ HUB_META: dict[str, dict] = {
                         "boundary": "Game-specific data and toolkits (FFXIV, Pokemon, Zelda, TTRPG). Excludes general media (-> media-hub) and generic procedural/world generators shared with mapping (-> map-suite)."},
     "code-suite":      {"layer": 7, "priority": 4, "description": "Unified code management — bulk ops, semantic search, code graph and cheatsheets",
                         "boundary": "Developer/code tooling: bulk repo ops, code search, graphs, cheatsheets, scrapers. Excludes AI agent frameworks (-> personal-ai-os) and infra (-> homelab-core)."},
+    "creative-hub":    {"layer": 9, "priority": 4, "description": "Generative & live visual creative tools — audio-driven visuals, graphics experiments",
+                        "boundary": "Creative/generative visual work: live audio-driven visuals, graphics. The L9 home for repos with no OSS/commercial equivalent. Excludes media archiving/ingestion (-> media-hub) and game tooling (-> game-hub)."},
 }
 
 ARCHIVE_HUB: dict[str, str | None] = {
@@ -110,7 +113,7 @@ LAYER_NAMES: dict[int, str] = {
 }
 
 KEEP_AS_IS: set[str] = {
-    "xivapi.com", "VTuberLIVE",
+    "xivapi.com",
     "AncestryBrowsableSchema", "FTAnalyzer", "wikitree-sourcer",
     "Archon", "OpenDevin", "agent-zero", "crewAI", "crewAI-examples",
     "crawl4ai", "portia", "headless-recorder", "langgraph-search-agents",

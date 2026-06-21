@@ -31,7 +31,6 @@ Thumbs.db
 *.json
 prompts/
 build_prompts.py
-generate_github_index.py
 
 # Local config
 .env

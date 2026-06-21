@@ -69,6 +69,16 @@
     }
   }
 
+  let added = {};   // `${hub}|${full_name}` -> true (accepted into the hub's alternatives)
+
+  async function addAlt(hub, m) {
+    const key = `${hub}|${m.full_name}`;
+    try {
+      await api.addHubAlternative(hub, m.full_name);
+      added = { ...added, [key]: true };
+    } catch (e) { errorMsg = e.message; }
+  }
+
   $: hubSuggestions = Object.entries(dedup?.hub_suggestions ?? {});
 </script>
 
@@ -161,6 +171,11 @@
             <a href={m.url} target="_blank" rel="noreferrer" class="match-name">{m.full_name}</a>
             <span class="match-stars">★ {m.stars}</span>
             {#if m.description}<span class="match-desc">{m.description}</span>{/if}
+            {#if added[`${hub}|${m.full_name}`]}
+              <span class="alt-added">✓ in plan</span>
+            {:else}
+              <button class="sm ghost alt-add" on:click={() => addAlt(hub, m)}>+ alternative</button>
+            {/if}
           </div>
         {/each}
       </div>
@@ -190,6 +205,8 @@
 .match-name { font-family: monospace; font-weight: 500; }
 .match-stars { color: #b45309; font-size: 0.72rem; flex-shrink: 0; }
 .match-desc { color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alt-add { margin-left: auto; flex-shrink: 0; }
+.alt-added { margin-left: auto; flex-shrink: 0; font-size: 0.72rem; color: #16a34a; }
 .hub-sugg { display: flex; gap: 1rem; padding: 0.6rem 0.9rem; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 0.5rem; }
 .hub-sugg .hub-name { font-family: monospace; font-size: 0.85rem; font-weight: 600; min-width: 140px; }
 .sugg-list { flex: 1; }

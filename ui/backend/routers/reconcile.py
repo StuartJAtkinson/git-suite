@@ -58,6 +58,24 @@ async def _latest_scan_repos(session_id: str) -> tuple[str, list[dict]]:
     return scan_id, [dict(r) for r in rows]
 
 
+async def _ever_seen(session_id: str) -> set[str]:
+    """Every repo name that has appeared in ANY of this session's scans.
+
+    A planned repo missing from the *latest* scan is a ghost. But there are two
+    kinds: one that was scanned before and is now gone (a real deletion — safe
+    to prune) versus one that has never been a live owned repo at all (an
+    external 'absorb the functionality of' target — must NOT be pruned). Scan
+    history is the only honest signal that tells them apart."""
+    async for db in get_db():
+        rows = await db.execute_fetchall(
+            """SELECT DISTINCT r.name FROM repos r
+               JOIN scan_meta m ON r.scan_id = m.scan_id
+               WHERE m.session_id = ?""",
+            (session_id,),
+        )
+    return {r["name"] for r in rows}
+
+
 async def _done_actions() -> dict[str, str]:
     """Map repo -> action ('absorbed'|'archived') for executed hub_actions."""
     async for db in get_db():
@@ -73,6 +91,7 @@ async def reconcile(session_id: str):
     plan = plan_store.get_plan()
     placement = plan_store.repo_placement(plan)
     done = await _done_actions()
+    ever_seen = await _ever_seen(session_id)
 
     live_names = {r["name"] for r in repos}
 
@@ -109,8 +128,10 @@ async def reconcile(session_id: str):
         })
 
     # --- ghosts: planned repos that don't exist live --------------------
+    # was_live=True  -> seen in a past scan, now gone = real deletion (prunable)
+    # was_live=False -> never an owned repo = external absorb target (keep)
     ghosts = [
-        {"name": name, **place}
+        {"name": name, "was_live": name in ever_seen, **place}
         for name, place in placement.items()
         if name not in live_names
     ]
@@ -158,6 +179,7 @@ async def reconcile(session_id: str):
 
     orphans = [r for r in reconciled if r["verdict"] == "orphan"]
     stubs = [r for r in reconciled if r["stub_reason"]]
+    ghost_deletable = sum(1 for g in ghosts if g["was_live"])
 
     return {
         "scan_id": scan_id,
@@ -165,6 +187,8 @@ async def reconcile(session_id: str):
             "live": len(repos),
             **counts,
             "ghost": len(ghosts),
+            "ghost_deletable": ghost_deletable,             # real deletions
+            "ghost_external": len(ghosts) - ghost_deletable, # external absorbs
             "undecided": len(orphans),
             "stub": len(stubs),
         },

@@ -233,8 +233,11 @@ async def generate_proposals(recon: dict) -> tuple[str, list[dict]]:
                 "rationale": "no keyword/LLM signal — defaulting to keep, please review",
             })
 
-    # --- always: prune ghosts (planned repos that don't exist live) ---
+    # --- always: prune ghosts that were once live but are now deleted ---
+    # External (never-owned) absorb targets are never live by design — skip them.
     for ghost in recon["ghosts"]:
+        if not ghost.get("was_live"):
+            continue
         proposals.append({
             "kind": "ghost-prune", "target": ghost["name"],
             "proposed": {"verdict": "orphan", "hub": ghost.get("hub")},

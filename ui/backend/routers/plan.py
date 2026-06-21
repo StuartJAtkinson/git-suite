@@ -72,6 +72,23 @@ class BoundaryRequest(BaseModel):
     boundary: str
 
 
+class AlternativeRequest(BaseModel):
+    hub: str
+    name: str
+    kind: str = "oss"        # oss | commercial
+    remove: bool = False
+
+
+@router.post("/plan/hub-alternative")
+async def edit_hub_alternative(body: AlternativeRequest):
+    """Accept a starred suggestion into (or remove it from) a hub's alternatives."""
+    fn = plan_store.remove_hub_alternative if body.remove else plan_store.add_hub_alternative
+    try:
+        return fn(body.hub, body.name, body.kind)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @router.post("/plan/hub-boundary")
 async def set_hub_boundary(body: BoundaryRequest):
     try:

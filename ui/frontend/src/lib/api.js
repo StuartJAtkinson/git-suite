@@ -73,6 +73,10 @@ export const api = {
   pruneGhosts: (session_id) => req('POST', `/api/replan/prune-ghosts/${session_id}`),
   setHubBoundary: (hub, boundary) =>
     req('POST', '/api/plan/hub-boundary', { hub, boundary }),
+  addHubAlternative: (hub, name, kind = 'oss') =>
+    req('POST', '/api/plan/hub-alternative', { hub, name, kind }),
+  removeHubAlternative: (hub, name, kind = 'oss') =>
+    req('POST', '/api/plan/hub-alternative', { hub, name, kind, remove: true }),
 
   // Overlap (hub venn / boundaries)
   getOverlap: (session_id) => req('GET', `/api/overlap/${session_id}`),
