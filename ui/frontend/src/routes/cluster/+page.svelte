@@ -1,85 +1,166 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
+  import { forceSimulation, forceManyBody, forceCollide, forceX, forceY } from 'd3-force';
   import { session } from '$lib/stores';
   import { api } from '$lib/api';
   import { SOURCE_GLYPH } from '$lib/columns';
 
-  // Assisted group formation: cluster the unassigned repos by function, then
-  // for each cluster name a new hub OR promote a member as the hub, with a
-  // description that becomes the hub's LLM-alignment guide.
+  // Every repo (owned + forks + stars) is a node, force-grouped by semantic
+  // cluster. The suggested cluster name is only a faint centre LABEL — never the
+  // hub name. You PROMOTE a real repo as the hub (preferred) or CREATE one
+  // (label is just a last-resort placeholder). Drag nodes to arrange/pin; click
+  // to select which repos a hub draws from. Layer/classification is set later
+  // on Order (source/process/viz).
 
   let data = null;
-  let clusters = [];      // editable view models
+  let nodes = [];          // one per repo
+  let clusters = [];       // {index, name, description, lx, ly}  (centre labels)
   let loading = true;
   let errorMsg = '';
   let msg = '';
-  let threshold = 0.6;
-  let busy = null;
-  let source = 'mixed';   // 'mixed' (default) | 'owned' (legacy)
-
-  const LAYER_NAMES = {
-    0: 'Event Bus', 1: 'Ontology', 2: 'Automation', 3: 'Knowledge & RAG',
-    4: 'Media', 5: 'GIS & Maps', 6: 'Gaming', 7: 'Dev Tools', 8: 'Homelab', 9: 'Creative',
-  };
+  let k = 8;               // target number of clusters (k-means)
+  let busy = false;
+  let refreshing = false;
+  let source = 'mixed';
+  let hoveredId = null;
+  let selected = new Set();
+  let newHubName = '';
+  let width = 960;
+  const HEIGHT = 700;
+  const R = 8;             // node radius
+  let sim = null;
+  let stageEl;
+  let drag = null;         // {node, moved}
 
   onMount(async () => {
     if (!$session) { goto('/'); return; }
     await load();
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  });
+  onDestroy(() => {
+    sim?.stop();
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
   });
 
-  async function load() {
-    loading = true; errorMsg = '';
+  async function load(recompute = false) {
+    loading = true; errorMsg = ''; selected = new Set(); hoveredId = null;
     try {
-      data = await api.getClusters($session.session_id, threshold, source);
-      clusters = (data.clusters || []).map((c, i) => ({
-        id: i,
-        members: c.members,
-        size: c.size,
-        mode: 'new',                       // new | promote | existing
-        hubName: c.suggested_name,
-        promote: c.members[0]?.repo || '',
-        existing: (data.hubs || [])[0] || '',
-        description: c.suggested_description,
-        layer: 9, priority: 3,
-        selected: new Set(c.members.map((m) => m.repo)),
-      }));
+      data = await api.getClusters($session.session_id, { k, source, recompute });
+      if (data.k) k = data.k;   // reflect the saved pass
+      build(data.clusters || []);
     } catch (e) { errorMsg = e.message; }
     finally { loading = false; }
   }
 
-  function toggle(c, repo) {
-    c.selected.has(repo) ? c.selected.delete(repo) : c.selected.add(repo);
-    clusters = clusters;
+  function clusterAnchor(i, total) {
+    const cols = Math.ceil(Math.sqrt(total));
+    const rows = Math.ceil(total / cols);
+    const col = i % cols, row = Math.floor(i / cols);
+    return { x: ((col + 0.5) / cols) * width, y: ((row + 0.5) / rows) * HEIGHT };
   }
 
-  function resolvedName(c) {
-    if (c.mode === 'promote') return c.promote;
-    if (c.mode === 'existing') return c.existing;
-    return c.hubName;
-  }
-
-  async function formHub(c) {
-    const hub_name = (resolvedName(c) || '').trim();
-    if (!hub_name || c.selected.size === 0) return;
-    busy = c.id; errorMsg = ''; msg = '';
-    try {
-      const r = await api.formHub($session.session_id, {
-        hub_name, layer: Number(c.layer), priority: Number(c.priority),
-        description: c.description, boundary: c.description,   // description doubles as LLM guide
-        members: [...c.selected],
-        promote: c.mode === 'promote' ? c.promote : null,
+  function build(cl) {
+    sim?.stop();
+    clusters = cl.map((c, i) => {
+      const a = clusterAnchor(i, cl.length || 1);
+      return { index: i, name: c.suggested_name, description: c.suggested_description, ax: a.x, ay: a.y, lx: a.x, ly: a.y };
+    });
+    nodes = [];
+    cl.forEach((c, ci) => {
+      c.members.forEach((m) => {
+        const a = clusterAnchor(ci, cl.length || 1);
+        nodes.push({
+          id: nodes.length, cluster: ci,
+          repo: m.repo, aim: m.aim, domain: m.domain,
+          entities: m.entities || [], purpose: m.purpose || "",
+          source: m.source,
+          language: m.language, stars: m.stars,
+          x: a.x + (Math.random() - 0.5) * 60, y: a.y + (Math.random() - 0.5) * 60,
+        });
       });
-      msg = `Formed ${r.hub} — absorbed ${r.absorbed.length} repo(s).`;
-      clusters = clusters.filter((x) => x.id !== c.id);   // consumed
+    });
+    if (!nodes.length) return;
+    sim = forceSimulation(nodes)
+      .force('collide', forceCollide(R + 3))
+      .force('charge', forceManyBody().strength(-22))
+      .force('x', forceX((n) => clusters[n.cluster].ax).strength(0.22))
+      .force('y', forceY((n) => clusters[n.cluster].ay).strength(0.22))
+      .on('tick', tick);
+  }
+
+  function tick() {
+    // recompute each cluster's label position as the centroid of its nodes
+    for (const c of clusters) { c._sx = 0; c._sy = 0; c._n = 0; }
+    for (const n of nodes) { const c = clusters[n.cluster]; c._sx += n.x; c._sy += n.y; c._n++; }
+    for (const c of clusters) if (c._n) { c.lx = c._sx / c._n; c.ly = c._sy / c._n; }
+    nodes = nodes; clusters = clusters;
+  }
+
+  // ── drag (sets fx/fy; stays pinned so manual arrangement sticks) ──
+  function onDown(n, e) {
+    drag = { node: n, moved: false };
+    n.fx = n.x; n.fy = n.y;
+    sim?.alphaTarget(0.3).restart();
+    e.target.setPointerCapture?.(e.pointerId);
+  }
+  function onMove(e) {
+    if (!drag) return;
+    drag.moved = true;
+    const r = stageEl.getBoundingClientRect();
+    drag.node.fx = e.clientX - r.left;
+    drag.node.fy = e.clientY - r.top;
+  }
+  function onUp() {
+    if (!drag) return;
+    if (!drag.moved) toggleSelect(drag.node);   // a click, not a drag
+    sim?.alphaTarget(0);
+    drag = null;                                  // keep fx/fy → pinned in place
+  }
+
+  function toggleSelect(n) {
+    selected.has(n.repo) ? selected.delete(n.repo) : selected.add(n.repo);
+    selected = selected;
+  }
+  function clearSel() { selected = new Set(); }
+
+  // dominant cluster label among the current selection — the last-resort name
+  function suggestedLabel() {
+    if (!selected.size) return '';
+    const tally = {};
+    for (const n of nodes) if (selected.has(n.repo)) tally[n.cluster] = (tally[n.cluster] || 0) + 1;
+    const best = Object.entries(tally).sort((a, b) => b[1] - a[1])[0];
+    return best ? clusters[best[0]].name : '';
+  }
+
+  async function form(promote) {
+    const members = new Set(selected);
+    if (promote) members.add(promote);
+    const hub_name = (promote || newHubName || suggestedLabel() || '').trim();
+    if (!hub_name) { errorMsg = 'Name the hub, or promote a repo.'; return; }
+    if (members.size === 0) { errorMsg = 'Select the repos this hub draws from.'; return; }
+    busy = true; errorMsg = ''; msg = '';
+    try {
+      const desc = clusters.find((c) => c.name === suggestedLabel())?.description || '';
+      const r = await api.formHub($session.session_id, {
+        hub_name, description: desc, boundary: desc,
+        members: [...members], promote: promote || null,
+      });
+      msg = `${promote ? 'Promoted' : 'Created'} ${r.hub} — absorbed ${r.absorbed.length} repo(s).`;
+      const gone = new Set([...members, r.hub]);
+      nodes = nodes.filter((n) => !gone.has(n.repo)).map((n, i) => ({ ...n, id: i }));
+      selected = new Set(); newHubName = '';
+      sim?.nodes(nodes).alpha(0.4).restart();
     } catch (e) { errorMsg = e.message; }
-    finally { busy = null; }
+    finally { busy = false; }
   }
 </script>
 
 <div class="page-header">
-  <h1>Cluster — form groups</h1>
-  <p class="sub">Unassigned repos grouped by function. Name a new hub or promote a member as the hub; the description guides LLM alignment later.</p>
+  <h1>Cluster — form hubs</h1>
+  <p class="sub">Every repo is a node, grouped by function. The grey label is just the cluster's theme — <b>promote a real repo</b> as the hub, or select repos and <b>create</b> one. Drag to arrange &amp; pin.</p>
 </div>
 
 {#if errorMsg}<div class="error-msg">{errorMsg}</div>{/if}
@@ -93,7 +174,7 @@
 {#if !loading && data && data.available}
   <div class="bar">
     <span>
-      {data.orphan_count} unassigned · {clusters.length} clusters
+      {nodes.length} repos · {clusters.length} clusters
       {#if data.source === 'mixed' && data.counts}
         · <span class="src-pill src-O">{data.counts.owned} owned</span>
         <span class="src-pill src-F">{data.counts.forks} forks</span>
@@ -101,110 +182,128 @@
       {/if}
     </span>
     <label class="src">source
-      <select bind:value={source} on:change={load}>
+      <select bind:value={source} on:change={() => load(true)}>
         <option value="mixed">mixed (owned + forks + stars)</option>
-        <option value="owned">owned only (legacy)</option>
+        <option value="owned">owned only</option>
       </select>
     </label>
-    <label class="thr">tightness
-      <input type="range" min="0.45" max="0.8" step="0.05" bind:value={threshold} on:change={load} />
-      {threshold}
+    <label class="thr"># clusters
+      <input type="range" min="2" max="30" step="1" bind:value={k} on:change={() => load(true)} />
+      {k}
     </label>
-    <button class="ghost sm" on:click={load}>↻ Re-cluster</button>
+    {#if data.saved}<span class="saved-pill">saved</span>{/if}
+    <button class="ghost sm" on:click={() => load(true)}>↻ Re-cluster</button>
+    <button class="ghost sm" disabled={refreshing} on:click={async () => {
+      refreshing = true; errorMsg = ''; msg = '';
+      try {
+        const [f, s] = await Promise.all([api.refreshForks($session.session_id), api.refreshStars($session.session_id)]);
+        msg = `Refreshed ${f.count} fork(s) and ${s.count ?? 0} star(s).`; await load(true);
+      } catch (e) { errorMsg = e.message; } finally { refreshing = false; }
+    }}>{refreshing ? 'Refreshing…' : '↻ Refresh forks/stars'}</button>
   </div>
 
-  <div class="legend">
-    Prefix symbols mark each node's source so type is scannable without a hover:
-    <span class="src-pill src-O">{SOURCE_GLYPH.owned} owned</span>
-    <span class="src-pill src-F">{SOURCE_GLYPH.fork} fork</span>
-    <span class="src-pill src-S">{SOURCE_GLYPH.star} star</span>
+  <!-- selection action bar -->
+  <div class="selbar" class:active={selected.size > 0}>
+    {#if selected.size > 0}
+      <b>{selected.size} selected</b>
+      <input class="hub-in" bind:value={newHubName} placeholder={suggestedLabel() || 'new hub name'} />
+      <button class="create" disabled={busy} on:click={() => form(null)}>
+        {busy ? 'Forming…' : '✚ Create hub'}
+      </button>
+      <span class="seltip">…or hover a selected repo and hit ★ Promote (preferred)</span>
+      <button class="ghost sm" on:click={clearSel}>Clear</button>
+    {:else}
+      <span class="muted">Click repos to select which a hub draws from · drag to arrange · hover for details.</span>
+    {/if}
   </div>
 
-  {#if clusters.length === 0}
-    <p class="empty">No clusters — nothing unassigned, or everything is a singleton at this tightness. Lower it to group more loosely.</p>
-  {/if}
-
-  {#each clusters as c (c.id)}
-    <div class="cluster card">
-      <div class="cl-top">
-        <div class="modes">
-          <label><input type="radio" bind:group={c.mode} value="new" /> New hub</label>
-          <label><input type="radio" bind:group={c.mode} value="promote" /> Promote member</label>
-          {#if (data.hubs || []).length}
-            <label><input type="radio" bind:group={c.mode} value="existing" /> Existing hub</label>
+  {#if nodes.length === 0}
+    <p class="empty">No repos to cluster — nothing unassigned at this tightness.</p>
+  {:else}
+    <div class="stage" bind:this={stageEl} bind:clientWidth={width} style="height:{HEIGHT}px">
+      {#each clusters as c (c.index)}
+        <div class="clabel" style="left:{c.lx}px; top:{c.ly}px">{c.name}</div>
+      {/each}
+      {#each nodes as n (n.id)}
+        <div class="node src-{n.source?.[0]?.toUpperCase() || 'O'}"
+             class:sel={selected.has(n.repo)} class:hov={hoveredId === n.id}
+             style="left:{n.x}px; top:{n.y}px; z-index:{hoveredId === n.id ? 60 : (selected.has(n.repo) ? 20 : 2)}"
+             on:pointerdown={(e) => onDown(n, e)}
+             on:mouseenter={() => (hoveredId = n.id)}
+             on:mouseleave={() => (hoveredId = n.id === hoveredId ? null : hoveredId)}
+             role="button" tabindex="0">
+          <span class="dot"></span>
+          {#if hoveredId === n.id}
+            <div class="card" on:pointerdown|stopPropagation>
+              <div class="c-name">{SOURCE_GLYPH[n.source] || SOURCE_GLYPH.owned} {n.repo}</div>
+              {#if n.purpose}<div class="c-purpose">{n.purpose}</div>{/if}
+              {#if n.domain}<div class="c-domain">{n.domain}</div>{/if}
+              {#if n.entities && n.entities.length}
+                <div class="c-entities">{n.entities.join(' · ')}</div>
+              {/if}
+              {#if n.aim}<div class="c-aim">{n.aim}</div>{/if}
+              <div class="c-meta">
+                {#if n.language}<span class="c-lang">{n.language}</span>{/if}
+                {#if n.stars}<span>★ {n.stars}</span>{/if}
+              </div>
+              <button class="promote" disabled={busy} on:click|stopPropagation={() => form(n.repo)}>★ Promote as hub</button>
+            </div>
+          {:else}
+            <span class="ntitle">{n.repo}</span>
           {/if}
         </div>
-        <span class="size">{c.selected.size}/{c.size} selected</span>
-      </div>
-
-      <div class="cl-form">
-        {#if c.mode === 'new'}
-          <input class="hub-in" bind:value={c.hubName} placeholder="hub name" />
-        {:else if c.mode === 'promote'}
-          <select class="hub-in" bind:value={c.promote}>
-            {#each c.members as m}<option value={m.repo}>{m.repo}</option>{/each}
-          </select>
-        {:else}
-          <select class="hub-in" bind:value={c.existing}>
-            {#each data.hubs as h}<option value={h}>{h}</option>{/each}
-          </select>
-        {/if}
-        <select class="lay" bind:value={c.layer}>
-          {#each Object.entries(LAYER_NAMES) as [n, nm]}<option value={n}>L{n} {nm}</option>{/each}
-        </select>
-        <select class="lay" bind:value={c.priority}>
-          <option value={1}>Critical</option><option value={2}>High</option>
-          <option value={3}>Medium</option><option value={4}>Low</option>
-        </select>
-        <button disabled={busy === c.id} on:click={() => formHub(c)}>
-          {busy === c.id ? 'Forming…' : 'Form hub'}
-        </button>
-      </div>
-
-      {#if c.mode !== 'existing'}
-        <textarea class="desc" rows="2" bind:value={c.description}
-          placeholder="Description / scope — guides LLM alignment"></textarea>
-      {/if}
-
-      <div class="members">
-        {#each c.members as m}
-          <label class="mem" class:off={!c.selected.has(m.repo)}>
-            <input type="checkbox" checked={c.selected.has(m.repo)} on:change={() => toggle(c, m.repo)} />
-            <span class="src-pill src-{m.source?.[0]?.toUpperCase() || 'O'}"
-                  title={m.source || 'owned'}>{SOURCE_GLYPH[m.source] || SOURCE_GLYPH.owned}</span>
-            <span class="mname">{m.repo}</span>
-            {#if m.language}<span class="lt">{m.language}</span>{/if}
-            <span class="maim">{m.aim || ''}</span>
-          </label>
-        {/each}
-      </div>
+      {/each}
     </div>
-  {/each}
+  {/if}
 {/if}
 
 <style>
-  .bar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin: 0.75rem 0 1rem; font-size: 0.85rem; color: #6b7280; }
+  .bar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin: 0.75rem 0 0.5rem; font-size: 0.85rem; color: #6b7280; }
   .thr { display: flex; align-items: center; gap: 0.4rem; }
-  .cluster { margin-bottom: 1rem; }
-  .cl-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
-  .modes { display: flex; gap: 1rem; font-size: 0.85rem; }
-  .modes label { display: flex; align-items: center; gap: 0.3rem; }
-  .size { font-size: 0.78rem; color: #9ca3af; }
-  .cl-form { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-bottom: 0.5rem; }
-  .hub-in { flex: 1; min-width: 180px; font-family: monospace; }
-  .lay { font-size: 0.85rem; }
-  .desc { width: 100%; margin-bottom: 0.5rem; font-size: 0.82rem; resize: vertical; }
-  .members { display: flex; flex-direction: column; gap: 0.2rem; }
-  .mem { display: flex; align-items: center; gap: 0.5rem; font-size: 0.83rem; padding: 0.2rem 0.4rem; border-radius: 4px; }
-  .mem:hover { background: #f9fafb; }
-  .mem.off { opacity: 0.45; }
-  .mname { font-family: monospace; font-weight: 600; }
-  .lt { font-size: 0.7rem; background: #eff6ff; color: #1e40af; border-radius: 4px; padding: 0.05em 0.35em; }
-  .maim { color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .src { font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem; }
-  .legend { font-size: 0.78rem; color: #6b7280; margin: 0.4rem 0 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
   .src-pill { display: inline-block; font-family: monospace; font-size: 0.72rem; padding: 0.05em 0.45em; border-radius: 4px; font-weight: 600; }
   .src-pill.src-O { background: #eff6ff; color: #1e40af; }
   .src-pill.src-F { background: #fef3c7; color: #92400e; }
   .src-pill.src-S { background: #f3e8ff; color: #6b21a8; }
+  .saved-pill { font-size: 0.7rem; background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; border-radius: 4px; padding: 0.05em 0.45em; }
+
+  .selbar { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; min-height: 38px;
+    padding: 0.4rem 0.7rem; border-radius: 8px; background: #f8fafc; border: 1px solid #e5e7eb; margin-bottom: 0.5rem; font-size: 0.85rem; }
+  .selbar.active { background: #eef2ff; border-color: #c7d2fe; }
+  .selbar .muted { color: #9ca3af; }
+  .hub-in { font-family: monospace; min-width: 200px; }
+  .create { background: #4f46e5; color: #fff; border: none; border-radius: 6px; padding: 0.4rem 0.8rem; font-weight: 600; cursor: pointer; }
+  .create:disabled { opacity: 0.5; }
+  .seltip { font-size: 0.76rem; color: #6b7280; }
+
+  .stage { position: relative; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden;
+    background: radial-gradient(circle at 1px 1px, #f1f5f9 1px, transparent 0) 0 0 / 22px 22px;
+    touch-action: none; user-select: none; }
+
+  .clabel { position: absolute; transform: translate(-50%, -50%); pointer-events: none;
+    font-size: 0.95rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; z-index: 1; }
+
+  .node { position: absolute; transform: translate(-50%, -50%); cursor: grab; display: flex; align-items: center; gap: 4px; }
+  .node:active { cursor: grabbing; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: #6366f1; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25); flex: none; }
+  .node.src-F .dot { background: #d97706; }
+  .node.src-S .dot { background: #9333ea; }
+  .node.sel .dot { background: #16a34a; box-shadow: 0 0 0 3px #bbf7d0; }
+  .ntitle { font-size: 0.66rem; color: #475569; background: rgba(255,255,255,0.75); padding: 0 3px; border-radius: 3px;
+    max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .node.sel .ntitle { color: #166534; font-weight: 700; }
+
+  .card { position: absolute; left: 14px; top: -6px; width: 230px; background: #fff;
+    border: 2px solid #818cf8; border-radius: 9px; box-shadow: 0 10px 28px rgba(0,0,0,0.22); padding: 0.55rem 0.65rem; cursor: default; }
+  .c-name { font-family: monospace; font-weight: 700; font-size: 0.82rem; word-break: break-word; }
+  .c-purpose { font-size: 0.78rem; color: #1e293b; font-weight: 600; margin: 0.2rem 0; }
+  .c-domain { font-size: 0.74rem; color: #4338ca; background: #eef2ff; border-radius: 4px; padding: 0.15em 0.4em; display: inline-block; margin: 0.15rem 0; }
+  .c-entities { font-size: 0.72rem; color: #6b7280; margin: 0.1rem 0 0.25rem; }
+  .c-aim { font-size: 0.76rem; color: #4b5563; margin: 0.25rem 0; max-height: 4.5em; overflow: hidden; }
+  .c-meta { display: flex; gap: 0.5rem; font-size: 0.7rem; color: #6b7280; margin-bottom: 0.4rem; }
+  .c-lang { background: #eff6ff; color: #1e40af; border-radius: 4px; padding: 0.03em 0.35em; }
+  .promote { width: 100%; font-size: 0.76rem; padding: 0.3rem; border: 1px solid #4f46e5; color: #4f46e5;
+    background: #fff; border-radius: 6px; cursor: pointer; font-weight: 700; }
+  .promote:hover { background: #4f46e5; color: #fff; }
+  .promote:disabled { opacity: 0.5; }
 </style>

@@ -17,10 +17,8 @@
   <div class="links">
     <a href="/setup" class={active('/setup')}>Setup</a>
     <a href="/scan" class={active('/scan')}>Scan</a>
-    <a href="/hubs" class={active('/hubs')}>Hubs</a>
-    <a href="/order" class={active('/order')}>Order</a>
-    <a href="/stars" class={active('/stars')}>Stars</a>
     <a href="/cluster" class={active('/cluster')}>Cluster</a>
+    <a href="/order" class={active('/order')}>Order</a>
     <a href="/overlap" class={active('/overlap')}>Overlap</a>
     <a href="/replan" class={active('/replan')}>Replan</a>
     <a href="/triage" class={active('/triage')}>Triage</a>

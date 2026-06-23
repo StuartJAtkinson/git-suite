@@ -23,6 +23,7 @@ async def init_db() -> None:
             CREATE TABLE IF NOT EXISTS repos (
                 scan_id    TEXT NOT NULL,
                 name       TEXT NOT NULL,
+                full_name  TEXT,
                 super_cat  TEXT,
                 mid_cat    TEXT,
                 aim        TEXT,
@@ -108,6 +109,46 @@ async def init_db() -> None:
                 fetched_at TEXT DEFAULT (datetime('now'))
             );
 
+            -- Per-repo distilled SEMANTIC RECORD, populated by the LLM distillation
+            -- loop on the Scan page. `summary` is the legacy column (the one-line
+            -- domain used by older cluster runs); `record` is the structured
+            -- form produced by the new prompt: {purpose, entities[], domain}.
+            -- `src_hash` invalidates the row when the input text (description +
+            -- topics + README url) changes; regen on the next distill pass.
+            -- See services/distill.py + routers/scan.py (head/distill/revalidate).
+            CREATE TABLE IF NOT EXISTS repo_domain (
+                repo       TEXT PRIMARY KEY,   -- full_name or short name
+                summary    TEXT,               -- legacy: one-line domain
+                record     TEXT,               -- JSON: {purpose, entities[], domain}
+                src_hash   TEXT NOT NULL,      -- sha256 of source text
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+
+            -- Per-repo cluster-fit verdict from the revalidate LLM pass.
+            -- `cluster_hash` ties the verdict to the cluster snapshot it was
+            -- judged against; saved verdicts stay valid until the clustering
+            -- (or the repo's purpose) changes.
+            CREATE TABLE IF NOT EXISTS repo_verdict (
+                repo         TEXT NOT NULL,
+                cluster_hash TEXT NOT NULL,
+                verdict      TEXT,             -- 'fit' | 'drift' | 'mis-clustered' | ''
+                reason       TEXT,
+                created_at   TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (repo, cluster_hash)
+            );
+
+            -- Last computed clustering per session (the full propose() payload
+            -- as JSON). Lets /cluster return the saved result instead of
+            -- re-embedding on every tab load, and lets Scan show each repo's
+            -- cluster assignment. Recompute overwrites the row.
+            CREATE TABLE IF NOT EXISTS cluster_result (
+                session_id TEXT PRIMARY KEY,
+                threshold  REAL,
+                source     TEXT,
+                result     TEXT NOT NULL,   -- JSON: full propose() payload
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+
             -- Cached embedding vectors, keyed by model+text hash.
             CREATE TABLE IF NOT EXISTS embedding (
                 key        TEXT PRIMARY KEY,   -- sha256(model + text)
@@ -188,6 +229,7 @@ _REPOS_ADDED_COLUMNS = {
     "topics": "TEXT",       # JSON array of strings
     "archived": "INTEGER",  # 0/1 — repo archived on GitHub at scan time
     "size": "INTEGER",      # repo size in KB (stub-assessment signal)
+    "full_name": "TEXT",    # owner/name — needed for heads/distill/cluster keying
 }
 
 

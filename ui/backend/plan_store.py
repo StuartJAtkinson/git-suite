@@ -183,16 +183,21 @@ def clear() -> dict:
         return plan
 
 
-def upsert_hub(name: str, layer: int, priority: int = 3, description: str = "",
-               boundary: str = "", alternatives: dict | None = None) -> dict:
-    """Create or update a hub definition. Preserves existing absorbs."""
+def upsert_hub(name: str, layer: int | None = None, priority: int | None = None,
+               description: str = "", boundary: str = "",
+               alternatives: dict | None = None) -> dict:
+    """Create or update a hub definition. Preserves existing absorbs.
+
+    layer/priority are optional — None means 'unassigned' (emergent ordering),
+    stored as null rather than coerced to a hardcoded number."""
     if not name or not name.strip():
         raise ValueError("hub name required")
     with _LOCK:
         plan = _load()
         hub = plan["hubs"].get(name, {"absorbs": []})
         hub.update({
-            "layer": int(layer), "priority": int(priority),
+            "layer": int(layer) if layer is not None else None,
+            "priority": int(priority) if priority is not None else None,
             "description": description, "boundary": boundary,
             "alternatives": alternatives or hub.get("alternatives") or {"oss": [], "commercial": []},
         })

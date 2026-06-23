@@ -63,19 +63,56 @@ def _own_member_dicts(orphans: list[dict]) -> list[dict]:
     return out
 
 
+async def _save_result(session_id: str, payload: dict) -> None:
+    async for db in get_db():
+        await db.execute(
+            # `threshold` column is legacy; we store the cluster count k in it.
+            "INSERT OR REPLACE INTO cluster_result (session_id, threshold, source, result) "
+            "VALUES (?,?,?,?)",
+            (session_id, payload.get("k"), payload.get("source"),
+             json.dumps(payload)),
+        )
+        await db.commit()
+
+
+async def _load_result(session_id: str) -> dict | None:
+    async for db in get_db():
+        rows = await db.execute_fetchall(
+            "SELECT result FROM cluster_result WHERE session_id = ?", (session_id,)
+        )
+    if not rows:
+        return None
+    try:
+        return json.loads(rows[0]["result"])
+    except Exception:
+        return None
+
+
 @router.get("/cluster/{session_id}")
 async def propose(
     session_id: str,
-    threshold: float = cluster.DEFAULT_THRESHOLD,
+    k: int | None = None,
     source: str = "mixed",
+    recompute: bool = False,
 ):
     """Propose clusters.
 
-    source=owned  legacy behaviour: only owned orphans (one embedding pass).
-    source=mixed   default: owned + forks + stars in one embedding space.
-                   Each cluster member is tagged with `source` so the UI can
-                   render the [O]/[F]/[S] prefix symbol.
+    k             target number of clusters (spherical k-means). Omit to let the
+                  server pick ~√(n/2).
+    source=owned  legacy behaviour: only owned orphans.
+    source=mixed  default: owned + forks + stars in one embedding space, each
+                  member tagged with `source` so the UI can render its glyph.
+
+    The result is persisted per session; without ?recompute=true a saved result
+    is returned as-is (no re-embedding/re-distilling), so re-opening the tab is
+    instant and the Scan page can read each repo's cluster assignment.
     """
+    if not recompute:
+        saved = await _load_result(session_id)
+        if saved is not None:
+            saved["saved"] = True
+            return saved
+
     recon = await reconcile(session_id)
     orphans = recon["orphans"]                      # unassigned, live repos
     hubs = list(plan_store.get_plan().get("hubs", {}).keys())
@@ -88,7 +125,9 @@ async def propose(
     stars = [] if source == "owned" else await _load_with_topics(
         "SELECT * FROM starred_repo")
 
-    groups = await cluster.build_clusters_mixed(owned, forks, stars, threshold)
+    n = len(owned) + len(forks) + len(stars)
+    eff_k = k if k is not None else cluster.default_k(n)
+    groups = await cluster.build_clusters_mixed(owned, forks, stars, eff_k)
     if groups is None:
         return {"available": False,
                 "reason": "Embeddings not configured/reachable — set Setup → "
@@ -97,16 +136,19 @@ async def propose(
                 "clusters": [], "hubs": hubs, "orphan_count": len(orphans),
                 "source": source,
                 "counts": {"owned": len(owned), "forks": len(forks), "stars": len(stars)}}
-    return {"available": True, "threshold": threshold,
-            "clusters": groups, "hubs": hubs, "orphan_count": len(orphans),
-            "source": source,
-            "counts": {"owned": len(owned), "forks": len(forks), "stars": len(stars)}}
+    payload = {"available": True, "k": eff_k, "clusters": groups, "hubs": hubs,
+               "orphan_count": len(orphans), "source": source,
+               "counts": {"owned": len(owned), "forks": len(forks), "stars": len(stars)}}
+    await _save_result(session_id, payload)
+    return payload
 
 
 class FormRequest(BaseModel):
+    # layer/priority are emergent — left unset at form time and only assigned
+    # later (promote/order), so a new hub doesn't inherit a hardcoded layer.
     hub_name: str
-    layer: int = 9
-    priority: int = 3
+    layer: int | None = None
+    priority: int | None = None
     description: str = ""
     boundary: str = ""
     members: list[str]

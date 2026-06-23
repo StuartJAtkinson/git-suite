@@ -15,7 +15,7 @@ export const COL_FLAGS = {
 // Prefix symbol shown on cluster nodes to indicate the source
 // (owned / fork / star). Matches the Python router's `source` field.
 export const SOURCE_GLYPH = {
-  owned: '[O]',
-  fork:  '[F]',
-  star:  '[S]',
+  owned: '📦',
+  fork:  '🍴',
+  star:  '⭐',
 };

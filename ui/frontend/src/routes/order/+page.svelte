@@ -226,7 +226,7 @@
   <div class="hub-picker">
     <h3>Choose a hub</h3>
     {#if hubs.length === 0}
-      <p class="empty">No hubs yet — add one on the <a href="/hubs">Hubs</a> page first.</p>
+      <p class="empty">No hubs yet — form one on the <a href="/cluster">Cluster</a> page first.</p>
     {:else}
       <div class="hub-grid">
         {#each hubs as h}

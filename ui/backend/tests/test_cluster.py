@@ -16,11 +16,24 @@ def test_suggest_theme_from_topics():
     assert "maps" in s["description"]
 
 
-def test_union_find_components():
-    v = [[1.0, 0.0], [0.99, 0.01], [0.0, 1.0]]
-    groups = cluster._union_find(v, threshold=0.9)
-    sizes = sorted(len(g) for g in groups)
-    assert sizes == [1, 2]                     # {0,1} together, {2} alone
+def test_kmeans_partitions_into_k():
+    # Two tight blobs; k=2 must separate them.
+    v = [[1.0, 0.0], [0.99, 0.01], [0.0, 1.0], [0.01, 0.99]]
+    groups = cluster._kmeans(v, k=2)
+    assert sorted(len(g) for g in groups) == [2, 2]
+
+
+def test_kmeans_does_not_chain():
+    # A~B and B~C (cos 0.707) but A≁C (cos 0). Single-linkage union-find would
+    # chain all three; k-means with k=2 keeps the far pair apart.
+    a, b, c = [1.0, 0.0], [0.7071, 0.7071], [0.0, 1.0]
+    groups = cluster._kmeans([a, b, c], k=2)
+    assert sorted(len(g) for g in groups) == [1, 2]
+
+
+def test_kmeans_clamps_k_to_n():
+    groups = cluster._kmeans([[1.0, 0.0]], k=5)   # k > n
+    assert len(groups) == 1 and groups[0] == [0]
 
 
 def test_form_creates_hub_and_absorbs(isolated_plan):
@@ -97,8 +110,7 @@ def test_build_clusters_mixed_tags_sources_and_groups(temp_db, monkeypatch):
          "language": "C++", "stars": 50, "full_name": "ext/audio-fx"},
     ]
 
-    clusters = asyncio.run(cluster.build_clusters_mixed(owned, forks, stars,
-                                                        threshold=0.9))
+    clusters = asyncio.run(cluster.build_clusters_mixed(owned, forks, stars, k=2))
     assert clusters is not None
     # Largest first; the maps cluster has 3 members, the audio one has 1.
     assert clusters[0]["size"] == 3
@@ -134,7 +146,7 @@ def test_propose_mixed_includes_counts_and_source(temp_db, isolated_plan, monkey
             await db.commit()
     asyncio.run(_seed_snapshots())
 
-    res = asyncio.run(propose("s1", threshold=0.5, source="mixed"))
+    res = asyncio.run(propose("s1", source="mixed"))
     assert res["source"] == "mixed"
     assert res["counts"] == {"owned": 1, "forks": 1, "stars": 1}
     assert res["available"] is True
@@ -152,7 +164,7 @@ def test_propose_owned_legacy_path_still_works(temp_db, isolated_plan, monkeypat
 
     from tests.conftest import insert_scan
     insert_scan(temp_db, repos=[{"name": "a-repo", "aim": "a thing"}])
-    res = asyncio.run(propose("s1", threshold=0.5, source="owned"))
+    res = asyncio.run(propose("s1", source="owned"))
     assert res["source"] == "owned"
     # owned now reports counts too — forks/stars are simply zero.
     assert res["counts"] == {"owned": 1, "forks": 0, "stars": 0}

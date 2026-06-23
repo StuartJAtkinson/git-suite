@@ -37,6 +37,18 @@ export const api = {
   // Scan
   startScan: (session_id) =>
     req('POST', '/api/scan/start', { session_id }),
+  latestScan: (session_id) =>
+    req('GET', `/api/scan/latest/${session_id}`),
+  heads: (session_id) =>
+    req('GET', `/api/scan/heads/${session_id}`),
+  distill: (session_id) =>
+    req('POST', `/api/scan/distill/${session_id}`, {}),
+  distillRecords: (session_id) =>
+    req('GET', `/api/scan/distill/${session_id}/records`),
+  revalidate: (session_id) =>
+    req('POST', `/api/scan/distill/revalidate/${session_id}`, {}),
+  verdicts: (session_id) =>
+    req('GET', `/api/scan/distill/verdicts/${session_id}`),
 
   // Commercial refs
   scrapeUrl: (hub, url) =>
@@ -87,8 +99,14 @@ export const api = {
   getStarsDedup: (session_id) => req('GET', `/api/stars/dedup/${session_id}`),
 
   // Cluster (assisted group formation — mixed: owned + forks + stars)
-  getClusters: (session_id, threshold, source = 'mixed') =>
-    req('GET', `/api/cluster/${session_id}?threshold=${threshold}&source=${source}`),
+  // recompute=false returns the saved result (no re-embedding); true forces a
+  // fresh clustering pass and overwrites it. k = target cluster count (omit for
+  // the server default ~√(n/2)).
+  getClusters: (session_id, { k = null, source = 'mixed', recompute = false } = {}) => {
+    const q = new URLSearchParams({ source, recompute });
+    if (k != null) q.set('k', k);
+    return req('GET', `/api/cluster/${session_id}?${q}`);
+  },
   formHub: (session_id, body) =>
     req('POST', `/api/cluster/form/${session_id}`, body),
   refreshForks: (session_id) =>

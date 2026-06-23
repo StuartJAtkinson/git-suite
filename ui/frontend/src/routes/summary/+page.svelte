@@ -140,7 +140,7 @@
         <div class="action-item">
           <span class="action-num">2</span>
           <span>Finish absorbs — {absorbTotal - absorbDone} remaining</span>
-          <a href="/hubs"><button class="sm secondary">Go to Hubs</button></a>
+          <a href="/execute"><button class="sm secondary">Finish absorbs</button></a>
         </div>
       {/if}
       {#if archiveDone < archiveTotal}

@@ -36,6 +36,7 @@
       selArchive = new Set(preview.archive.will_archive.map((i) => i.repo));
       selHubs = new Set(preview.create_hubs);
       selReadmes = new Set(preview.readmes.filter((r) => r.needs_update).map((r) => r.hub));
+      await loadMigration();
     } catch (e) { errorMsg = e.message; }
     finally { loading = false; }
   }
@@ -70,6 +71,35 @@
       msg = `Pushed ${r.pushed} README(s).`;
       await load();
     } catch (e) { errorMsg = e.message; } finally { runningReadmes = false; }
+  }
+
+  // finish absorbs (folded in from the old per-hub page — slim: mark-absorbed + push scaffold only)
+  let migByHub = {};      // hub -> absorbs[]
+  let absBusy = '';       // "hub/repo" in flight
+  let pushMigBusy = '';
+
+  async function loadMigration() {
+    const hubs = (preview?.hubs_state ?? []).map((h) => h.hub);
+    const entries = await Promise.all(hubs.map(async (h) => {
+      try { return [h, (await api.migrationHub(h, $session.session_id)).absorbs]; }
+      catch { return [h, []]; }
+    }));
+    migByHub = Object.fromEntries(entries.filter(([, a]) => a.length));
+  }
+
+  async function markAbsorbed(hub, repo) {
+    absBusy = `${hub}/${repo}`; errorMsg = ''; msg = '';
+    try { await api.markAbsorbed(hub, repo); await loadMigration(); }
+    catch (e) { errorMsg = e.message; } finally { absBusy = ''; }
+  }
+
+  async function pushScaffold(hub) {
+    pushMigBusy = hub; errorMsg = ''; msg = '';
+    try {
+      await api.pushMigration($session.session_id, hub);
+      msg = `${hub}: pushed MIGRATION.md.`;
+      await loadMigration();
+    } catch (e) { errorMsg = e.message; } finally { pushMigBusy = ''; }
   }
 
   // hub lifecycle
@@ -185,6 +215,41 @@
     {/if}
   </div>
 
+  <!-- ── Finish absorbs ── -->
+  {#if Object.keys(migByHub).length}
+  <div class="section">
+    <div class="section-head"><h2>Finish absorbs</h2></div>
+    <p class="hint">Mark each planned absorb as migrated, or push a MIGRATION.md guide to the hub repo. This is what the old per-hub page tracked.</p>
+    {#each Object.entries(migByHub) as [hub, absorbs]}
+      {@const done = absorbs.filter((a) => a.done).length}
+      <div class="mig-hub">
+        <div class="mig-hub-head">
+          <span class="repo-name">{hub}</span>
+          <span class="tag {done === absorbs.length ? 'ok' : 'doc'}">{done}/{absorbs.length} absorbed</span>
+          <button class="sm" style="margin-left:auto" disabled={pushMigBusy === hub} on:click={() => pushScaffold(hub)}>
+            {pushMigBusy === hub ? 'Pushing…' : 'Push MIGRATION.md'}
+          </button>
+        </div>
+        <div class="repo-list">
+          {#each absorbs as a}
+            <div class="repo-row" class:dim={a.done}>
+              <span class="repo-name">{a.repo}</span>
+              {#if !a.live}<span class="tag none">not live</span>{/if}
+              {#if a.done}
+                <span class="tag ok">absorbed</span>
+              {:else}
+                <button class="sm" style="margin-left:auto" disabled={absBusy === `${hub}/${a.repo}`} on:click={() => markAbsorbed(hub, a.repo)}>
+                  {absBusy === `${hub}/${a.repo}` ? '…' : 'Mark absorbed'}
+                </button>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/each}
+  </div>
+  {/if}
+
   <!-- ── Hub lifecycle ── -->
   {#if preview.hubs_state}
   <div class="section">
@@ -235,4 +300,6 @@
   .confirm input { width: auto; }
   .hint { font-size: 0.8rem; color: #6b7280; margin: 0 0 0.75rem; }
   .hub-life-actions { margin-left: auto; display: flex; gap: 0.3rem; }
+  .mig-hub { margin-bottom: 0.9rem; }
+  .mig-hub-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; }
 </style>
