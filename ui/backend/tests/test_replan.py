@@ -11,31 +11,23 @@ def no_llm(monkeypatch):
     monkeypatch.setattr(llm, "has_provider", lambda: False)
 
 
-def test_score_hub_picks_topical_hub():
-    from services import replan
-    ranked = replan._score_hub("an osm map tile renderer with geo terrain", "")
-    assert ranked[0][0] == "map-suite"
-
-
-def test_rule_proposal_uses_topics():
-    from services import replan
-    p = replan._rule_proposal({"name": "thing", "aim": "", "language": "", "topics": ["pokemon", "ffxiv"]})
-    assert p["proposed"]["hub"] == "game-hub"
-
-
-def _recon(undecided, orphans, ghosts=None, hubs=None, layers=None):
+def _recon(undecided, orphans, ghosts=None, hubs=None):
     return {
         "stats": {"undecided": undecided},
         "orphans": orphans,
         "ghosts": ghosts or [],
-        "hubs": hubs or [{"name": "map-suite", "layer": 5, "description": "maps",
+        "hubs": hubs or [{"name": "map-suite", "description": "maps",
                           "absorb_total": 8}],
-        "layers": layers or [],
     }
 
 
-def test_incremental_phase_verdicts_and_ghosts():
+def test_incremental_phase_verdicts_and_ghosts(monkeypatch):
     from services import replan
+    # No keyword rules anymore: the absorb proposal comes from the embedding path,
+    # which ranks against the actual plan hubs. Stub it so the test stays offline.
+    async def fake_rank(orphans, hubs):
+        return {"tilemaker": [("map-suite", 0.7)]}
+    monkeypatch.setattr(replan, "_embed_rank", fake_rank)
     recon = _recon(
         undecided=2,
         orphans=[
@@ -79,11 +71,9 @@ def test_replan_phase_unlocks_structural():
     recon = _recon(
         undecided=0,
         orphans=[],
-        hubs=[{"name": "game-hub", "layer": 6, "description": "games", "absorb_total": 21}],
-        layers=[{"num": 9, "name": "Creative & Graphics", "hubs": []}],
+        hubs=[{"name": "game-hub", "description": "games", "absorb_total": 21}],
     )
     phase, proposals = asyncio.run(replan.generate_proposals(recon))
     assert phase == "replan"
     kinds = {p["kind"] for p in proposals}
     assert "split" in kinds       # game-hub absorb_total >= 16
-    assert "new-hub" in kinds     # layer 9 has no hub

@@ -23,7 +23,7 @@ async def get_plan():
 
 @router.post("/plan/reset")
 async def reset_plan():
-    """Discard all edits and re-seed from the plan.py defaults."""
+    """Discard all edits and return to the empty default (no assumed hubs)."""
     return plan_store.reset()
 
 
@@ -41,8 +41,7 @@ async def clear_plan():
 
 class HubUpsert(BaseModel):
     name: str
-    layer: int
-    priority: int = 3
+    priority: int | None = None     # emergent ordering — unset by default
     description: str = ""
     boundary: str = ""
 
@@ -50,7 +49,7 @@ class HubUpsert(BaseModel):
 @router.post("/plan/hub")
 async def upsert_hub(body: HubUpsert):
     try:
-        return plan_store.upsert_hub(body.name, body.layer, body.priority,
+        return plan_store.upsert_hub(body.name, body.priority,
                                      body.description, body.boundary)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

@@ -22,6 +22,7 @@
   let verdictCounts = { fit: 0, drift: 0, 'mis-clustered': 0, skipped: 0 };
 
   let status = 'idle';     // idle | scanning | enriching | done | error
+  let clusterStatus = '';  // '' | 'running' | 'done' | 'error'
   let distillStatus = '';  // '' | 'running' | 'done' | 'error'
   let distillMsg = '';     // human-readable progress / stop reason
   let distillProgress = { done: 0, total: 0, failed: 0 };
@@ -99,18 +100,35 @@
       ]);
       const s = await api.getStars();
       stars = s.stars || [];
+      // ponytail: clustering is a manual step now (the Cluster button) so a scan
+      // doesn't blitz LLM/embedding tokens. Load any saved result only.
+      const c = await api.getClusters($session.session_id, {}).catch(() => ({ available: false }));
+      if (c.available) {
+        for (const cl of c.clusters)
+          for (const m of cl.members) clusterMap[m.repo] = cl.suggested_name;
+        clusterMap = clusterMap;
+      }
+      // Heads + rehydrate cached records
+      await refreshMeta();
+    } catch (e) { errorMsg = e.message; }
+    finally { status = 'done'; }
+  }
+
+  async function runCluster() {
+    clusterStatus = 'running';
+    clusterNote = '';
+    try {
       const c = await api.getClusters($session.session_id, { recompute: true });
       if (c.available) {
+        clusterMap = {};
         for (const cl of c.clusters)
           for (const m of cl.members) clusterMap[m.repo] = cl.suggested_name;
         clusterMap = clusterMap;
       } else {
         clusterNote = c.reason || 'Clustering unavailable.';
       }
-      // Heads + rehydrate cached records
-      await refreshMeta();
-    } catch (e) { errorMsg = e.message; }
-    finally { status = 'done'; }
+    } catch (e) { clusterNote = e.message; }
+    finally { clusterStatus = 'done'; }
   }
 
   async function runDistill() {
@@ -185,7 +203,7 @@
 
 <div class="page-header">
   <h1>Repo Scan</h1>
-  <p class="sub">One pass: scrape your repos, forks &amp; stars, then cluster. Each row shows its source, distilled domain, and a link to the README so the LLM loop has it as a variable.</p>
+  <p class="sub">Scan scrapes your repos, forks &amp; stars (no token spend). Then run <strong>Distill</strong> and <strong>Cluster</strong> when you're ready — both are separate, resumable steps so you control when the LLM/embedding tokens are spent. Hubs group by <strong>substance</strong> (what a repo is for), not its tech stack.</p>
 </div>
 
 {#if status === 'idle'}
@@ -193,13 +211,16 @@
 {:else if status === 'scanning'}
   <div class="info-msg"><span class="spinner">⟳</span> Scanning — {owned.length} repos found…</div>
 {:else if status === 'enriching'}
-  <div class="info-msg"><span class="spinner">⟳</span> Snapshotting forks &amp; stars, clustering…</div>
+  <div class="info-msg"><span class="spinner">⟳</span> Snapshotting forks &amp; stars…</div>
 {:else if status === 'done'}
   <div class="ok-msg">Done — {owned.length} repos, {stars.length} stars, {Object.keys(clusterMap).length} clustered.</div>
   <div class="actions-row">
     <button on:click={startScan} class="secondary">Re-scan</button>
     <button on:click={runDistill} class="primary" disabled={distillStatus === 'running'}>
       {distillStatus === 'running' ? 'Distilling…' : '✨ Distill all'}
+    </button>
+    <button on:click={runCluster} class="primary" disabled={clusterStatus === 'running'}>
+      {clusterStatus === 'running' ? 'Clustering…' : '🧩 Cluster repos'}
     </button>
     <button on:click={runRevalidate} class="secondary" disabled={revalidateStatus === 'running' || Object.keys(clusterMap).length === 0}>
       {revalidateStatus === 'running' ? 'Revalidating…' : '🔁 Revalidate clusters'}

@@ -23,7 +23,7 @@
     <a href="/replan" class={active('/replan')}>Replan</a>
     <a href="/triage" class={active('/triage')}>Triage</a>
     <a href="/execute" class={active('/execute')}>Execute</a>
-    <a href="/layer-audit" class={active('/layer-audit')}>Layers</a>
+    <a href="/layer-audit" class={active('/layer-audit')}>Hubs</a>
     <a href="/summary" class={active('/summary')}>Summary</a>
   </div>
   <span class="spacer"></span>

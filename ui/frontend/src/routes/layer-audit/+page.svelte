@@ -4,23 +4,10 @@
   import { session } from '$lib/stores';
   import { api } from '$lib/api';
 
-  const LAYER_NAMES = {
-    0: 'Event Bus & Dispatch',
-    1: 'Ontological Backbone',
-    2: 'Automation & Workflow',
-    3: 'Knowledge & RAG',
-    4: 'Media & Archiving',
-    5: 'GIS & Maps',
-    6: 'Game & Entertainment',
-    7: 'Dev & Code Tools',
-    8: 'Homelab & Infra',
-    9: 'Creative & Graphics',
-  };
-
   let loading = true;
   let errorMsg = '';
   let orphans = [];
-  let byLayer = [];
+  let hubs = [];
 
   onMount(async () => {
     if (!$session) { goto('/'); return; }
@@ -31,15 +18,10 @@
     loading = true;
     errorMsg = '';
     try {
-      // Reconcile is authoritative: it assigns every repo to its hub's layer.
+      // Reconcile is authoritative: hubs come back in emergent order (size).
       const data = await api.reconcile($session.session_id);
       orphans = data.orphans;
-      byLayer = data.layers.map((l) => ({
-        num: l.num,
-        name: l.name,
-        hubs: l.hubs,
-        repos: l.repos.map((name) => ({ name })),
-      }));
+      hubs = data.hubs;
     } catch (e) {
       errorMsg = e.message;
     } finally {
@@ -49,8 +31,8 @@
 </script>
 
 <div class="page-header">
-  <h1>Layer Audit</h1>
-  <p class="sub">Orphan repos and their suggested layer assignment.</p>
+  <h1>Hub Audit</h1>
+  <p class="sub">Orphan repos and each hub's members (ordered by hub size).</p>
 </div>
 
 {#if errorMsg}<div class="error-msg">{errorMsg}</div>{/if}
@@ -75,23 +57,20 @@
 </div>
 
 <div class="section">
-  <div class="section-head"><h2>All layers</h2></div>
+  <div class="section-head"><h2>Hubs</h2></div>
   <div class="layer-grid">
-    {#each byLayer as layer}
+    {#each hubs as hub}
       <div class="layer-col">
         <div class="layer-header">
-          <span class="layer-num">L{layer.num}</span>
-          <span class="layer-name">{layer.name}</span>
-          {#if layer.hubs && layer.hubs.length}
-            <span class="layer-hub">{layer.hubs.join(', ')}</span>
-          {/if}
+          <span class="layer-name">{hub.name}</span>
+          <span class="layer-hub">{hub.repos.length} repos</span>
         </div>
         <div class="layer-repos">
-          {#if layer.repos.length === 0}
+          {#if hub.repos.length === 0}
             <span class="empty-small">—</span>
           {:else}
-            {#each layer.repos as r}
-              <span class="repo-chip">{r.name}</span>
+            {#each hub.repos as name}
+              <span class="repo-chip">{name}</span>
             {/each}
           {/if}
         </div>
@@ -120,13 +99,6 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-.layer-num {
-  font-size: 0.7rem;
-  font-weight: 700;
-  background: rgba(255,255,255,0.15);
-  padding: 0.1em 0.4em;
-  border-radius: 4px;
 }
 .layer-name { font-size: 0.8rem; font-weight: 500; }
 .layer-hub { margin-left: auto; font-size: 0.68rem; font-family: monospace; color: #9fb3d8; }

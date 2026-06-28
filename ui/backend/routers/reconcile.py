@@ -146,7 +146,6 @@ async def reconcile(session_id: str):
         archived_done = [a for a in archives if done.get(a) == "archived"]
         hubs_roll.append({
             "name": hub,
-            "layer": meta.get("layer"),
             "priority": meta.get("priority"),
             "description": meta.get("description", ""),
             "boundary": meta.get("boundary", ""),
@@ -157,25 +156,11 @@ async def reconcile(session_id: str):
             "archive_total": len(archives),
             "archive_done": len(archived_done),
             "ghosts": [a for a in absorbs if a not in live_names],
+            "repos": sorted(r["name"] for r in reconciled if r["hub"] == hub),
         })
-    hubs_roll.sort(key=lambda h: (h["layer"] if h["layer"] is not None else 99))
-
-    # --- layer rollup (fixes the old stub layer-audit page) -------------
-    layer_names = plan.get("layer_names", {})
-    layers_roll = []
-    for num_str, lname in sorted(layer_names.items(), key=lambda kv: int(kv[0])):
-        num = int(num_str)
-        hubs_in_layer = [h for h in hubs_roll if h["layer"] == num]
-        repos_in_layer = sorted(
-            r["name"] for r in reconciled
-            if r["hub"] and any(h["name"] == r["hub"] for h in hubs_in_layer)
-        )
-        layers_roll.append({
-            "num": num,
-            "name": lname,
-            "hubs": [h["name"] for h in hubs_in_layer],
-            "repos": repos_in_layer,
-        })
+    # Emergent ordering — manual priority then hub size; no layer taxonomy.
+    hubs_roll.sort(key=lambda h: plan_store.hub_sort_key(
+        h["priority"], h["absorb_total"], h["name"]))
 
     orphans = [r for r in reconciled if r["verdict"] == "orphan"]
     stubs = [r for r in reconciled if r["stub_reason"]]
@@ -197,5 +182,4 @@ async def reconcile(session_id: str):
         "ghosts": ghosts,
         "stubs": stubs,
         "hubs": hubs_roll,
-        "layers": layers_roll,
     }

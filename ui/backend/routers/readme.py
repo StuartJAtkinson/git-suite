@@ -120,7 +120,7 @@ def compose_section(
     section = f"""{_ROADMAP_START}
 ## Integration Roadmap
 
-**Layer {meta.get('layer', '?')} — {meta.get('description', hub)}**
+**{meta.get('description', hub)}**
 
 ### Repos to absorb
 {absorbs_block}

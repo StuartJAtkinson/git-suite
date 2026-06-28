@@ -39,14 +39,25 @@ log = logging.getLogger(__name__)
 
 
 # ── system prompt — same for every repo, that's the point ──────────────────
+# We cluster on SUBSTANCE (the real-world activity a repo serves), never the
+# tech stack — so "Discord-Transcriber" + "ddb-bridge" land together under
+# tabletop role-playing, not under "Python" or "bot". Bump _PROMPT_VERSION when
+# this prompt changes so cached records re-distill on the next run.
+_PROMPT_VERSION = "2"
 _SYS = (
-    "You produce a STRICT JSON object describing one code repository. "
+    "You produce a STRICT JSON object describing one code repository by its "
+    "SUBSTANCE — the real-world activity, hobby, or line of work it serves — "
+    "NOT the technology used to build it. "
     "Do NOT call it software, a tool, a library, an app, a framework, or a "
-    "project, and do NOT name the programming language. The schema is exactly:\n"
-    + '{"purpose": "<one sentence, max 25 words, naming what the repo does '
-    + 'for its users, not how it is built>", '
-    + '"entities": ["<concrete noun 1>", "<concrete noun 2>", ... 2 to 5 items], '
-    + '"domain": "<max 3 words naming the field or industry>"}\n'
+    "project; do NOT name the programming language; and do NOT answer with a "
+    "category of computing (e.g. 'web development', 'automation', 'data "
+    "processing', 'machine learning', 'API'). Name the human domain it serves "
+    "(e.g. tabletop role-playing, home server administration, IT support, "
+    "music production). The schema is exactly:\n"
+    + '{"purpose": "<one sentence, max 25 words, what the repo does for the '
+    + 'people who use it, in their world — not how it is built>", '
+    + '"entities": ["<concrete noun from that real-world domain>", ... 2 to 5 items], '
+    + '"domain": "<max 3 words naming the activity, hobby, or line of work>"}\n'
     + "If the inputs are insufficient, answer with empty strings / empty list."
 )
 
@@ -73,6 +84,12 @@ def _src(repo: dict) -> str:
 
 def _hash(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+
+def _cache_hash(src: str) -> str:
+    """Cache key for a distilled record: the repo source AND the prompt version,
+    so bumping the prompt re-distills without touching the LLM input text."""
+    return _hash(_PROMPT_VERSION + "\n" + src)
 
 
 def _key(repo: dict) -> str:
@@ -140,7 +157,7 @@ async def records(repos: list[dict], stop_on_error: bool = True,
     todo: list[str] = []
     for k, src in srcs.items():
         hit = cache.get(k)
-        if hit and hit[1] == _hash(src):
+        if hit and hit[1] == _cache_hash(src):
             out[k] = json.loads(hit[0])
         else:
             todo.append(k)
@@ -176,7 +193,7 @@ async def records(repos: list[dict], stop_on_error: bool = True,
             return k, rec, None
 
     results = await asyncio.gather(*[one(k) for k in todo])
-    store_items = [(k, rec, _hash(srcs[k]))
+    store_items = [(k, rec, _cache_hash(srcs[k]))
                    for k, rec, _ in results if rec is not None]
     await _store(store_items)
     for k, rec, _ in results:

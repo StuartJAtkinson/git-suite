@@ -86,7 +86,7 @@
       <div class="hub-progress-row">
         <div class="hub-info">
           <span class="hub-name">{hub.name}</span>
-          <span class="layer-tag-sm">L{hub.layer}</span>
+          <span class="layer-tag-sm">{hub.absorb_total} repos</span>
         </div>
         <div class="hub-bars">
           {#if hub.absorb_total > 0}

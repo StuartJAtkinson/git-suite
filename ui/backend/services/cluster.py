@@ -204,7 +204,18 @@ async def build_clusters_mixed(
     clusters: list[dict] = []
     for idxs in groups:
         members = [pool[i] for i in idxs]
-        s = suggest_theme(members)
+        # Name the cluster from its distilled substance (domain + entities),
+        # not the raw tech topics — the name should read like the activity it
+        # serves, e.g. "tabletop role-playing", not "python" or "bot".
+        named = []
+        for m in members:
+            rec = record_map.get(distill._key(m)) or {}
+            nm = dict(m)
+            subj = (rec.get("entities") or []) + (
+                [rec["domain"]] if rec.get("domain") else [])
+            nm["topics"] = subj or nm.get("topics") or []
+            named.append(nm)
+        s = suggest_theme(named)
         clusters.append({
             "members": [
                 {"repo": m.get("repo") or m.get("name"),

@@ -234,3 +234,114 @@ This roadmap is grounded in the following starred patterns (684 starred repos):
 - Runtime canonical plan: `~/.git-suite/plan.json`, seeded from `ui/backend/plan.py`.
 - UI architecture / workflow loop: `ui/ROADMAP.md`.
 - LLM/embedding failover: `ui/backend/services/llm.py`, `ui/backend/services/embeddings.py`.
+---
+
+## Portfolio alignment — provider chain is the `personal-ai-os` seed (FEATURE-MATRIX §A)
+
+git-suite's LLM + embedding failover is the **canonical provider-chain implementation**
+across the whole GitHub portfolio. Source of truth:
+
+- `H:\GitHub\git-suite\ui\backend\services\llm.py`
+- `H:\GitHub\git-suite\ui\backend\services\embeddings.py`
+- `H:\GitHub\git-suite\ui\backend\llm_providers.py`
+
+The key insight other projects lack: **call URLs hardcoded per provider, model ids
+fetched live** from each provider's own listing endpoint, with a deterministic
+keyword/language fallback when no provider is configured. This is what stops model
+ids from rotting (the failure mode that bit `belzona-tickets`).
+
+**Roadmap implication:** when the planned `personal-ai-os` hub is built, this code +
+`belzona-tickets`' battle-tested 7-provider catalogue
+(`H:\GitHub\belzona-tickets\src\bt\llm_providers.py`) are the two pieces to absorb.
+`multitudes` (`H:\GitHub\multitudes\server\src\ai\llm.ts`) and `place-time`
+(`H:\GitHub\place-time\src\core\hexalog.ts`) are downstream consumers that should
+adopt this model rather than maintain bespoke fallbacks. atelier-harness solves the
+adjacent *credential governance / cross-provider routing* problem and is the superset
+reference for that axis.
+
+---
+
+## Portfolio alignment — stars dedup is a special case of homelab-designer's merge (FEATURE-MATRIX §C)
+
+git-suite's Stars stage (owned repo vs. starred alternative → build-vs-adopt) is a
+narrow application of the portfolio's canonical entity-merge pipeline:
+`H:\GitHub\homelab-designer\backend\normalizer\deduplicator.py` (7 ordered phases +
+fuzzy prefix/URL guard) and `...\normalizer\name_rules.py`.
+
+**Roadmap implication:** when `media-hub` / `work-hub` / `personal-ai-os` need to
+dedup ingested records across sources, absorb `deduplicator.py` rather than extending
+the stars-specific logic. The identity-model half ("one entity, many platform
+identities") is canonical in `multitudes` (`H:\GitHub\multitudes\server\src\ai\cluster.ts`).
+
+---
+
+## Portfolio alignment — plan-is-data + separate-execute is the canonical safety pattern (FEATURE-MATRIX §F)
+
+git-suite is the portfolio's reference for **staged tools that take irreversible
+outbound actions**. The discipline: every stage reads the live scan + plan and writes
+`plan.json` (`~/.git-suite/plan.json`, seeded from `ui/backend/plan.py`); **nothing
+reaches GitHub until the separate Execute stage**, which dry-run-previews diffed
+against live state before any idempotent batch action.
+
+**Roadmap implication:** any planned hub that mutates external state (`homelab-core`
+deploys, `work-hub` ticket writes, `media-hub` ingests) should adopt this two-phase
+shape — cheap reversible planning, one deliberate execute with a live-diff preview —
+rather than acting inline. The complementary canonical is homelab-designer's
+**gating state-chain** (`H:\GitHub\homelab-designer\backend` + `data\*_state.json`):
+stages unlock the next and survive restarts.
+
+---
+
+## Portfolio alignment — single source of truth; the hub-list duplicate is the live drift risk (FEATURE-MATRIX §G)
+
+The portfolio's canonical anti-drift rule is bt's "one implementation, the UI shells
+out / reads it, never reimplements" (`H:\GitHub\belzona-tickets\docs\ROADMAP.md`).
+git-suite is a true client-server app (logic in the FastAPI backend, frontend is
+view), so the CLI-spawn form doesn't apply — **but the underlying risk does, and there
+is a live instance here:**
+
+- `H:\GitHub\git-suite\ui\backend\init_hub_readmes.py` keeps its **own copy of the hub
+  list**, separate from the runtime source `ui\backend\plan.py`. This PLAN.md already
+  flags the drift risk ("if you edit a hub here, regenerate the README and cross-check
+  plan.py against init_hub_readmes.py").
+
+**Roadmap action:** make `init_hub_readmes.py` import the hub list from `plan.py`
+instead of duplicating it — single source of truth, the exact failure bt's rule
+prevents.
+
+---
+
+## Portfolio alignment — place-time + heart-on-a-sleeve are the concrete map-suite seed (FEATURE-MATRIX §I)
+
+The planned `map-suite` hub already has its two implementation seeds:
+
+- **place-time** (`H:\GitHub\place-time`) — H3 spatial indexing, temporal layers,
+  multi-source geo ingestion (Overpass/BGS/ONS). TypeScript.
+- **heart-on-a-sleeve** (`H:\GitHub\heart-on-a-sleeve`) — OSM→SVG/STL rendering, Cesium
+  selection UI, cosLat projection. Python.
+
+Both independently carry an Overpass client and cosLat projection math — the duplicate
+that `map-suite` consolidation should resolve. **Caveat:** they are different runtimes,
+so the first map-suite decision is *which runtime hosts the shared Overpass client +
+cosLat helper*; until then they share those two pieces as a documented spec (recorded
+in both repos' roadmaps under §I).
+
+---
+
+## Portfolio principle — self-hosted, read-only by default, credential stays local (FEATURE-MATRIX §J)
+
+Stated once here (git-suite is the meta/consolidation project) rather than copied into
+every repo. This is the **default posture for every planned hub** and every existing
+project unless explicitly overridden:
+
+- **Self-hosted / privacy-first** — state lives on the user's infra; no third-party
+  service holds the data.
+- **Read-only by default** — snapshot sources; never post, sync, or write back without
+  explicit, deliberate action (git-suite's own plan-vs-execute split is this rule).
+- **Credential stays local** — secrets never leave the box; if a third-party tool needs
+  one, proxy it server-side.
+
+Reference statements: ddb-bridge ("the credential never leaves your infrastructure",
+`H:\GitHub\ddb-bridge`) and multitudes ("read-only against sources — snapshots, never
+writes back", `H:\GitHub\multitudes`). New hubs (`personal-ai-os`, `work-hub`,
+`media-hub`, `homelab-core`, `map-suite`) inherit this by default.

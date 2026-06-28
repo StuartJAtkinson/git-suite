@@ -27,7 +27,7 @@ def test_get_order_uses_plan_hub_absorbs(temp_db, isolated_plan):
         {"name": "tilemaker", "language": "Python", "aim": "build maps"},
         {"name": "streets-gl", "language": "JS", "aim": "webgl maps"},
     ])
-    isolated_plan.upsert_hub("map-hub", layer=5, description="maps")
+    isolated_plan.upsert_hub("map-hub", description="maps")
     isolated_plan.set_verdict("tilemaker", "absorb", "map-hub")
     isolated_plan.set_verdict("streets-gl", "absorb", "map-hub")
 
@@ -56,7 +56,7 @@ def test_save_order_round_trip(temp_db, isolated_plan):
         {"name": "a", "language": "Python"},
         {"name": "b", "language": "JS"},
     ])
-    isolated_plan.upsert_hub("map-hub", layer=5)
+    isolated_plan.upsert_hub("map-hub")
     isolated_plan.set_verdict("a", "absorb", "map-hub")
     isolated_plan.set_verdict("b", "absorb", "map-hub")
 
@@ -84,7 +84,7 @@ def test_save_order_rejects_non_absorb_repo(temp_db, isolated_plan):
     insert_scan(temp_db, session_id="s1", scan_id="sc1",
                 repos=[{"name": "map-hub", "language": "Python"},
                        {"name": "outsider", "language": "Python"}])
-    isolated_plan.upsert_hub("map-hub", layer=5)
+    isolated_plan.upsert_hub("map-hub")
     # `outsider` is NOT absorbed into map-hub
     import pytest
     with pytest.raises(Exception) as ei:
@@ -103,7 +103,7 @@ def test_save_order_drops_stale_rows(temp_db, isolated_plan):
         {"name": "a", "language": "Python"},
         {"name": "b", "language": "JS"},
     ])
-    isolated_plan.upsert_hub("map-hub", layer=5)
+    isolated_plan.upsert_hub("map-hub")
     isolated_plan.set_verdict("a", "absorb", "map-hub")
     isolated_plan.set_verdict("b", "absorb", "map-hub")
 
@@ -130,7 +130,7 @@ def test_set_compat_tags_override(temp_db, isolated_plan):
     from tests.conftest import insert_scan
     insert_scan(temp_db, session_id="s1", scan_id="sc1",
                 repos=[{"name": "h", "language": "Python"}])
-    isolated_plan.upsert_hub("h", layer=5)
+    isolated_plan.upsert_hub("h")
 
     res = asyncio.run(set_compat_tags("s1", "h",
                                       CompatTagsRequest(tags=["fork-of", "inspired-by"])))
@@ -144,7 +144,7 @@ def test_set_compat_tags_empty_resets_to_default(temp_db, isolated_plan):
     from tests.conftest import insert_scan
     insert_scan(temp_db, session_id="s1", scan_id="sc1",
                 repos=[{"name": "h", "language": "Python"}])
-    isolated_plan.upsert_hub("h", layer=5)
+    isolated_plan.upsert_hub("h")
     asyncio.run(set_compat_tags("s1", "h", CompatTagsRequest(tags=[])))
     res = asyncio.run(get_order("s1", "h"))
     # Empty override falls back to the global default
@@ -157,7 +157,7 @@ def test_annotate_sets_feature_annotations(temp_db, isolated_plan):
         {"name": "h", "language": "Python"},
         {"name": "x", "language": "Python"},
     ])
-    isolated_plan.upsert_hub("h", layer=5)
+    isolated_plan.upsert_hub("h")
     isolated_plan.set_verdict("x", "absorb", "h")
     res = asyncio.run(annotate("s1", "h", AnnotateRequest(
         repo="x", annotations=["reads OSM pbf", "emits vector tiles"],
@@ -179,7 +179,7 @@ def test_suggest_order_parses_llm_json(temp_db, isolated_plan, monkeypatch):
         {"name": "scraper", "language": "Python", "aim": "scrapes data"},
         {"name": "ui", "language": "JS", "aim": "visualises data"},
     ])
-    isolated_plan.upsert_hub("h", layer=5, description="data tools")
+    isolated_plan.upsert_hub("h", description="data tools")
     isolated_plan.set_verdict("scraper", "absorb", "h")
     isolated_plan.set_verdict("ui", "absorb", "h")
 
@@ -212,7 +212,7 @@ def test_suggest_order_strips_json_fences(temp_db, isolated_plan, monkeypatch):
     insert_scan(temp_db, session_id="s1", scan_id="sc1", repos=[
         {"name": "h", "language": "Python"},
     ])
-    isolated_plan.upsert_hub("h", layer=5)
+    isolated_plan.upsert_hub("h")
 
     fenced = '```json\n{"proposed": [], "moves": [], "rationale_overall": "ok"}\n```'
 
@@ -229,7 +229,7 @@ def test_suggest_column_parses_llm_json(temp_db, isolated_plan, monkeypatch):
         {"name": "h", "language": "Python"},
         {"name": "scraper", "language": "Python", "aim": "scrapes things"},
     ])
-    isolated_plan.upsert_hub("h", layer=5, description="data tools")
+    isolated_plan.upsert_hub("h", description="data tools")
     isolated_plan.set_verdict("scraper", "absorb", "h")
 
     fake = {
@@ -258,7 +258,7 @@ def test_suggest_column_supports_multi_column(temp_db, isolated_plan, monkeypatc
         {"name": "h", "language": "Python"},
         {"name": "scrapey-ui", "language": "Python", "aim": "scraper with web UI"},
     ])
-    isolated_plan.upsert_hub("h", layer=5)
+    isolated_plan.upsert_hub("h")
     isolated_plan.set_verdict("scrapey-ui", "absorb", "h")
 
     fake = {

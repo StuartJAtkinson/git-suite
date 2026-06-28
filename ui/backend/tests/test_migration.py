@@ -32,7 +32,7 @@ def test_checklist_for_falls_back_to_rule(monkeypatch):
     monkeypatch.setattr(llm, "has_provider", lambda: False)
     out = asyncio.run(migration.checklist_for(
         {"name": "tweetext", "language": "Python", "topics": []},
-        {"name": "media-hub", "layer": 4, "description": "media"},
+        {"name": "media-hub", "description": "media"},
         None,
     ))
     assert out["source"] == "rule"
@@ -45,7 +45,7 @@ def test_build_migration_md():
         {"repo": "tweetext", "module": "tweetext", "path": "modules/tweetext/",
          "live": True, "done": False, "steps": ["step one", "step two"]},
     ]
-    md = migration.build_migration_md("media-hub", {"layer": 4, "description": "media"}, items)
+    md = migration.build_migration_md("media-hub", {"description": "media"}, items)
     assert "# media-hub — Migration Plan" in md
     assert "modules/tweetext/" in md
     assert "1. step one" in md

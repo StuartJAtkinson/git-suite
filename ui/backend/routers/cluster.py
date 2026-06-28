@@ -144,10 +144,9 @@ async def propose(
 
 
 class FormRequest(BaseModel):
-    # layer/priority are emergent — left unset at form time and only assigned
-    # later (promote/order), so a new hub doesn't inherit a hardcoded layer.
+    # priority is emergent — left unset at form time; hub order derives from
+    # size until someone sets a manual override (promote/order).
     hub_name: str
-    layer: int | None = None
     priority: int | None = None
     description: str = ""
     boundary: str = ""
@@ -164,7 +163,7 @@ async def form(session_id: str, body: FormRequest):
 
     # Create the hub unless we're adding to one that already exists.
     if name not in plan.get("hubs", {}):
-        plan_store.upsert_hub(name, body.layer, body.priority,
+        plan_store.upsert_hub(name, body.priority,
                               body.description, body.boundary)
 
     absorbed = []

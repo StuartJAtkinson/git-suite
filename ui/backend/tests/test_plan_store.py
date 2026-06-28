@@ -2,10 +2,17 @@
 import pytest
 
 
-def test_seed_shape(isolated_plan):
+def test_production_seed_is_blank(isolated_plan):
+    # First-run default assumes nothing — no hubs, no assignments.
+    blank = isolated_plan._seed_plan()
+    assert blank == {"hubs": {}, "archives": {}, "keeps": []}
+
+
+def test_sample_plan_shape(isolated_plan):
+    # The test fixture (sample plan, not a production seed) carries hubs to work on.
     p = isolated_plan.get_plan()
-    assert len(p["hubs"]) == 9               # +creative-hub (L9 home for VTuberLIVE)
-    assert len(p["archives"]) == 37          # canonical (drift fixed)
+    assert len(p["hubs"]) == 9
+    assert len(p["archives"]) == 37
     assert "git-suite" in p["keeps"]
 
 
@@ -69,7 +76,7 @@ def test_clear_removes_hubs(isolated_plan):
 
 def test_upsert_and_remove_hub(isolated_plan):
     isolated_plan.clear()
-    isolated_plan.upsert_hub("data-hub", layer=3, priority=2,
+    isolated_plan.upsert_hub("data-hub", priority=2,
                              description="data stuff", boundary="data only")
     p = isolated_plan.get_plan()
     assert "data-hub" in p["hubs"] and p["hubs"]["data-hub"]["boundary"] == "data only"
@@ -80,13 +87,13 @@ def test_upsert_and_remove_hub(isolated_plan):
 
 def test_upsert_edits_existing_hub_keeping_absorbs(isolated_plan):
     isolated_plan.clear()
-    isolated_plan.upsert_hub("data-hub", layer=3, priority=3, description="old")
+    isolated_plan.upsert_hub("data-hub", priority=3, description="old")
     isolated_plan.set_verdict("foo", "absorb", "data-hub")
     # re-upsert same name = edit meta; absorbs must survive
-    isolated_plan.upsert_hub("data-hub", layer=5, priority=1, description="new",
+    isolated_plan.upsert_hub("data-hub", priority=1, description="new",
                              boundary="b")
     hub = isolated_plan.get_plan()["hubs"]["data-hub"]
-    assert hub["layer"] == 5 and hub["priority"] == 1 and hub["description"] == "new"
+    assert hub["priority"] == 1 and hub["description"] == "new"
     assert hub["boundary"] == "b" and hub["absorbs"] == ["foo"]
 
 
@@ -105,7 +112,7 @@ def test_add_and_remove_hub_alternative(isolated_plan):
 
 def test_creative_hub_homes_vtuberlive(isolated_plan):
     p = isolated_plan.get_plan()
-    assert p["hubs"]["creative-hub"]["layer"] == 9
+    assert p["hubs"]["creative-hub"]["priority"] is None     # emergent, no seeded layer
     assert "VTuberLIVE" in p["hubs"]["creative-hub"]["absorbs"]
     assert "VTuberLIVE" not in p["keeps"]      # moved out of keep-as-is
 
@@ -115,14 +122,21 @@ def test_seed_has_boundaries(isolated_plan):
     assert p["hubs"]["map-suite"]["boundary"]      # non-empty boundary rule
 
 
-def test_heal_backfills_missing_boundary(isolated_plan, tmp_path):
+def test_heal_is_structural_only(isolated_plan, tmp_path):
     import json as _json
-    # simulate an old plan.json lacking boundary on a hub
+    # An old plan.json with a legacy `layer` key and missing fields on a hub.
     plan = isolated_plan.get_plan()
-    del plan["hubs"]["game-hub"]["boundary"]
+    plan["hubs"]["game-hub"]["layer"] = 6          # legacy taxonomy
+    del plan["hubs"]["game-hub"]["alternatives"]   # field added later
+    plan["hubs"]["new-hub"] = {"absorbs": ["x"]}   # bare user-made hub
     (tmp_path / "plan.json").write_text(_json.dumps(plan))
     healed = isolated_plan.get_plan()
-    assert healed["hubs"]["game-hub"]["boundary"]  # backfilled from seed
+    g = healed["hubs"]["game-hub"]
+    assert "layer" not in g                         # legacy taxonomy dropped
+    assert g["alternatives"] == {"oss": [], "commercial": []}  # defaulted EMPTY, not seeded
+    # a bare hub gains structural defaults without inventing content
+    n = healed["hubs"]["new-hub"]
+    assert n["priority"] is None and n["description"] == "" and n["boundary"] == ""
 
 
 def test_blank_clears_assignments_keeps_hub_shells(isolated_plan):

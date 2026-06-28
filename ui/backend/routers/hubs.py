@@ -19,14 +19,14 @@ async def list_hubs():
     for name, meta in plan.get("hubs", {}).items():
         hubs.append({
             "name": name,
-            "layer": meta["layer"],
-            "priority": meta["priority"],
-            "description": meta["description"],
+            "priority": meta.get("priority"),
+            "description": meta.get("description", ""),
             "boundary": meta.get("boundary", ""),
             "absorbs": meta.get("absorbs", []),
             "alternatives": meta.get("alternatives", {}),
         })
-    hubs.sort(key=lambda h: h["layer"])
+    hubs.sort(key=lambda h: plan_store.hub_sort_key(
+        h["priority"], len(h["absorbs"]), h["name"]))
     return hubs
 
 

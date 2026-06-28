@@ -49,4 +49,5 @@ Dockerfile.*
 nginx.conf
 .env
 .env.docker
-.env.*.local
+.env.*.localstartStop.md
+startStop.md

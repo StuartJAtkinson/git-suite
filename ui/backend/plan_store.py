@@ -1,25 +1,29 @@
 """
 plan_store.py — the single source of truth for the portfolio plan.
 
-Design philosophy #1: the plan is *data*, not code. The hardcoded dicts in
-plan.py are now only the SEED. At runtime the canonical plan lives in one
-editable JSON document (~/.git-suite/plan.json) that the web UI, the CLI and
-the README generator all read and write. Every other module derives from here.
+Design philosophy #1: the plan is *data*, not code. There is NO seed: the
+default plan is empty and nothing is ever assumed to be a hub. Hubs emerge only
+from the actual GitHub scan (clustering → promote/create). At runtime the
+canonical plan lives in one editable JSON document (~/.git-suite/plan.json) that
+the web UI, the CLI and the README generator all read and write. Every other
+module derives from here.
 
 Shape of the canonical plan:
 
     {
       "hubs": {
         "<hub>": {
-          "layer": int, "priority": int, "description": str,
+          "priority": int|null, "description": str,
           "absorbs": [repo, ...],
           "alternatives": {"oss": [...], "commercial": [...]}
         }
       },
       "archives": { "<repo>": "<hub|null>" },
-      "keeps":    [repo, ...],
-      "layer_names": { "<int>": str }
+      "keeps":    [repo, ...]
     }
+
+Hub ordering is emergent: no hardcoded layer taxonomy. Default order is by hub
+size (absorb count, largest first); `priority` is an optional manual override.
 """
 from __future__ import annotations
 
@@ -28,8 +32,6 @@ import logging
 import os
 import threading
 from pathlib import Path
-
-import plan as seed  # the immutable defaults
 
 log = logging.getLogger(__name__)
 
@@ -41,41 +43,29 @@ VERDICTS = {"absorb", "archive", "keep", "orphan"}
 
 
 def _seed_plan() -> dict:
-    """Build the default plan document from plan.py constants."""
-    return {
-        "hubs": {
-            name: {
-                "layer": meta["layer"],
-                "priority": meta["priority"],
-                "description": meta["description"],
-                "boundary": meta.get("boundary", ""),
-                "absorbs": list(seed.HUB_ABSORBS.get(name, [])),
-                "alternatives": seed.HUB_ALTERNATIVES.get(name, {"oss": [], "commercial": []}),
-            }
-            for name, meta in seed.HUB_META.items()
-        },
-        "archives": dict(seed.ARCHIVE_HUB),
-        "keeps": sorted(seed.KEEP_AS_IS),
-        "layer_names": {str(k): v for k, v in seed.LAYER_NAMES.items()},
-    }
+    """The default plan on first run: fully empty. Nothing is assumed — no
+    hubs, no repo→hub assignments, no archives. Hubs emerge only from the actual
+    GitHub scan (clustering → promote/create); there is no curated seed."""
+    return {"hubs": {}, "archives": {}, "keeps": []}
 
 
 def _heal(plan: dict) -> dict:
-    """Backfill hub metadata fields added after the plan was first seeded
-    (e.g. boundary, alternatives) from the seed, without touching any repo
-    assignments. Lets existing plan.json files gain new fields without a reset."""
-    seed = _seed_plan()
+    """Structural-only self-heal: ensure the top-level keys and per-hub fields
+    exist so older plan.json files keep working, without ever inventing content.
+    No taxonomy is seeded — a hub's metadata comes from how the user created it.
+
+    Drops the legacy `layer`/`layer_names` taxonomy from older plans (ordering
+    is now emergent)."""
     plan.setdefault("hubs", {})
     plan.setdefault("archives", {})
     plan.setdefault("keeps", [])
-    plan.setdefault("layer_names", seed["layer_names"])
-    for name, smeta in seed["hubs"].items():
-        hub = plan["hubs"].get(name)
-        if hub is None:
-            continue  # hub removed on purpose — don't resurrect
-        for field in ("layer", "priority", "description", "boundary", "alternatives"):
-            if not hub.get(field):
-                hub[field] = smeta.get(field)
+    plan.pop("layer_names", None)
+    for hub in plan["hubs"].values():
+        hub.pop("layer", None)
+        hub.setdefault("priority", None)
+        hub.setdefault("description", "")
+        hub.setdefault("boundary", "")
+        hub.setdefault("alternatives", {"oss": [], "commercial": []})
         hub.setdefault("absorbs", [])
     return plan
 
@@ -89,7 +79,7 @@ def _load() -> dict:
         log.warning("plan.json unreadable (%s); using seed", exc)
     plan = _seed_plan()
     _write(plan)
-    log.info("seeded plan.json from plan.py defaults")
+    log.info("created empty plan.json (no seed — hubs come from the scan)")
     return plan
 
 
@@ -114,7 +104,7 @@ def save_plan(plan: dict) -> None:
 
 
 def reset() -> dict:
-    """Discard edits and re-seed from plan.py defaults."""
+    """Discard edits and return to the empty default (no assumed hubs)."""
     with _LOCK:
         plan = _seed_plan()
         _write(plan)
@@ -122,27 +112,32 @@ def reset() -> dict:
 
 
 def blank() -> dict:
-    """Start from scratch: keep the hub *shells* (layer/priority/description/
-    alternatives) and layer names, but clear every repo assignment — no
-    absorbs, no archives, no keeps. After a scan every repo is undecided, so
-    the plan is rebuilt from the real portfolio via triage/replan, and hubs are
-    (re)created consistently through Execute rather than assumed to exist."""
+    """Start fresh while keeping the hub *shells* you've already defined
+    (priority/description/boundary/alternatives) — just clears every repo
+    assignment (no absorbs, no archives, no keeps). Operates on the CURRENT
+    plan's hubs, so a removed hub is never resurrected."""
     with _LOCK:
-        seed = _seed_plan()
+        plan = _load()
         plan = {
             "hubs": {
                 name: {**meta, "absorbs": []}
-                for name, meta in seed["hubs"].items()
+                for name, meta in plan.get("hubs", {}).items()
             },
             "archives": {},
             "keeps": [],
-            "layer_names": seed["layer_names"],
         }
         _write(plan)
         return plan
 
 
 # --- derived lookups -------------------------------------------------------
+
+def hub_sort_key(priority: int | None, size: int, name: str) -> tuple:
+    """Emergent hub order: manual `priority` first (unset sorts last), then
+    larger hubs (more absorbs) first, then name. Replaces the old layer sort."""
+    return (priority if priority is not None else 1_000, -size, name)
+
+
 
 def repo_placement(plan: dict | None = None) -> dict[str, dict]:
     """Map every planned repo -> {"verdict", "hub"}.
@@ -174,29 +169,27 @@ def _unassign(plan: dict, repo: str) -> None:
 
 
 def clear() -> dict:
-    """Truly empty plan: no hubs, no assignments. Layer names kept. Nothing is
-    assumed to be a hub — hubs are rebuilt explicitly from the scan."""
+    """Truly empty plan: no hubs, no assignments. Nothing is assumed to be a
+    hub — hubs are rebuilt explicitly from the scan."""
     with _LOCK:
-        plan = {"hubs": {}, "archives": {}, "keeps": [],
-                "layer_names": _seed_plan()["layer_names"]}
+        plan = {"hubs": {}, "archives": {}, "keeps": []}
         _write(plan)
         return plan
 
 
-def upsert_hub(name: str, layer: int | None = None, priority: int | None = None,
+def upsert_hub(name: str, priority: int | None = None,
                description: str = "", boundary: str = "",
                alternatives: dict | None = None) -> dict:
     """Create or update a hub definition. Preserves existing absorbs.
 
-    layer/priority are optional — None means 'unassigned' (emergent ordering),
-    stored as null rather than coerced to a hardcoded number."""
+    priority is optional — None means 'unassigned' (emergent ordering by hub
+    size), stored as null rather than coerced to a hardcoded number."""
     if not name or not name.strip():
         raise ValueError("hub name required")
     with _LOCK:
         plan = _load()
         hub = plan["hubs"].get(name, {"absorbs": []})
         hub.update({
-            "layer": int(layer) if layer is not None else None,
             "priority": int(priority) if priority is not None else None,
             "description": description, "boundary": boundary,
             "alternatives": alternatives or hub.get("alternatives") or {"oss": [], "commercial": []},

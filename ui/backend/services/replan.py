@@ -10,9 +10,10 @@ Each *pass* turns current reality (a reconcile result) into a batch of
                                        (hub splits, new hubs) — advisory only.
 
 Determination is hybrid:
-  * deterministic keyword/language rules place obvious orphans (source="rule")
-  * the configured LLM handles low-confidence cases (source="llm")
-  * with no API key it degrades gracefully to rules-only.
+  * embedding similarity against the *actual plan hubs* places clear matches
+    (source="embedding") — no hardcoded taxonomy; hubs come from the scan
+  * the configured LLM handles ambiguous cases (source="llm")
+  * with neither configured it degrades to "keep — please review".
 
 Proposals are advisory until a human accepts them (see routers/replan.py).
 """
@@ -22,74 +23,7 @@ import logging
 
 log = logging.getLogger(__name__)
 
-# --- rule signals ----------------------------------------------------------
-# Keyword → hub. Deliberately broad; scoring picks the strongest hub.
-HUB_KEYWORDS: dict[str, list[str]] = {
-    "personal-ai-os": ["ai", "llm", "rag", "agent", "chat", "memory", "gpt",
-                       "embedding", "prompt", "email", "knowledge", "assistant"],
-    "ontology-align": ["ontology", "ontolog", "rdf", "sparql", "semantic",
-                       "schema", "owl", "skos", "taxonomy", "graph", "knowledge graph"],
-    "homelab-core":   ["docker", "homelab", "infra", "deploy", "secret", "traefik",
-                       "server", "self-host", "selfhost", "kubernetes", "proxmox",
-                       "vault", "orchestrat", "compose", "gateway", "windows", "linux"],
-    "work-hub":       ["jira", "ticket", "crm", "zoho", "task", "project",
-                       "workflow", "productivity", "kanban", "issue", "sage"],
-    "media-hub":      ["video", "photo", "image", "comic", "manga", "anime",
-                       "archive", "social", "youtube", "twitter", "media", "exif",
-                       "restore", "clip", "edit", "linkedin", "simkl", "tag"],
-    "map-suite":      ["map", "osm", "gis", "geo", "tile", "spatial", "terrain",
-                       "3d", "indoor", "cesium", "leaflet", "world", "planet"],
-    "game-hub":       ["ffxiv", "pokemon", "pokedex", "zelda", "botw", "game",
-                       "dnd", "ttrpg", "foundry", "dungeon", "rpg", "diablo",
-                       "guild wars", "dalamud", "heraldry"],
-    "code-suite":     ["code", "repo", "git", "search", "cheatsheet", "parser",
-                       "scrape", "scraper", "dom", "vscode", "lint", "sql",
-                       "page", "clicker", "automation"],
-}
-
-# Weak language → hub hints (only break ties / add small weight).
-LANG_HINTS: dict[str, str] = {
-    "C#": "game-hub",
-    "Jupyter Notebook": "personal-ai-os",
-    "TypeScript": "media-hub",
-}
-
-_RULE_THRESHOLD = 0.5   # rule confidence at/above which we trust the rule
 _SPLIT_THRESHOLD = 16   # hub absorb_total at/above which we flag a split
-
-
-def _score_hub(text: str, language: str) -> list[tuple[str, float]]:
-    """Score each hub against a repo's text. Returns [(hub, confidence)] desc."""
-    text = text.lower()
-    scores: dict[str, float] = {}
-    for hub, words in HUB_KEYWORDS.items():
-        hits = sum(1 for w in words if w in text)
-        if hits:
-            # 1 hit → 0.45, 2 → 0.65, 3+ → caps near 0.9
-            scores[hub] = min(0.9, 0.25 + 0.2 * hits)
-    hinted = LANG_HINTS.get(language)
-    if hinted:
-        scores[hinted] = min(0.92, scores.get(hinted, 0.0) + 0.1)
-    return sorted(scores.items(), key=lambda kv: -kv[1])
-
-
-def _rule_proposal(repo: dict) -> dict | None:
-    """Best-effort rule verdict for one orphan. None if no signal at all."""
-    topics = " ".join(repo.get("topics") or [])
-    text = f"{repo['name']} {repo.get('aim', '')} {topics}"
-    ranked = _score_hub(text, repo.get("language", ""))
-    if not ranked:
-        return None
-    hub, conf = ranked[0]
-    runner = f"; next: {ranked[1][0]} ({ranked[1][1]:.2f})" if len(ranked) > 1 else ""
-    return {
-        "kind": "verdict",
-        "target": repo["name"],
-        "proposed": {"verdict": "absorb", "hub": hub},
-        "source": "rule",
-        "confidence": round(conf, 2),
-        "rationale": f"keyword/language match → {hub} ({conf:.2f}){runner}",
-    }
 
 
 # --- LLM determination -----------------------------------------------------
@@ -110,7 +44,7 @@ async def _llm_proposal(repo: dict, hubs: list[dict]) -> dict | None:
         return None
     try:
         hub_lines = "\n".join(
-            f"- {h['name']} (L{h['layer']}): {h['description']}"
+            f"- {h['name']}: {h['description']}"
             + (f"\n    boundary: {h['boundary']}" if h.get('boundary') else "")
             for h in hubs
         )
@@ -204,33 +138,29 @@ async def generate_proposals(recon: dict) -> tuple[str, list[dict]]:
                 "rationale": orphan["stub_reason"] + " — archive unless function-distinct",
             })
             continue
-        # Semantic match (embeddings) takes precedence over keyword rules when
-        # there's a clear winner.
-        er = emb_rank.get(orphan["name"])
-        if er and er[0][1] >= 0.28 and (er[0][1] - er[1][1]) >= 0.04:
+        # Semantic match (embeddings) against the actual plan hubs.
+        er = emb_rank.get(orphan["name"]) or []
+        # `next` margin guards against a tie; with a single hub there's no next,
+        # so the margin is the score itself (gap from nothing).
+        nxt = er[1][1] if len(er) > 1 else 0.0
+        if er and er[0][1] >= 0.28 and (er[0][1] - nxt) >= 0.04:
+            next_note = f", next {er[1][0]} {er[1][1]:.2f}" if len(er) > 1 else ""
             proposals.append({
                 "kind": "verdict", "target": orphan["name"],
                 "proposed": {"verdict": "absorb", "hub": er[0][0]},
                 "source": "embedding", "confidence": round(min(0.9, 0.5 + er[0][1]), 2),
-                "rationale": f"semantic match -> {er[0][0]} (cos {er[0][1]:.2f}, next {er[1][0]} {er[1][1]:.2f})",
+                "rationale": f"semantic match -> {er[0][0]} (cos {er[0][1]:.2f}{next_note})",
             })
-            continue
-        rule = _rule_proposal(orphan)
-        if rule and rule["confidence"] >= _RULE_THRESHOLD:
-            proposals.append(rule)
             continue
         llm = await _llm_proposal(orphan, hubs)
         if llm:
             proposals.append(llm)
-        elif rule:                      # low-confidence rule, no LLM → still surface
-            rule["rationale"] = "low-confidence " + rule["rationale"]
-            proposals.append(rule)
-        else:                           # no signal at all
+        else:                           # no embedding/LLM signal
             proposals.append({
                 "kind": "verdict", "target": orphan["name"],
                 "proposed": {"verdict": "keep", "hub": None},
                 "source": "rule", "confidence": 0.1,
-                "rationale": "no keyword/LLM signal — defaulting to keep, please review",
+                "rationale": "no embedding/LLM signal — defaulting to keep, please review",
             })
 
     # --- always: prune ghosts that were once live but are now deleted ---
@@ -254,15 +184,6 @@ async def generate_proposals(recon: dict) -> tuple[str, list[dict]]:
                     "proposed": {"absorb_total": h["absorb_total"]},
                     "source": "rule", "confidence": 0.5,
                     "rationale": f"{h['name']} absorbs {h['absorb_total']} repos — consider splitting (advisory)",
-                })
-        covered = {h["layer"] for h in hubs}
-        for layer in recon["layers"]:
-            if layer["num"] not in covered and not layer["hubs"]:
-                proposals.append({
-                    "kind": "new-hub", "target": f"L{layer['num']} {layer['name']}",
-                    "proposed": {"layer": layer["num"]},
-                    "source": "rule", "confidence": 0.3,
-                    "rationale": f"layer {layer['num']} ({layer['name']}) has no hub — create one? (advisory)",
                 })
 
     return phase, proposals

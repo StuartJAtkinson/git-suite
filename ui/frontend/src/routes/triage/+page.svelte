@@ -8,7 +8,7 @@
   // verdict. This page is an inbox you process fast — keyboard-first.
 
   let data = null;          // full reconcile result
-  let hubs = [];            // [{name, layer, ...}] ordered by layer
+  let hubs = [];            // [{name, ...}] in emergent order (from reconcile)
   let loading = true;
   let errorMsg = '';
   let busy = '';            // repo currently being written
@@ -36,7 +36,7 @@
     errorMsg = '';
     try {
       data = await api.reconcile($session.session_id);
-      hubs = [...data.hubs].sort((a, b) => a.layer - b.layer);
+      hubs = data.hubs;     // reconcile already returns emergent order
     } catch (e) {
       errorMsg = e.message;
     } finally {

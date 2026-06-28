@@ -47,9 +47,10 @@ Health: `http://localhost:2800/health`. API docs: `/docs`.
 
 ## Core design principles
 
-1. **Plan as data** — the canonical plan lives in `~/.git-suite/plan.json`
-   (seeded from `plan.py`), edited via the API. One source of truth for hubs,
-   absorbs, archives, keeps, boundaries.
+1. **Plan as data, no seed** — the canonical plan lives in `~/.git-suite/plan.json`
+   and starts empty; nothing is ever assumed to be a hub. Hubs emerge only from
+   the actual GitHub scan (clustering → promote/create) and are edited via the
+   API. One source of truth for hubs, absorbs, archives, keeps, boundaries.
 2. **Reconciliation engine** — every screen answers "where does reality
    (live GitHub) disagree with the plan, and what's the next action?"
 3. **Decision-first** — the atomic unit is one repo needing a verdict.
@@ -135,8 +136,7 @@ Health: `http://localhost:2800/health`. API docs: `/docs`.
 ## Backend layout (`ui/backend`)
 
 ```
-plan.py            seed defaults (hubs, absorbs, archives, keeps, boundaries)
-plan_store.py      canonical plan.json: load/heal/seed, verdicts, blank/reset
+plan_store.py      canonical plan.json: load/heal (empty default), verdicts, blank/reset
 database.py        aiosqlite schema + column migrations
 llm_providers.py   provider registry (api_type, base_url, exhaust patterns)
 services/

@@ -90,7 +90,6 @@ async def hub_migration(hub: str, session_id: str):
         })
     return {
         "hub": hub,
-        "layer": meta.get("layer"),
         "description": meta.get("description", ""),
         "absorbs": items,
     }

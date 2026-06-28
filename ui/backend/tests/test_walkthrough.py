@@ -87,7 +87,7 @@ def test_full_nav_walkthrough(temp_db, isolated_plan):
 
         # Hubs (list + per-hub status)
         hubs = c.get("/api/hubs").json()
-        for f in ("name", "layer", "priority", "description", "boundary",
+        for f in ("name", "priority", "description", "boundary",
                   "absorbs", "alternatives"):
             assert f in hubs[0], f"hub response missing {f!r}"
 
