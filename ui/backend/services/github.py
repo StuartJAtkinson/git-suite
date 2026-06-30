@@ -11,6 +11,11 @@ class GitHubAuthError(Exception):
     """A genuine 401/403 (bad token or missing scope) — NOT throttling."""
 
 
+class GitHubRateLimitError(Exception):
+    """The token is valid but GitHub is throttling right now (primary or
+    secondary rate limit) — wait and retry, do NOT report as 'invalid token'."""
+
+
 def _headers(token: str) -> dict:
     return {
         "Authorization": f"Bearer {token}",
@@ -102,11 +107,19 @@ async def gh_get(client: httpx.AsyncClient, url: str, token: str,
 
 
 async def validate_token(token: str) -> dict:
-    """Return user dict from /user or raise httpx.HTTPStatusError."""
+    """Return the /user dict. Distinguishes a real auth failure (401, or 403
+    with no rate-limit signal) from GitHub throttling (raises
+    GitHubRateLimitError) — so a rate limit never masquerades as 'invalid token'."""
     async with httpx.AsyncClient() as client:
         r = await client.get(f"{GH_API}/user", headers=_headers(token))
-        r.raise_for_status()
-        return r.json()
+    if r.status_code in (403, 429) and _rate_limit_wait(r) is not None:
+        raise GitHubRateLimitError(
+            "GitHub is rate-limiting this token right now — wait a few minutes "
+            "and try again. The token itself is fine.")
+    if r.status_code == 401:
+        raise GitHubAuthError("Invalid or expired GitHub token.")
+    r.raise_for_status()
+    return r.json()
 
 
 async def list_repos(token: str, username: str | None = None) -> AsyncIterator[dict]:

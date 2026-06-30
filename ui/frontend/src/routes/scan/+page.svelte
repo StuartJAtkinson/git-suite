@@ -24,6 +24,7 @@
   let pullErrors = [];     // per-phase failures, surfaced (no silent swallow)
   let enrichStatus = '';   // '' | 'running' | 'done'
   let enrichMsg = '';
+  let accessStatus = '';   // '' | 'checking' | 'done'  (opt-in heads check)
   let errorMsg = '';
   let ws;
 
@@ -55,18 +56,27 @@
   }
 
   async function refreshMeta() {
+    // Cheap, DB-only. NO per-repo GitHub calls here — `heads` is opt-in below.
     try {
-      const [h, rec] = await Promise.all([
-        api.heads($session.session_id).catch(() => ({ heads: [] })),
-        api.distillRecords($session.session_id).catch(() => ({})),
-      ]);
+      records = (await api.distillRecords($session.session_id).catch(() => ({}))) || {};
+    } catch (e) { /* non-fatal */ }
+  }
+
+  // Opt-in: one live GitHub GET per repo AND per star (parent/upstream status,
+  // README URL, 403/404 flags). Heavy — kept off the automatic pull so a pull
+  // costs ~10 API calls, not ~700. Run it explicitly when you want the
+  // "Need attention" panel + README links.
+  async function checkAccess() {
+    accessStatus = 'checking';
+    try {
+      const h = await api.heads($session.session_id);
       headsMap = {}; warnings = [];
       for (const row of h.heads || []) {
         headsMap[row.full_name] = row;
-        if (row.issue || row.status && row.status >= 400) warnings = [...warnings, row];
+        if (row.issue || (row.status && row.status >= 400)) warnings = [...warnings, row];
       }
-      records = rec || {};
-    } catch (e) { /* non-fatal */ }
+    } catch (e) { errorMsg = e.message; }
+    finally { accessStatus = 'done'; }
   }
 
   // The GitHub pull: repos (streamed) -> forks -> stars.
@@ -176,6 +186,10 @@
     <button on:click={startPull} class="secondary">⤓ Re-pull</button>
     <button on:click={enrich} class="primary" disabled={enrichStatus === 'running'}>
       {enrichStatus === 'running' ? 'Enriching…' : '✨ Enrich'}
+    </button>
+    <button on:click={checkAccess} class="secondary" disabled={accessStatus === 'checking'}
+            title="One GitHub request per repo + star — heavier, use sparingly">
+      {accessStatus === 'checking' ? 'Checking…' : '🔎 Check access'}
     </button>
     <a href="/cluster"><button class="success">Next: Cluster →</button></a>
   </div>

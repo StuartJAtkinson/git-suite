@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from database import get_db
-from services.github import validate_token
+from services.github import validate_token, GitHubRateLimitError
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -89,6 +89,9 @@ async def get_gh_token():
 async def login(body: LoginRequest):
     try:
         user = await validate_token(body.token)
+    except GitHubRateLimitError as exc:
+        log.warning("login: rate-limited (token is valid): %s", exc)
+        raise HTTPException(status_code=429, detail=str(exc))
     except Exception as exc:
         log.warning("login failed: %s", exc)
         raise HTTPException(status_code=401, detail="Invalid GitHub token")
