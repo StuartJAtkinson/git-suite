@@ -62,12 +62,6 @@ export const api = {
   clearPlan: () => req('POST', '/api/plan/clear'),
   upsertHub: (hub) => req('POST', '/api/plan/hub', hub),
   removeHub: (name) => req('DELETE', `/api/plan/hub/${name}`),
-  pruneGhosts: (session_id) => req('POST', `/api/replan/prune-ghosts/${session_id}`),
-  setHubBoundary: (hub, boundary) =>
-    req('POST', '/api/plan/hub-boundary', { hub, boundary }),
-
-  // Overlap (hub venn / boundaries)
-  getOverlap: (session_id) => req('GET', `/api/overlap/${session_id}`),
 
   // Stars (dedup: owned + starred in one framework)
   refreshStars: (session_id) => req('POST', `/api/stars/refresh/${session_id}`),
@@ -131,14 +125,6 @@ export const api = {
     req('POST', `/api/migration/checklist/${session_id}`, { hub, repo, regenerate }),
   pushMigration: (session_id, hub) =>
     req('POST', `/api/migration/push/${session_id}`, { hub }),
-
-  // Replan loop
-  replanState: (session_id) => req('GET', `/api/replan/state/${session_id}`),
-  runReplanPass: (session_id) => req('POST', `/api/replan/pass/${session_id}`),
-  getProposals: () => req('GET', '/api/replan/proposals'),
-  acceptProposal: (id) => req('POST', `/api/replan/proposal/${id}/accept`),
-  rejectProposal: (id) => req('POST', `/api/replan/proposal/${id}/reject`),
-  replanHistory: () => req('GET', '/api/replan/history'),
 };
 
 export function scanWs(scan_id, onRepo, onDone, onError) {

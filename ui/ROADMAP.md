@@ -4,9 +4,9 @@ A guided cockpit for consolidating a sprawling GitHub portfolio into a small set
 of hub platforms. It treats the plan as **data**, continuously **reconciles**
 intent against live GitHub, and turns decisions into real, idempotent actions.
 
-> Status: the staged plan (Setup → Scan → Cluster → Own → Order → Overlap →
-> Replan → Triage → Execute → Hubs → Summary) is built and well past its
-> original scope. This doc describes what actually exists.
+> Status: the staged plan (Setup → Scan → Cluster → Own → Order → Triage →
+> Execute → Summary) is built and well past its original scope. This doc
+> describes what actually exists.
 
 ---
 
@@ -62,7 +62,7 @@ Health: `http://localhost:2800/health`. API docs: `/docs`.
    checkouts carry no meaning and are never read; there is no local path
    configuration.
 6. **No repo is assumed a hub.** Hub membership is *derived* through the plan
-   (cluster → triage → replan → overlap), not inferred from a name or
+   (cluster → own → triage), not inferred from a name or
    an existing checkout.
 7. **Hybrid intelligence with failover** — deterministic rules for the obvious,
    LLM for the ambiguous, across a multi-provider failover chain; degrades to
@@ -111,15 +111,10 @@ Steps 3 and 5–8 are the unbuilt half; they're tracked as Open items in
 ## The loop
 
 ```
-        Start fresh (blank plan)
-                 │
-   Scan ──► Reconcile ──► Cluster ──► Triage / Replan ──► Execute
-   (live    (intent vs    (group     (give each repo      (archive /
-    repos,   reality:      orphans    a verdict;          create hub /
-    enriched orphans,      into       replan proposes      push README/
-    fields)  ghosts,       hubs)      changes)            MIGRATION.md)
-             stubs,                                │
-             overlap)         ◄─────── repeat ─────┘
+   Pull ──► Reconcile ──► Cluster ──► Own ──► Order ──► Triage ──► Execute
+    │        (intent vs reality:                                      (archive /
+    │         orphans, ghosts, stubs)                                  create hub /
+    └──────────────────────── repeat ──────────────────────────────── push docs)
 ```
 
 ---
@@ -133,12 +128,9 @@ Steps 3 and 5–8 are the unbuilt half; they're tracked as Open items in
 | **Cluster** | Assisted group formation — embeds **owned + forks + stars in one space** (mixed-source, default) or owned-only (legacy), groups them with spherical k-means (# clusters slider), suggests a theme, user names a new hub / promotes a member / adds to existing; per-member `[O]/[F]/[S]` prefix symbols show source at a glance. Stars double as a dedup signal (a starred project that already covers an owned repo) |
 | **Own** | Step 3 — owned forks with upstream status (parent, private-upstream flag), current verdict + cluster; per-fork decide promote (→ keep / absorb into a hub) or drop (→ archive), and generate a git detach checklist (GitHub has no de-fork API, so the move is yours to run) |
 | **Order** | Per-hub Tree-of-Knowledge layout — one ordered list of a hub's members (foundational first, presentation last); three classification checkboxes (Gather / Analyse / Display) act as filters; per-row arrow reordering + per-row and per-hub LLM Suggest; per-hub compat-tag vocabulary override |
-| **Overlap** | Hub×hub overlap matrix (semantic when embeddings configured, keyword fallback), boundary-case repos, editable hub boundaries |
-| **Replan** | Two-phase proposal loop (incremental → structural); accept/reject proposals; prune ghosts; blank/reset plan; history |
 | **Triage** | Keyboard-fast verdict queue (1–N absorb, a/k/o/s); stub badges |
 | **Execute** | Dry-run preview diffed against live GitHub, then idempotent batch actions: archive repos, create missing hubs, push composed hub READMEs (which include the ToK ordering subsection) + per-absorb migration checklists / MIGRATION.md; hub lifecycle (archive / return / delete) |
-| **Hubs** | Hub Audit — orphan repos plus each hub's members, ordered by hub size |
-| **Summary** | Reconciliation dashboard: live / absorbed / archived / undecided / ghost / stub counts, per-hub progress, next-action list |
+| **Summary** | Reconciliation dashboard: live / absorbed / archived / undecided / ghost / stub counts, per-hub progress, **hub members + orphan repos** (the former Hub Audit, merged in), next-action list |
 
 ---
 
@@ -149,11 +141,9 @@ Steps 3 and 5–8 are the unbuilt half; they're tracked as Open items in
 - **Ghost** — a planned repo no longer on GitHub. Treated as a conscious
   deletion: prune it from the plan.
 - **Stub** — a low-signal repo (tiny, no description/stars/topics). Flagged as
-  a drop candidate; replan proposes archiving it unless it's function-distinct.
+  a drop candidate — archive it unless it's function-distinct.
 - **Boundary** — each hub's scope rule (what's in, what's delegated elsewhere),
-  fed to the LLM so it assigns repos correctly and flags cross-boundary cases.
-- **Two-phase replan** — *incremental* (fill orphans / prune ghosts) until
-  nothing is undecided, then *replan* (structural: splits, new hubs).
+  stored per hub and fed to the LLM so it assigns repos correctly.
 - **Tree-of-Knowledge ordering** — per-hub ontological layout. Each
   hub's absorbs are arranged in a single global rank from foundational
   (what reality is — Gather) through transformation (Analyse) to
@@ -179,37 +169,34 @@ services/
   llm.py           async failover chain (complete)
   embeddings.py    async failover chain + DB cache (cosine)
   github.py        REST: list/archive/unarchive/delete/create, files, readme
-  replan.py        proposal engine (rules + LLM + embedding, two-phase)
-  migration.py     checklist + scaffold + MIGRATION.md
+  distill.py       per-repo LLM record: purpose / entities / domain (cached)
   cluster.py       spherical k-means over embeddings (# clusters) + theme suggest
-  stars.py         owned-vs-starred dedup + per-hub suggestions (semantic / keyword)
+  migration.py     absorb checklist + scaffold + MIGRATION.md
+  promote.py       fork detach checklist (Step 3 "Own")
+  stars.py         starred-repo snapshot (refresh / list)
   models.py        live model listing per provider dialect (no static lists)
-  overlap.py       boundary cases + hub×hub matrix (semantic / keyword)
-  claude_ai.py     commercial feature extraction (via llm)
-  scraper.py       URL scrape (crawl4ai or httpx+bs4)
+  columns.py       Order-page column names + default compat tags
 routers/
   auth            login, gh-token, session
-  scan            start + WebSocket stream + results + latest
-  cluster         propose clusters (mixed: owned+fork+star) / form hub / refresh forks
-  stars           refresh starred snapshot / list / dedup vs scan + hubs
+  scan            start + WebSocket stream + results + latest + distill
+  cluster         propose (saved_only or explicit recompute) / form hub / refresh forks
+  promote         list forks / decide promote|drop / detach checklist
+  stars           refresh starred snapshot / list
   order           per-hub ToK layout: get/save/suggest-order/suggest-column/
                   compat-tags/annotate
-  hubs            list / status / per-repo archive+absorb
-  commercial      scrape + list + delete commercial refs
-  readme          preview + push composed hub README
+  hubs            list hubs / mark absorbed
+  readme          compose + push hub README helpers (no routes; used by execute)
   config          get/post config + provider registry + llm-status + live
                   model listing (POST /config/models/{provider})
   reconcile       intent vs reality (single source for every screen)
   plan            get / reset / blank / clear / hub upsert+remove / verdict / hub-boundary
-  replan          state / pass / proposals / accept / reject / prune-ghosts / history
   execute         preview / archive / create-hubs / push-readmes / archive-hubs / unarchive-hubs / delete-hubs
   migration       hub status / checklist (LLM or rule) / push MIGRATION.md
-  overlap         hub×hub matrix + boundary cases (semantic / keyword)
 ```
 
 State: `~/.git-suite/plan.json` (plan), `~/.git-suite/config.json` (keys),
-`ui/backend/state.db` (sessions, scans, starred snapshot, actions, proposals,
-history, checklists, embeddings cache).
+`ui/backend/state.db` (sessions, scans, forks, starred snapshot, repo_domain,
+hub_actions, hub_order, migration checklists, embeddings cache, cluster_result).
 
 ---
 

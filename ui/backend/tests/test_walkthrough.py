@@ -5,7 +5,7 @@ TestClient, seeds one minimal session+scan, and:
 
   1. For routes that don't fetch GitHub, asserts a 200 with the JSON shape
      the frontend renders against.
-  2. For routes that DO reach GitHub (reconcile/replan/overlap/execute),
+  2. For routes that DO reach GitHub (reconcile/execute),
      proves the route is wired into the app via url_path_for (so a frontend
      call wouldn't 404 on routing) — their bodies are covered by their own
      focused tests.
@@ -29,9 +29,7 @@ NAV_ROUTES = [
     ("scan",        "latest_scan",             {"session_id": "s1"}),  # /api/scan/latest/{session_id}
     ("hubs",        "list_hubs",               None),         # /api/hubs
     ("plan",        "get_plan",                None),         # /api/plan
-    ("replan",      "state",                   {"session_id": "s1"}),  # network -> assert route only
     ("reconcile",   "reconcile",               {"session_id": "s1"}),  # network -> assert route only
-    ("overlap",     "overlap",                 {"session_id": "s1"}),  # network -> assert route only
     ("execute",     "preview",                 {"session_id": "s1"}),  # network -> assert route only
     ("stars",       "get_stars",               None),         # /api/stars
     ("migration",   "hub_migration",           {"hub": "personal-ai-os", "session_id": "s1"}),

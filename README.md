@@ -60,12 +60,9 @@ writes back to `plan.json`; nothing reaches GitHub until **Execute**.
 | **Cluster** | Embeds **owned repos + forks + stars in one space** and groups them with spherical k-means (# clusters slider); suggests a theme so you can promote a member into a hub or form a new one. Stars double as a dedup signal — a starred project that already covers an owned repo. |
 | **Own** | Step 3 — review owned forks (parent/upstream status), decide promote (→ keep / absorb into a hub) or drop (→ archive), and generate a git detach checklist. GitHub has no de-fork API, so the actual move is yours to run. |
 | **Order** | Per-hub Tree-of-Knowledge layout — arranges a hub's members from foundational (Gather) through Analyse to Display; per-row reorder + LLM Suggest; feeds the hub README's ordering section. |
-| **Overlap** | Semantic venn — scores repos against hub profiles to surface boundary cases and a hub×hub overlap matrix; edit per-hub boundaries here. |
-| **Replan** | Iterative two-phase loop: *incremental* (fill orphans / prune ghosts) until fully planned, then *structural* (split / new-hub advisories). Proposes verdicts you accept or reject. |
 | **Triage** | Keyboard-fast verdict queue over remaining repos (absorb / keep / archive / orphan). |
 | **Execute** | Dry-run preview diffed against **live** GitHub state, then idempotent batch actions: archive repos, create missing hubs, push composed hub READMEs + MIGRATION.md. |
-| **Hubs** | Hub Audit — orphan repos plus each hub's members, ordered by hub size. |
-| **Summary** | Reconciliation dashboard: live / absorbed / archived / undecided / ghost counts, per-hub progress, and the next-action list. |
+| **Summary** | Reconciliation dashboard: live / absorbed / archived / undecided / ghost counts, per-hub progress, hub members + orphan repos (the former Hub Audit), and the next-action list. |
 
 ---
 

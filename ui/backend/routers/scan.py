@@ -1,5 +1,4 @@
 import asyncio
-import hashlib
 import json
 import logging
 import uuid
@@ -339,78 +338,3 @@ async def distill_records(session_id: str):
     return out
 
 
-@router.post("/scan/distill/revalidate/{session_id}")
-async def revalidate(session_id: str):
-    """Second pass: re-ask the LLM whether each repo's purpose still fits the
-    cluster it landed in. Reads the saved clustering from cluster_result,
-    caches the verdicts in repo_verdict keyed by cluster_hash, returns the new
-    counts so the UI can show drift badges."""
-    await require_session(session_id)
-    repos = await _repos_for_distill(session_id)
-
-    cluster_map, cluster_hash = await _load_cluster_map(session_id)
-    if not cluster_map:
-        return {"verdicts": {}, "counts": {"fit": 0, "drift": 0,
-                "mis-clustered": 0, "skipped": len(repos)},
-                "cluster_hash": "", "stop_reason": "no clustering yet"}
-
-    verdicts = await distill_svc.revalidate(repos, cluster_map, stop_on_error=True)
-    # Persist (capped to repos that actually have a cluster assignment)
-    cap = {k: v for k, v in verdicts.items() if k in cluster_map}
-    async for db in get_db():
-        await db.executemany(
-            "INSERT OR REPLACE INTO repo_verdict (repo, cluster_hash, verdict, reason) "
-            "VALUES (?, ?, ?, ?)",
-            [(k, cluster_hash, v, "") for k, v in cap.items()],
-        )
-        await db.commit()
-    return {"verdicts": verdicts, "cluster_hash": cluster_hash,
-            "counts": _tally(verdicts, cluster_map)}
-
-
-async def _load_cluster_map(session_id: str) -> tuple[dict[str, str], str]:
-    """Return ({repo_name: cluster_label}, hash_of_result_json) from the saved
-    cluster_result. Hash is what the verdict cache is keyed on."""
-    async for db in get_db():
-        rows = await db.execute_fetchall(
-            "SELECT result FROM cluster_result WHERE session_id = ?",
-            (session_id,))
-    if not rows:
-        return {}, ""
-    raw = rows[0]["result"]
-    try:
-        payload = json.loads(raw)
-    except Exception:
-        return {}, ""
-    out: dict[str, str] = {}
-    for cl in payload.get("clusters", []):
-        for m in cl.get("members", []):
-            out[m.get("repo") or ""] = cl.get("suggested_name", "")
-    return out, hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
-
-
-def _tally(verdicts: dict[str, str], cluster_map: dict[str, str]) -> dict[str, int]:
-    counts = {"fit": 0, "drift": 0, "mis-clustered": 0, "skipped": 0}
-    for k in cluster_map:
-        v = verdicts.get(k, "")
-        if v in counts:
-            counts[v] += 1
-        else:
-            counts["skipped"] += 1
-    return counts
-
-
-@router.get("/scan/distill/verdicts/{session_id}")
-async def verdicts_for(session_id: str):
-    """Return cached verdicts for the CURRENT cluster hash, plus the hash so
-    the UI can tell when it's stale (clustering was re-run, verdicts gone)."""
-    await require_session(session_id)
-    cluster_map, cluster_hash = await _load_cluster_map(session_id)
-    if not cluster_hash:
-        return {"cluster_hash": "", "verdicts": {}}
-    async for db in get_db():
-        rows = await db.execute_fetchall(
-            "SELECT repo, verdict FROM repo_verdict WHERE cluster_hash = ?",
-            (cluster_hash,))
-    return {"cluster_hash": cluster_hash,
-            "verdicts": {r["repo"]: r["verdict"] for r in rows}}

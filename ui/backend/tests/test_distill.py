@@ -1,4 +1,4 @@
-"""distill: structured-record prompt, caching, credit-exhaust stop, revalidate."""
+"""distill: structured-record prompt, caching, credit-exhaust stop."""
 import asyncio
 import json
 
@@ -54,21 +54,3 @@ def test_credit_exhaustion_stops_the_loop(temp_db, monkeypatch):
     # All repos fall back to raw text (empty purpose/entities), but no panic.
     for k in out:
         assert isinstance(out[k], dict)
-
-
-def test_revalidate_returns_verdict_per_repo(temp_db, monkeypatch):
-    _llm_json(monkeypatch, {"verdict": "drift",
-                            "reason": "Same domain, different angle."})
-    repos = [{"name": "a", "description": "x", "topics": []},
-             {"name": "b", "description": "y", "topics": []}]
-    out = asyncio.run(distill.revalidate(repos, {"a": "maps", "b": "audio"}))
-    assert out == {"a": "drift", "b": "drift"}
-
-
-def test_revalidate_empty_when_llm_returns_nonsense(temp_db, monkeypatch):
-    async def fake(prompt, system="", max_tokens=80):
-        return "I cannot answer."
-    monkeypatch.setattr(llm, "complete", fake)
-    repos = [{"name": "a", "description": "x", "topics": []}]
-    out = asyncio.run(distill.revalidate(repos, {"a": "x"}))
-    assert out == {"a": ""}

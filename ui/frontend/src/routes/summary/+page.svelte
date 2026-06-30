@@ -116,6 +116,48 @@
 </div>
 
 <div class="section">
+  <div class="section-head"><h2>Hub members</h2></div>
+  {#if hubs.length === 0}
+    <p class="empty">No hubs yet — form them on the Cluster step.</p>
+  {:else}
+    <div class="members-grid">
+      {#each hubs as hub}
+        <div class="member-col">
+          <div class="member-head">
+            <span class="hub-name">{hub.name}</span>
+            <span class="member-count">{hub.repos?.length ?? 0} repos</span>
+          </div>
+          <div class="member-repos">
+            {#if (hub.repos?.length ?? 0) === 0}
+              <span class="empty-small">—</span>
+            {:else}
+              {#each hub.repos as name}<span class="repo-chip">{name}</span>{/each}
+            {/if}
+          </div>
+        </div>
+      {/each}
+    </div>
+  {/if}
+</div>
+
+<div class="section">
+  <div class="section-head"><h2>Orphan repos ({orphans.length})</h2></div>
+  {#if orphans.length === 0}
+    <p class="empty">No orphans — every repo has a verdict.</p>
+  {:else}
+    <div class="orphan-list">
+      {#each orphans as r}
+        <div class="orphan-row">
+          <span class="repo-chip">{r.name}</span>
+          {#if r.language}<span class="lang-tag">{r.language}</span>{/if}
+          <span class="orphan-desc">{r.aim || '(no description)'}</span>
+        </div>
+      {/each}
+    </div>
+  {/if}
+</div>
+
+<div class="section">
   <div class="section-head"><h2>Recommended next actions</h2></div>
   <div class="actions-list">
     {#if cycleDone}
@@ -198,4 +240,16 @@
 .actions-list { display: flex; flex-direction: column; gap: 0.6rem; }
 .action-item { display: flex; align-items: center; gap: 0.75rem; font-size: 0.875rem; }
 .action-num { width: 24px; height: 24px; background: #e5e7eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600; color: #374151; flex-shrink: 0; }
+.members-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+.member-col { background: #fff; border: 1px solid #dde1e9; border-radius: 10px; overflow: hidden; }
+.member-head { background: #1a1a2e; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+.member-head .hub-name { color: #fff; }
+.member-count { margin-left: auto; font-size: 0.68rem; font-family: monospace; color: #9fb3d8; }
+.member-repos { padding: 0.6rem; display: flex; flex-direction: column; gap: 0.25rem; min-height: 50px; }
+.repo-chip { font-size: 0.75rem; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; padding: 0.2rem 0.5rem; font-family: monospace; }
+.orphan-list { display: flex; flex-direction: column; gap: 0.25rem; }
+.orphan-row { display: flex; gap: 0.6rem; align-items: baseline; padding: 0.25rem 0; }
+.lang-tag { font-size: 0.72rem; background: #eff6ff; color: #1e40af; border-radius: 4px; padding: 0.1em 0.4em; }
+.orphan-desc { font-size: 0.78rem; color: #6b7280; }
+.empty, .empty-small { color: #9ca3af; font-size: 0.85rem; }
 </style>

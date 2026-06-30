@@ -61,13 +61,6 @@ _SYS = (
     + "If the inputs are insufficient, answer with empty strings / empty list."
 )
 
-# system prompt for the revalidate (cluster-fit) pass — same for every repo.
-_SYS_RV = (
-    "You judge whether a repo's purpose still belongs in the cluster it was "
-    "assigned. Answer STRICT JSON: {\"verdict\":\"fit|drift|mis-clustered\","
-    "\"reason\":\"<≤15 words>\"}. Empty/unknown → empty verdict."
-)
-
 
 # ── source composition + change detection ───────────────────────────────────
 def _src(repo: dict) -> str:
@@ -205,46 +198,3 @@ async def records(repos: list[dict], stop_on_error: bool = True,
     return out, stop_reason
 
 
-async def revalidate(repos: list[dict], clusters: dict[str, str],
-                     stop_on_error: bool = True) -> dict[str, str]:
-    """Second pass. Re-asks the LLM with the cluster context and returns a
-    verdict per repo: 'fit', 'drift', or 'mis-clustered' (empty when unknown)."""
-    srcs = {_key(r): _src(r) for r in repos}
-    out: dict[str, str] = {}
-
-    sem = asyncio.Semaphore(6)
-    stop_reason = ""
-
-    async def one(k: str) -> tuple[str, str]:
-        nonlocal stop_reason
-        cluster = clusters.get(k, "")
-        prompt = (
-            f"{srcs[k]}\n\n"
-            f"CLUSTER_LABEL: {cluster}\n"
-            "Does this repo's purpose fit that cluster, drift (same domain but "
-            "different angle), or is it mis-clustered?"
-        )
-        async with sem:
-            if stop_reason and stop_on_error:
-                return k, ""
-            try:
-                raw = (await llm.complete(prompt, system=_SYS_RV,
-                                          max_tokens=80)).strip()
-            except Exception as exc:
-                msg = str(exc).lower()
-                if any(w in msg for w in ("credit", "quota", "billing", "402",
-                                          "rate limit", "429")):
-                    stop_reason = f"LLM: {str(exc)[:120]}"
-                elif stop_on_error:
-                    stop_reason = f"LLM: {str(exc)[:120]}"
-                return k, ""
-            m = re.search(r"\{.*\}", raw, re.DOTALL)
-            try:
-                v = json.loads(m.group(0) if m else raw)
-            except Exception:
-                return k, ""
-            return k, str(v.get("verdict", "")).strip() or ""
-    out_list = await asyncio.gather(*[one(k) for k in srcs])
-    for k, v in out_list:
-        out[k] = v
-    return out

@@ -49,30 +49,6 @@ async def init_db() -> None:
                 PRIMARY KEY (hub, repo)
             );
 
-            -- One iteration of the re-planning loop.
-            CREATE TABLE IF NOT EXISTS replan_pass (
-                id          TEXT PRIMARY KEY,
-                session_id  TEXT NOT NULL,
-                phase       TEXT NOT NULL,   -- 'incremental' | 'replan'
-                n_proposals INTEGER DEFAULT 0,
-                created_at  TEXT DEFAULT (datetime('now'))
-            );
-
-            -- A single proposed plan change awaiting human review.
-            CREATE TABLE IF NOT EXISTS proposal (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                pass_id      TEXT NOT NULL,
-                kind         TEXT NOT NULL,   -- verdict|reassign|ghost-prune|split|new-hub
-                target       TEXT NOT NULL,   -- repo name (or hub for structural)
-                proposed     TEXT NOT NULL,   -- JSON: {verdict, hub, ...}
-                source       TEXT NOT NULL,   -- 'rule' | 'llm'
-                confidence   REAL DEFAULT 0,
-                rationale    TEXT,
-                status       TEXT DEFAULT 'pending',  -- pending|accepted|rejected
-                created_at   TEXT DEFAULT (datetime('now')),
-                decided_at   TEXT
-            );
-
             -- Generated migration checklists (one per repo→hub), cached.
             CREATE TABLE IF NOT EXISTS migration_checklist (
                 hub        TEXT NOT NULL,
@@ -113,19 +89,6 @@ async def init_db() -> None:
                 record     TEXT,               -- JSON: {purpose, entities[], domain}
                 src_hash   TEXT NOT NULL,      -- sha256 of source text
                 created_at TEXT DEFAULT (datetime('now'))
-            );
-
-            -- Per-repo cluster-fit verdict from the revalidate LLM pass.
-            -- `cluster_hash` ties the verdict to the cluster snapshot it was
-            -- judged against; saved verdicts stay valid until the clustering
-            -- (or the repo's purpose) changes.
-            CREATE TABLE IF NOT EXISTS repo_verdict (
-                repo         TEXT NOT NULL,
-                cluster_hash TEXT NOT NULL,
-                verdict      TEXT,             -- 'fit' | 'drift' | 'mis-clustered' | ''
-                reason       TEXT,
-                created_at   TEXT DEFAULT (datetime('now')),
-                PRIMARY KEY (repo, cluster_hash)
             );
 
             -- Last computed clustering per session (the full propose() payload
@@ -197,16 +160,6 @@ async def init_db() -> None:
                 updated_at TEXT DEFAULT (datetime('now'))
             );
 
-            -- Append-only log of applied plan changes (how the plan evolved).
-            CREATE TABLE IF NOT EXISTS plan_history (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                target      TEXT NOT NULL,
-                kind        TEXT NOT NULL,
-                change      TEXT NOT NULL,   -- JSON: {from, to}
-                source      TEXT,            -- 'rule' | 'llm' | 'manual'
-                rationale   TEXT,
-                created_at  TEXT DEFAULT (datetime('now'))
-            );
         """)
         await _migrate(db)
         await db.commit()
