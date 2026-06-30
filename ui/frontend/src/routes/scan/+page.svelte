@@ -5,12 +5,10 @@
   import { api, scanWs } from '$lib/api';
   import { SOURCE_GLYPH } from '$lib/columns';
 
-  // Two actions only:
-  //   A) Scan / Re-scan  — pull owned repos + forks + stars (no token spend).
-  //   B) Enrich          — the LLM pass: Purpose / Domain / Entities (distill)
-  //                        + Fit (revalidate against the saved clustering).
-  // Cluster and Hub are NOT computed here — they are backfilled from the
-  // Cluster step's saved result and the plan. This page only displays them.
+  // One GitHub pull, three phases shown as they happen: your repos, your forks,
+  // your stars. Then ✨ Enrich runs the LLM pass (Fit / Purpose / Domain /
+  // Entities). Nothing here clusters — Cluster and Hub columns are read-only,
+  // backfilled from later steps.
 
   let owned = [];          // owned repos (own forks via is_fork)
   let stars = [];          // starred repos
@@ -23,9 +21,13 @@
   let verdictClusterHash = '';
   let verdictCounts = { fit: 0, drift: 0, 'mis-clustered': 0, skipped: 0 };
 
-  let status = 'idle';     // idle | scanning | snapshotting | done | error
+  let status = 'idle';     // idle | pulling | done | error
+  let phase = '';          // 'repos' | 'forks' | 'stars'
+  let forkCount = 0;
+  let starCount = 0;
+  let pullErrors = [];     // per-phase failures, surfaced (no silent swallow)
   let enrichStatus = '';   // '' | 'running' | 'done'
-  let enrichMsg = '';      // human-readable progress / stop reason
+  let enrichMsg = '';
   let errorMsg = '';
   let ws;
 
@@ -41,16 +43,16 @@
       if (!scan?.repos?.length) return;
       owned = scan.repos;
       stars = s.stars || [];
-      await loadClusters();   // backfill Cluster/Hub from the Cluster step
-      refreshMeta();          // heads + records + fit, in the background
+      starCount = stars.length;
+      await loadBackfill();
+      refreshMeta();
       status = 'done';
     } catch (e) { /* stay idle */ }
   }
 
-  async function loadClusters() {
-    // Backfill only — never recompute. The Cluster step owns clustering and
-    // hub formation; here we just read its saved result (Cluster column) and
-    // the live plan (Hub column), so both reflect what Cluster produced.
+  async function loadBackfill() {
+    // Read-only: saved clustering (Cluster column) + live plan hub (Hub column).
+    // saved_only never triggers a clustering compute.
     const [c, recon] = await Promise.all([
       api.getClusters($session.session_id, { savedOnly: true }).catch(() => ({ available: false })),
       api.reconcile($session.session_id).catch(() => ({ repos: [] })),
@@ -74,9 +76,7 @@
       headsMap = {}; warnings = [];
       for (const row of h.heads || []) {
         headsMap[row.full_name] = row;
-        if (row.issue || row.status && row.status >= 400) {
-          warnings = [...warnings, row];
-        }
+        if (row.issue || row.status && row.status >= 400) warnings = [...warnings, row];
       }
       records = rec || {};
       verdicts = v.verdicts || {};
@@ -84,43 +84,42 @@
     } catch (e) { /* non-fatal */ }
   }
 
-  // A) Scan / Re-scan
-  function startScan() {
-    status = 'scanning';
-    owned = []; stars = []; clusterMap = {};
-    headsMap = {}; warnings = []; records = {}; enrichMsg = '';
-    errorMsg = '';
+  // The GitHub pull: repos (streamed) -> forks -> stars.
+  function startPull() {
+    status = 'pulling'; phase = 'repos';
+    owned = []; stars = []; clusterMap = {}; hubMap = {};
+    headsMap = {}; warnings = []; records = {};
+    forkCount = 0; starCount = 0; pullErrors = []; enrichMsg = ''; errorMsg = '';
     api.startScan($session.session_id).then(({ scan_id }) => {
       currentScanId.set(scan_id);
       ws = scanWs(
         scan_id,
         (repo) => (owned = [...owned, repo]),
-        () => afterScan(),
+        () => pullForksAndStars(),
         (msg) => { status = 'error'; errorMsg = msg; }
       );
     }).catch((e) => { status = 'error'; errorMsg = e.message; });
   }
 
-  // Scan completion: snapshot forks + stars (part of the scan, not "enrich"),
-  // then backfill any saved clustering + cached records.
-  async function afterScan() {
-    status = 'snapshotting';
+  async function pullForksAndStars() {
+    // Each phase is independent and surfaces its own error — a stars failure no
+    // longer hides behind a forks failure (or vice versa).
+    phase = 'forks';
+    try { forkCount = (await api.refreshForks($session.session_id)).count ?? 0; }
+    catch (e) { pullErrors = [...pullErrors, `Forks pull failed: ${e.message}`]; }
+
+    phase = 'stars';
     try {
-      await Promise.all([
-        api.refreshForks($session.session_id),
-        api.refreshStars($session.session_id),
-      ]);
-      const s = await api.getStars();
-      stars = s.stars || [];
-      await loadClusters();
-      await refreshMeta();
-    } catch (e) { errorMsg = e.message; }
-    finally { status = 'done'; }
+      starCount = (await api.refreshStars($session.session_id)).count ?? 0;
+      stars = (await api.getStars()).stars || [];
+    } catch (e) { pullErrors = [...pullErrors, `Stars pull failed: ${e.message}`]; }
+
+    await loadBackfill();
+    await refreshMeta();
+    status = 'done';
   }
 
-  // B) Enrich — the LLM pass: Purpose/Domain/Entities (distill) + Fit
-  // (revalidate). Fit needs a saved clustering; if there's none yet it no-ops
-  // and tells you to cluster first, then Enrich again.
+  // ✨ Enrich — LLM pass: Purpose/Domain/Entities (distill) + Fit (revalidate).
   async function enrich() {
     enrichStatus = 'running';
     enrichMsg = 'Enriching — distilling Purpose / Domain / Entities…';
@@ -129,24 +128,22 @@
       let m = d.stop_reason
         ? `Distill stopped: ${d.stop_reason} (${d.done}/${d.total}).`
         : `Distilled ${d.done}/${d.total} repos.`;
-
       enrichMsg = m + ' Checking cluster Fit…';
       const v = await api.revalidate($session.session_id);
       if (v.counts) verdictCounts = v.counts;
       verdictClusterHash = v.cluster_hash || '';
-      if (!verdictClusterHash) {
-        m += ' Fit pending — run the Cluster step, then Enrich again.';
-      } else {
-        m += ` Fit: ${verdictCounts.fit} ✓ · ${verdictCounts.drift} ↘ · ${verdictCounts['mis-clustered']} ✗.`;
-      }
+      m += verdictClusterHash
+        ? ` Fit: ${verdictCounts.fit} ✓ · ${verdictCounts.drift} ↘ · ${verdictCounts['mis-clustered']} ✗.`
+        : ' Fit pending — run the Cluster step, then Enrich again.';
       enrichMsg = m;
       await refreshMeta();
     } catch (e) { enrichMsg = e.message; }
     finally { enrichStatus = 'done'; }
   }
 
-  // Unified records: owned + stars. full_name is the distill key; stars have
-  // it, owned don't — we key owned rows by their `name`.
+  $: repoCount = owned.filter((r) => !r.is_fork).length;
+  $: forkFromOwned = owned.filter((r) => r.is_fork).length;
+
   $: records_view = [
     ...owned.map((r) => {
       const fn = r._full_name || r.name;
@@ -158,7 +155,6 @@
         repo_url: head.url || r.url,
         rec: records[fn] || records[r.name] || null,
         issue: head.issue || null,
-        issue_message: head.message || '',
         verdict: verdicts[r.name] || '',
       };
     }),
@@ -172,7 +168,6 @@
         repo_url: head.url || (fn ? `https://github.com/${fn}` : ''),
         rec: records[fn] || null,
         issue: head.issue || (head.status && head.status >= 400 ? 'http_error' : null),
-        issue_message: head.message || '',
         verdict: verdicts[r.name] || '',
       };
     }),
@@ -182,29 +177,31 @@
 </script>
 
 <div class="page-header">
-  <h1>Repo Scan</h1>
+  <h1>GitHub Pull</h1>
   <p class="sub">
-    Two steps. <strong>A) Scan / Re-scan</strong> pulls your repos, forks &amp;
-    stars (no token spend). <strong>B) Enrich</strong> runs the LLM pass that
-    fills <em>Fit, Purpose, Domain, Entities</em>. <strong>Cluster</strong> and
-    <strong>Hub</strong> are backfilled from the Cluster step — not computed here.
+    One pull, three phases: <strong>your repos</strong>, <strong>your forks</strong>,
+    <strong>your stars</strong>. Then <strong>✨ Enrich</strong> runs the LLM pass
+    that fills <em>Fit · Purpose · Domain · Entities</em>.
   </p>
 </div>
 
 {#if status === 'idle'}
-  <button on:click={startScan}>A) Start scan</button>
-{:else if status === 'scanning'}
-  <div class="info-msg"><span class="spinner">⟳</span> Scanning — {owned.length} repos found…</div>
-{:else if status === 'snapshotting'}
-  <div class="info-msg"><span class="spinner">⟳</span> Snapshotting forks &amp; stars…</div>
+  <button on:click={startPull}>⤓ Pull from GitHub</button>
+{:else if status === 'pulling'}
+  <div class="info-msg"><span class="spinner">⟳</span>
+    {#if phase === 'repos'}Pulling your repos… ({owned.length})
+    {:else if phase === 'forks'}Repos {repoCount} ✓ · pulling your forks…
+    {:else}Repos {repoCount} ✓ · forks {forkCount} ✓ · pulling your stars…{/if}
+  </div>
 {:else if status === 'done'}
-  <div class="ok-msg">Done — {owned.length} repos, {stars.length} stars, {Object.keys(clusterMap).length} clustered.</div>
+  <div class="ok-msg">Pulled — {repoCount} repos · {forkFromOwned || forkCount} forks · {stars.length} stars.</div>
+  {#each pullErrors as e}<div class="error-msg" style="margin-top:0.4rem">{e}</div>{/each}
   <div class="actions-row">
-    <button on:click={startScan} class="secondary">A) Re-scan</button>
+    <button on:click={startPull} class="secondary">⤓ Re-pull</button>
     <button on:click={enrich} class="primary" disabled={enrichStatus === 'running'}>
-      {enrichStatus === 'running' ? 'Enriching…' : '✨ B) Enrich'}
+      {enrichStatus === 'running' ? 'Enriching…' : '✨ Enrich'}
     </button>
-    <a href="/cluster"><button class="success">Go to Cluster →</button></a>
+    <a href="/cluster"><button class="success">Next: Cluster →</button></a>
   </div>
   {#if enrichMsg}<div class="info-msg" style="margin-top:0.5rem">{enrichMsg}</div>{/if}
   {#if verdictClusterHash && (verdictCounts.fit + verdictCounts.drift + verdictCounts['mis-clustered']) > 0}
@@ -218,7 +215,7 @@
   {/if}
 {:else}
   <div class="error-msg">{errorMsg}</div>
-  <button on:click={startScan} class="secondary" style="margin-top: 0.5rem">Retry</button>
+  <button on:click={startPull} class="secondary" style="margin-top: 0.5rem">Retry</button>
 {/if}
 
 {#if warnings.length > 0}
@@ -241,7 +238,7 @@
 {#if records_view.length > 0}
   <div class="section">
     <div class="section-head"><h2>Records ({records_view.length})</h2></div>
-    <p class="sub">Cluster &amp; Hub are filled by the Cluster step; Fit/Purpose/Domain/Entities by Enrich.</p>
+    <p class="sub">Cluster &amp; Hub are read-only here — they fill in once you reach those steps.</p>
     <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.6rem;">
       <span class="badge">{SOURCE_GLYPH.owned} owned: {counts.owned || 0}</span>
       <span class="badge">{SOURCE_GLYPH.fork} forks: {counts.fork || 0}</span>
