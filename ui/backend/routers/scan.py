@@ -11,7 +11,7 @@ import plan_store
 from database import get_db
 from routers.auth import require_session
 from services import distill as distill_svc
-from services.github import GH_API, _headers as _gh_headers, list_repos
+from services.github import GH_API, _headers as _gh_headers, list_repos, _rate_limit_wait
 
 log = logging.getLogger(__name__)
 
@@ -123,6 +123,21 @@ async def scan_ws(websocket: WebSocket, scan_id: str):
                 for r in repos
             ],
         )
+        # Snapshot forks straight from the scan rows — no second /user/repos
+        # pull (which is what tripped GitHub's secondary rate limit). The list
+        # response has no `parent`, so parent_full_name is "" (same as before).
+        forks = [r for r in repos if r.get("is_fork")]
+        await db.execute("DELETE FROM fork")
+        if forks:
+            await db.executemany(
+                """INSERT OR REPLACE INTO fork
+                   (full_name, name, owner, description, topics, language,
+                    parent_full_name, pushed_at, archived, url)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                [(r.get("full_name") or "", r["name"], username, r.get("aim") or "",
+                  r["topics"], r["language"], "", r.get("pushed_at") or "",
+                  r.get("archived") or 0, r.get("url") or "") for r in forks],
+            )
         await db.execute(
             "UPDATE scan_meta SET repo_count = ?, finished_at = datetime('now') WHERE scan_id = ?",
             (len(repos), scan_id),
@@ -188,11 +203,21 @@ async def _head_one(token: str, full_name: str) -> dict:
     except ValueError:
         return {"full_name": full_name, "error": "bad full_name"}
     url = f"{GH_API}/repos/{owner}/{repo}"
-    try:
-        async with _httpx.AsyncClient(timeout=20) as c:
-            r = await c.get(url, headers=_gh_headers(token))
-    except Exception as exc:
-        return {"full_name": full_name, "error": f"network: {exc}"}
+    r = None
+    for attempt in range(4):
+        try:
+            async with _httpx.AsyncClient(timeout=20) as c:
+                r = await c.get(url, headers=_gh_headers(token))
+        except Exception as exc:
+            return {"full_name": full_name, "error": f"network: {exc}"}
+        # A 403/429 may be a rate limit (back off + retry) rather than a private
+        # fork — only fall through to the 403 branch for a *genuine* forbidden.
+        if r.status_code in (403, 429):
+            wait = _rate_limit_wait(r)
+            if wait is not None and attempt < 3:
+                await asyncio.sleep(min(wait, 120))
+                continue
+        break
     if r.status_code == 404:
         return {"full_name": full_name, "status": 404,
                 "issue": "not_found",
@@ -253,7 +278,7 @@ async def heads(session_id: str):
         if s["full_name"] and s["full_name"] not in full_names:
             full_names.append(s["full_name"])
 
-    sem = asyncio.Semaphore(8)
+    sem = asyncio.Semaphore(4)   # gentle — bursts trip GitHub's secondary limit
 
     async def go(n: str) -> dict:
         async with sem:

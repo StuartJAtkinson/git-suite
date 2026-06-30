@@ -1,8 +1,14 @@
+import asyncio
 import base64
+import time
 import httpx
 from typing import AsyncIterator
 
 GH_API = "https://api.github.com"
+
+
+class GitHubAuthError(Exception):
+    """A genuine 401/403 (bad token or missing scope) — NOT throttling."""
 
 
 def _headers(token: str) -> dict:
@@ -10,7 +16,89 @@ def _headers(token: str) -> dict:
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "git-suite/1.0",
     }
+
+
+# ── rate-limit handling (ported from homelab-designer/backend/scrapers/base.py)
+
+def _rate_limit_wait(resp: httpx.Response) -> float | None:
+    """Seconds to sleep if `resp` is a rate-limit response, else None.
+
+      429                              → Retry-After (secondary) or 60s
+      403 + Retry-After               → secondary rate limit
+      403 + X-RateLimit-Remaining: 0  → primary rate limit → until reset
+      403 + body mentions rate limit  → same
+      403 otherwise                   → None (genuine auth/permission failure)
+    """
+    if resp.status_code == 429:
+        retry = resp.headers.get("Retry-After")
+        return (max(1, int(retry)) + 1) if retry else 60.0
+    if resp.status_code != 403:
+        return None
+    retry = resp.headers.get("Retry-After")
+    if retry:
+        return max(1, int(retry)) + 1
+    if resp.headers.get("X-RateLimit-Remaining") == "0":
+        reset = int(resp.headers.get("X-RateLimit-Reset", 0))
+        return max(5.0, reset - time.time() + 2)
+    try:
+        msg = (resp.json().get("message") or "").lower()
+        if "rate limit" in msg or "secondary" in msg or "api rate" in msg:
+            reset = int(resp.headers.get("X-RateLimit-Reset", 0))
+            return max(5.0, reset - time.time() + 2) if reset else 60.0
+    except Exception:
+        pass
+    return None
+
+
+def _quota_sleep(resp: httpx.Response) -> float:
+    """Pre-emptive sleep (capped) when the remaining quota is getting low, so a
+    burst tapers off before it trips the primary limit."""
+    try:
+        remaining = int(resp.headers.get("X-RateLimit-Remaining", 999))
+    except ValueError:
+        return 0.0
+    if remaining < 50:
+        reset = int(resp.headers.get("X-RateLimit-Reset", 0))
+        return max(0.0, min(120.0, reset - time.time() + 2))
+    return 0.0
+
+
+async def gh_get(client: httpx.AsyncClient, url: str, token: str,
+                 params: dict | None = None) -> httpx.Response:
+    """Rate-aware GitHub GET. Backs off on 403/429 (primary + secondary) and
+    5xx, raises GitHubAuthError on a real 401/403, and pre-emptively slows near
+    the quota. Returns the successful response."""
+    for attempt in range(6):
+        try:
+            resp = await client.get(url, headers=_headers(token),
+                                    params=params, timeout=30)
+        except (httpx.TimeoutException, httpx.ConnectError):
+            if attempt >= 5:
+                raise
+            await asyncio.sleep(2 ** min(attempt, 4))
+            continue
+        if resp.status_code in (403, 429):
+            wait = _rate_limit_wait(resp)
+            if wait is not None:
+                await asyncio.sleep(min(wait, 300))
+                continue
+            raise GitHubAuthError(
+                f"GitHub denied access (HTTP {resp.status_code}) — check the "
+                f"token's scopes (needs repo + read:user).")
+        if resp.status_code == 401:
+            raise GitHubAuthError("GitHub token invalid or expired (HTTP 401).")
+        if resp.status_code in (500, 502, 503, 504):
+            await asyncio.sleep(2 ** min(attempt, 4))
+            continue
+        resp.raise_for_status()
+        s = _quota_sleep(resp)
+        if s:
+            await asyncio.sleep(s)
+        return resp
+    raise GitHubAuthError("GitHub kept rate-limiting after retries — try again "
+                          "in a minute.")
 
 
 async def validate_token(token: str) -> dict:
@@ -30,13 +118,9 @@ async def list_repos(token: str, username: str | None = None) -> AsyncIterator[d
     async with httpx.AsyncClient() as client:
         page = 1
         while True:
-            r = await client.get(
-                f"{GH_API}/user/repos",
-                headers=_headers(token),
-                params={"per_page": 100, "page": page,
-                        "affiliation": "owner", "visibility": "all"},
-            )
-            r.raise_for_status()
+            r = await gh_get(client, f"{GH_API}/user/repos", token,
+                             params={"per_page": 100, "page": page,
+                                     "affiliation": "owner", "visibility": "all"})
             batch = r.json()
             if not batch:
                 break
@@ -52,12 +136,8 @@ async def list_starred(token: str) -> AsyncIterator[dict]:
     async with httpx.AsyncClient() as client:
         page = 1
         while True:
-            r = await client.get(
-                f"{GH_API}/user/starred",
-                headers=_headers(token),
-                params={"per_page": 100, "page": page},
-            )
-            r.raise_for_status()
+            r = await gh_get(client, f"{GH_API}/user/starred", token,
+                             params={"per_page": 100, "page": page})
             batch = r.json()
             if not batch:
                 break

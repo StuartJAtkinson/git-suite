@@ -87,10 +87,9 @@
   }
 
   async function pullForksAndStars() {
-    // Independent phases — a stars failure no longer hides behind a forks one.
-    phase = 'forks';
-    try { forkCount = (await api.refreshForks($session.session_id)).count ?? 0; }
-    catch (e) { pullErrors = [...pullErrors, `Forks pull failed: ${e.message}`]; }
+    // Forks came free with the repos pull (the scan writes the fork table) —
+    // no second /user/repos call. Stars need their own /user/starred pull.
+    forkCount = owned.filter((r) => r.is_fork).length;
 
     phase = 'stars';
     try {
