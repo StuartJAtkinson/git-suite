@@ -51,7 +51,10 @@
   async function load(recompute = false) {
     loading = true; errorMsg = ''; selected = new Set(); hoveredId = null;
     try {
-      data = await api.getClusters($session.session_id, { k, source, recompute });
+      // On mount (recompute=false) read saved-only — NEVER auto-compute, so
+      // landing here never spends embedding tokens. Clustering happens only on
+      // an explicit action (Re-cluster / slider / source / refresh) -> recompute.
+      data = await api.getClusters($session.session_id, { k, source, recompute, savedOnly: !recompute });
       if (data.k) k = data.k;   // reflect the saved pass
       build(data.clusters || []);
     } catch (e) { errorMsg = e.message; }
@@ -171,7 +174,14 @@
 {#if loading}<p class="loading">Embedding &amp; clustering repos…</p>{/if}
 
 {#if !loading && data && !data.available}
-  <div class="info-msg" style="margin-top:1rem">{data.reason} <a href="/setup">Open Setup →</a></div>
+  <div class="info-msg" style="margin-top:1rem">
+    {#if data.saved === false}
+      Not clustered yet — clustering runs only when you ask.
+      <button class="ghost sm" style="margin-left:0.5rem" on:click={() => load(true)}>🧩 Cluster now</button>
+    {:else}
+      {data.reason} <a href="/setup">Open Setup →</a>
+    {/if}
+  </div>
 {/if}
 
 {#if !loading && data && data.available}

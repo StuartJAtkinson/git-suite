@@ -41,10 +41,6 @@ export const api = {
     req('POST', `/api/scan/distill/${session_id}`, {}),
   distillRecords: (session_id) =>
     req('GET', `/api/scan/distill/${session_id}/records`),
-  revalidate: (session_id) =>
-    req('POST', `/api/scan/distill/revalidate/${session_id}`, {}),
-  verdicts: (session_id) =>
-    req('GET', `/api/scan/distill/verdicts/${session_id}`),
 
   // Config
   getConfig: () => req('GET', '/api/config'),

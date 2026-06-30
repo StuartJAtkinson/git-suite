@@ -5,21 +5,17 @@
   import { api, scanWs } from '$lib/api';
   import { SOURCE_GLYPH } from '$lib/columns';
 
-  // One GitHub pull, three phases shown as they happen: your repos, your forks,
-  // your stars. Then ✨ Enrich runs the LLM pass (Fit / Purpose / Domain /
-  // Entities). Nothing here clusters — Cluster and Hub columns are read-only,
-  // backfilled from later steps.
+  // ONE GitHub pull, three phases shown as they happen: your repos, your forks,
+  // your stars. Then ✨ Enrich runs the LLM distill (Purpose / Domain /
+  // Entities). NOTHING here clusters — clustering is its own explicit step on
+  // the Cluster page. Hub is read-only, backfilled from the live plan.
 
   let owned = [];          // owned repos (own forks via is_fork)
   let stars = [];          // starred repos
   let headsMap = {};       // full_name -> head row
   let records = {};        // full_name/name -> {purpose, entities, domain}
   let warnings = [];       // repos needing attention (404/403/etc)
-  let clusterMap = {};     // name -> cluster label (backfilled from Cluster step)
   let hubMap = {};         // name -> hub (backfilled from the live plan)
-  let verdicts = {};       // name -> fit | drift | mis-clustered | ''
-  let verdictClusterHash = '';
-  let verdictCounts = { fit: 0, drift: 0, 'mis-clustered': 0, skipped: 0 };
 
   let status = 'idle';     // idle | pulling | done | error
   let phase = '';          // 'repos' | 'forks' | 'stars'
@@ -44,34 +40,25 @@
       owned = scan.repos;
       stars = s.stars || [];
       starCount = stars.length;
-      await loadBackfill();
+      await loadHubs();
       refreshMeta();
       status = 'done';
     } catch (e) { /* stay idle */ }
   }
 
-  async function loadBackfill() {
-    // Read-only: saved clustering (Cluster column) + live plan hub (Hub column).
-    // saved_only never triggers a clustering compute.
-    const [c, recon] = await Promise.all([
-      api.getClusters($session.session_id, { savedOnly: true }).catch(() => ({ available: false })),
-      api.reconcile($session.session_id).catch(() => ({ repos: [] })),
-    ]);
-    clusterMap = {}; hubMap = {};
-    if (c.available) {
-      for (const cl of c.clusters)
-        for (const m of cl.members) clusterMap[m.repo] = cl.suggested_name;
-    }
+  async function loadHubs() {
+    // Read-only Hub column from the live plan. No clustering, no token spend.
+    const recon = await api.reconcile($session.session_id).catch(() => ({ repos: [] }));
+    hubMap = {};
     for (const r of recon.repos || []) if (r.hub) hubMap[r.name] = r.hub;
-    clusterMap = clusterMap; hubMap = hubMap;
+    hubMap = hubMap;
   }
 
   async function refreshMeta() {
     try {
-      const [h, rec, v] = await Promise.all([
+      const [h, rec] = await Promise.all([
         api.heads($session.session_id).catch(() => ({ heads: [] })),
         api.distillRecords($session.session_id).catch(() => ({})),
-        api.verdicts($session.session_id).catch(() => ({ verdicts: {} })),
       ]);
       headsMap = {}; warnings = [];
       for (const row of h.heads || []) {
@@ -79,15 +66,13 @@
         if (row.issue || row.status && row.status >= 400) warnings = [...warnings, row];
       }
       records = rec || {};
-      verdicts = v.verdicts || {};
-      verdictClusterHash = v.cluster_hash || '';
     } catch (e) { /* non-fatal */ }
   }
 
   // The GitHub pull: repos (streamed) -> forks -> stars.
   function startPull() {
     status = 'pulling'; phase = 'repos';
-    owned = []; stars = []; clusterMap = {}; hubMap = {};
+    owned = []; stars = []; hubMap = {};
     headsMap = {}; warnings = []; records = {};
     forkCount = 0; starCount = 0; pullErrors = []; enrichMsg = ''; errorMsg = '';
     api.startScan($session.session_id).then(({ scan_id }) => {
@@ -102,8 +87,7 @@
   }
 
   async function pullForksAndStars() {
-    // Each phase is independent and surfaces its own error — a stars failure no
-    // longer hides behind a forks failure (or vice versa).
+    // Independent phases — a stars failure no longer hides behind a forks one.
     phase = 'forks';
     try { forkCount = (await api.refreshForks($session.session_id)).count ?? 0; }
     catch (e) { pullErrors = [...pullErrors, `Forks pull failed: ${e.message}`]; }
@@ -114,28 +98,20 @@
       stars = (await api.getStars()).stars || [];
     } catch (e) { pullErrors = [...pullErrors, `Stars pull failed: ${e.message}`]; }
 
-    await loadBackfill();
+    await loadHubs();
     await refreshMeta();
     status = 'done';
   }
 
-  // ✨ Enrich — LLM pass: Purpose/Domain/Entities (distill) + Fit (revalidate).
+  // ✨ Enrich — LLM distill only: Purpose / Domain / Entities. No clustering.
   async function enrich() {
     enrichStatus = 'running';
     enrichMsg = 'Enriching — distilling Purpose / Domain / Entities…';
     try {
       const d = await api.distill($session.session_id);
-      let m = d.stop_reason
+      enrichMsg = d.stop_reason
         ? `Distill stopped: ${d.stop_reason} (${d.done}/${d.total}).`
         : `Distilled ${d.done}/${d.total} repos.`;
-      enrichMsg = m + ' Checking cluster Fit…';
-      const v = await api.revalidate($session.session_id);
-      if (v.counts) verdictCounts = v.counts;
-      verdictClusterHash = v.cluster_hash || '';
-      m += verdictClusterHash
-        ? ` Fit: ${verdictCounts.fit} ✓ · ${verdictCounts.drift} ↘ · ${verdictCounts['mis-clustered']} ✗.`
-        : ' Fit pending — run the Cluster step, then Enrich again.';
-      enrichMsg = m;
       await refreshMeta();
     } catch (e) { enrichMsg = e.message; }
     finally { enrichStatus = 'done'; }
@@ -155,7 +131,6 @@
         repo_url: head.url || r.url,
         rec: records[fn] || records[r.name] || null,
         issue: head.issue || null,
-        verdict: verdicts[r.name] || '',
       };
     }),
     ...stars.map((r) => {
@@ -168,7 +143,6 @@
         repo_url: head.url || (fn ? `https://github.com/${fn}` : ''),
         rec: records[fn] || null,
         issue: head.issue || (head.status && head.status >= 400 ? 'http_error' : null),
-        verdict: verdicts[r.name] || '',
       };
     }),
   ];
@@ -180,8 +154,8 @@
   <h1>GitHub Pull</h1>
   <p class="sub">
     One pull, three phases: <strong>your repos</strong>, <strong>your forks</strong>,
-    <strong>your stars</strong>. Then <strong>✨ Enrich</strong> runs the LLM pass
-    that fills <em>Fit · Purpose · Domain · Entities</em>.
+    <strong>your stars</strong>. Then <strong>✨ Enrich</strong> distills
+    <em>Purpose · Domain · Entities</em>. Clustering is a separate step.
   </p>
 </div>
 
@@ -204,15 +178,6 @@
     <a href="/cluster"><button class="success">Next: Cluster →</button></a>
   </div>
   {#if enrichMsg}<div class="info-msg" style="margin-top:0.5rem">{enrichMsg}</div>{/if}
-  {#if verdictClusterHash && (verdictCounts.fit + verdictCounts.drift + verdictCounts['mis-clustered']) > 0}
-    <div class="drift-banner" style="margin-top:0.6rem">
-      <span class="vpill v-fit">✓ fit · {verdictCounts.fit}</span>
-      <span class="vpill v-drift">↘ drift · {verdictCounts.drift}</span>
-      <span class="vpill v-mis">✗ mis-clustered · {verdictCounts['mis-clustered']}</span>
-      {#if verdictCounts.skipped}<span class="vpill v-skip">? unjudged · {verdictCounts.skipped}</span>{/if}
-      <span class="verdict-hash">snapshot {verdictClusterHash}</span>
-    </div>
-  {/if}
 {:else}
   <div class="error-msg">{errorMsg}</div>
   <button on:click={startPull} class="secondary" style="margin-top: 0.5rem">Retry</button>
@@ -238,7 +203,7 @@
 {#if records_view.length > 0}
   <div class="section">
     <div class="section-head"><h2>Records ({records_view.length})</h2></div>
-    <p class="sub">Cluster &amp; Hub are read-only here — they fill in once you reach those steps.</p>
+    <p class="sub">Hub is read-only here — it fills in once you form hubs on the Cluster step.</p>
     <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.6rem;">
       <span class="badge">{SOURCE_GLYPH.owned} owned: {counts.owned || 0}</span>
       <span class="badge">{SOURCE_GLYPH.fork} forks: {counts.fork || 0}</span>
@@ -250,8 +215,6 @@
         <tr>
           <th></th>
           <th>Repo</th>
-          <th>Cluster</th>
-          <th>Fit</th>
           <th>Purpose</th>
           <th>Domain</th>
           <th>Entities</th>
@@ -262,10 +225,7 @@
       </thead>
       <tbody>
         {#each records_view as r}
-          <tr class:warn={r.issue}
-              class:drift={r.verdict === 'drift'}
-              class:mis={r.verdict === 'mis-clustered'}
-              class:fit={r.verdict === 'fit'}>
+          <tr class:warn={r.issue}>
             <td class="src" title={r.source}>{SOURCE_GLYPH[r.source]}</td>
             <td class="name">
               {#if r.repo_url}
@@ -275,8 +235,6 @@
                 <a class="readme" href={r.readme_url} target="_blank" rel="noopener" title="README on GitHub">README</a>
               {/if}
             </td>
-            <td class="cluster">{clusterMap[r.name] || '—'}</td>
-            <td class="fit">{#if r.verdict}<span class="vpill v-{r.verdict === 'mis-clustered' ? 'mis' : r.verdict}">{r.verdict}</span>{:else}—{/if}</td>
             <td class="purpose">{r.rec?.purpose || '—'}</td>
             <td class="domain">{#if r.rec?.domain}<span class="domain-pill">{r.rec.domain}</span>{:else}—{/if}</td>
             <td class="entities">{r.rec?.entities?.join(' · ') || '—'}</td>
@@ -300,7 +258,6 @@
   td.src { text-align: center; }
   td.name a { color: #1e293b; font-family: monospace; }
   td.name a.readme { font-size: 0.66rem; color: #6b7280; margin-left: 0.3rem; }
-  td.cluster { color: #6366f1; font-weight: 600; }
   td.purpose { color: #1e293b; max-width: 280px; }
   td.domain .domain-pill { background: #eef2ff; color: #4338ca; border-radius: 4px; padding: 0.1em 0.45em; font-size: 0.72rem; }
   td.entities { color: #6b7280; max-width: 220px; }
@@ -310,18 +267,4 @@
   ul.warnlist { list-style: none; padding: 0; margin: 0; }
   ul.warnlist li { padding: 0.35rem 0.5rem; border-bottom: 1px solid #f1f5f9; display: flex; gap: 0.6rem; align-items: baseline; }
   .warn-reason { color: #b45309; font-size: 0.8rem; }
-
-  .vpill { display: inline-block; font-size: 0.7rem; font-weight: 600; padding: 0.1em 0.55em; border-radius: 999px; }
-  .vpill.v-fit { background: #dcfce7; color: #166534; }
-  .vpill.v-drift { background: #fef3c7; color: #92400e; }
-  .vpill.v-mis  { background: #fee2e2; color: #991b1b; }
-  .vpill.v-skip { background: #f1f5f9; color: #475569; }
-  .drift-banner { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
-    padding: 0.5rem 0.7rem; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 0.82rem; }
-  .verdict-hash { margin-left: auto; color: #9ca3af; font-family: monospace; font-size: 0.72rem; }
-  tr.fit td.fit .vpill { box-shadow: 0 0 0 1px #bbf7d0; }
-  tr.drift td { background: #fffbeb; }
-  tr.drift:hover td { background: #fef3c7; }
-  tr.mis td { background: #fef2f2; }
-  tr.mis:hover td { background: #fee2e2; }
 </style>
