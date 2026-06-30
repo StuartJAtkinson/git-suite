@@ -81,8 +81,9 @@ export const api = {
   // recompute=false returns the saved result (no re-embedding); true forces a
   // fresh clustering pass and overwrites it. k = target cluster count (omit for
   // the server default ~√(n/2)).
-  getClusters: (session_id, { k = null, source = 'mixed', recompute = false } = {}) => {
+  getClusters: (session_id, { k = null, source = 'mixed', recompute = false, savedOnly = false } = {}) => {
     const q = new URLSearchParams({ source, recompute });
+    if (savedOnly) q.set('saved_only', true);
     if (k != null) q.set('k', k);
     return req('GET', `/api/cluster/${session_id}?${q}`);
   },

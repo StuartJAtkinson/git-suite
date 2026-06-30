@@ -52,7 +52,7 @@
     // hub formation; here we just read its saved result (Cluster column) and
     // the live plan (Hub column), so both reflect what Cluster produced.
     const [c, recon] = await Promise.all([
-      api.getClusters($session.session_id, {}).catch(() => ({ available: false })),
+      api.getClusters($session.session_id, { savedOnly: true }).catch(() => ({ available: false })),
       api.reconcile($session.session_id).catch(() => ({ repos: [] })),
     ]);
     clusterMap = {}; hubMap = {};

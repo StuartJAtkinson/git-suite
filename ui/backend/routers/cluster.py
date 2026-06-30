@@ -94,6 +94,7 @@ async def propose(
     k: int | None = None,
     source: str = "mixed",
     recompute: bool = False,
+    saved_only: bool = False,
 ):
     """Propose clusters.
 
@@ -102,16 +103,23 @@ async def propose(
     source=owned  legacy behaviour: only owned orphans.
     source=mixed  default: owned + forks + stars in one embedding space, each
                   member tagged with `source` so the UI can render its glyph.
+    saved_only    return the saved result or {available:false} WITHOUT computing.
+                  Clustering spends embedding tokens, so backfill callers (the
+                  Scan page) pass this — only the explicit Cluster action
+                  (recompute=true) ever triggers a fresh pass.
 
     The result is persisted per session; without ?recompute=true a saved result
-    is returned as-is (no re-embedding/re-distilling), so re-opening the tab is
-    instant and the Scan page can read each repo's cluster assignment.
+    is returned as-is (no re-embedding/re-distilling).
     """
     if not recompute:
         saved = await _load_result(session_id)
         if saved is not None:
             saved["saved"] = True
             return saved
+        if saved_only:
+            return {"available": False, "saved": False,
+                    "reason": "Not clustered yet — run the Cluster step.",
+                    "clusters": []}
 
     recon = await reconcile(session_id)
     orphans = recon["orphans"]                      # unassigned, live repos
