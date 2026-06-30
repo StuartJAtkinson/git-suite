@@ -113,6 +113,17 @@ def isolated_plan(tmp_path, monkeypatch):
     return plan_store
 
 
+@pytest.fixture(autouse=True)
+def _isolate_llm(monkeypatch):
+    """No test should reach the dev's real ~/.git-suite/config.json or the
+    network. Default: an empty LLM config (no providers), so distill and any
+    other LLM caller falls back deterministically and instantly. Tests that
+    exercise the chain override build_chain / _config / _dispatch themselves."""
+    import services.llm as _llm
+    monkeypatch.setattr(_llm, "_config", lambda: {}, raising=False)
+    _llm.reset_floor()
+
+
 @pytest.fixture
 def temp_db(tmp_path, monkeypatch):
     """database backed by a throwaway sqlite file with the schema applied."""

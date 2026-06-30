@@ -188,32 +188,39 @@ async def complete(prompt: str, system: str = "", max_tokens: int = 1024) -> str
     if not chain:
         raise AllProvidersFailed("no LLM providers configured")
 
-    last_exc: Exception | None = None
+    errors: list[str] = []
     idx = min(_floor, len(chain) - 1)
     while idx < len(chain):
         name, key, model = chain[idx]
         try:
             text = await _dispatch(name, key, model, prompt, system, max_tokens)
         except Exception as exc:
-            last_exc = exc
-            if _should_failover(exc, name) and idx + 1 < len(chain):
-                log.warning("LLM provider %s failing over: %s", name, str(exc)[:160])
-                _floor = idx + 1
+            # Fail over on ANY provider error — a misconfigured leading provider
+            # (e.g. a 404 from a wrong endpoint/model) must not kill the chain.
+            # `_should_failover` now only flavours the log; the next provider is
+            # always tried.
+            errors.append(f"{name}: {str(exc)[:160]}")
+            log.warning("LLM provider %s failed (failover=%s): %s",
+                        name, _should_failover(exc, name), str(exc)[:160])
+            if idx + 1 < len(chain):
+                _floor = idx + 1            # skip this dead leading provider next time
                 idx += 1
                 continue
-            raise
+            raise AllProvidersFailed("all LLM providers failed — "
+                                     + "; ".join(errors)) from exc
         if not text or not text.strip():
+            errors.append(f"{name}: empty response")
             if idx + 1 < len(chain):
                 log.warning("LLM provider %s returned empty — failing over", name)
                 _floor = idx + 1
                 idx += 1
                 continue
-            raise AllProvidersFailed("all providers returned empty")
+            raise AllProvidersFailed("all LLM providers failed — " + "; ".join(errors))
         if idx != _floor:
             _floor = idx  # stick with the one that worked
         return text
 
-    raise AllProvidersFailed(f"all providers failed; last error: {last_exc}")
+    raise AllProvidersFailed("all LLM providers failed — " + "; ".join(errors))
 
 
 _FENCE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)

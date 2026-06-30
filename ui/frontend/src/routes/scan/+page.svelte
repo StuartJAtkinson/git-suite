@@ -17,10 +17,10 @@
   let warnings = [];       // repos needing attention (404/403/etc)
   let hubMap = {};         // name -> hub (backfilled from the live plan)
 
-  let status = 'idle';     // idle | pulling | done | error
-  let phase = '';          // 'repos' | 'forks' | 'stars'
+  let status = 'idle';     // idle | pulling | done | error  (pulling = repos streaming)
   let forkCount = 0;
   let starCount = 0;
+  let starsLoading = false;  // stars load in the background after repos land
   let pullErrors = [];     // per-phase failures, surfaced (no silent swallow)
   let enrichStatus = '';   // '' | 'running' | 'done'
   let enrichMsg = '';
@@ -79,40 +79,43 @@
     finally { accessStatus = 'done'; }
   }
 
-  // The GitHub pull: repos (streamed) -> forks -> stars.
+  // The GitHub pull: repos stream over the WS; forks come free (the scan writes
+  // the fork table); stars load in the background after.
   function startPull() {
-    status = 'pulling'; phase = 'repos';
+    status = 'pulling';
     owned = []; stars = []; hubMap = {};
     headsMap = {}; warnings = []; records = {};
-    forkCount = 0; starCount = 0; pullErrors = []; enrichMsg = ''; errorMsg = '';
+    forkCount = 0; starCount = 0; starsLoading = false;
+    pullErrors = []; enrichMsg = ''; errorMsg = '';
     api.startScan($session.session_id).then(({ scan_id }) => {
       currentScanId.set(scan_id);
       ws = scanWs(
         scan_id,
         (repo) => (owned = [...owned, repo]),
-        () => pullForksAndStars(),
+        () => finishPull(),
         (msg) => { status = 'error'; errorMsg = msg; }
       );
     }).catch((e) => { status = 'error'; errorMsg = e.message; });
   }
 
-  async function pullForksAndStars() {
-    // Forks came free with the repos pull (the scan writes the fork table) —
-    // no second /user/repos call. Stars need their own /user/starred pull.
+  // Repos are in (the WS "done" fired). Flip to done IMMEDIATELY — synchronously,
+  // in the same WS callback that already renders the live repo count — so the
+  // page never looks frozen. Stars + hub backfill load in the background.
+  function finishPull() {
     forkCount = owned.filter((r) => r.is_fork).length;
+    status = 'done';
+    loadStars();
+    loadHubs();
+    refreshMeta();
+  }
 
-    phase = 'stars';
+  async function loadStars() {
+    starsLoading = true;
     try {
       starCount = (await api.refreshStars($session.session_id)).count ?? 0;
       stars = (await api.getStars()).stars || [];
     } catch (e) { pullErrors = [...pullErrors, `Stars pull failed: ${e.message}`]; }
-
-    // The pull is done the moment stars land. Hub backfill + heads/records are
-    // background enrichment (heads = one live GitHub GET per repo, can be slow)
-    // — don't block the status on them, or it looks frozen on "pulling stars".
-    status = 'done';
-    loadHubs();
-    refreshMeta();
+    finally { starsLoading = false; }
   }
 
   // ✨ Enrich — LLM distill only: Purpose / Domain / Entities. No clustering.
@@ -165,22 +168,21 @@
 <div class="page-header">
   <h1>GitHub Pull</h1>
   <p class="sub">
-    One pull, three phases: <strong>your repos</strong>, <strong>your forks</strong>,
-    <strong>your stars</strong>. Then <strong>✨ Enrich</strong> distills
-    <em>Purpose · Domain · Entities</em>. Clustering is a separate step.
+    One pull: <strong>your repos &amp; forks</strong> (streamed), then
+    <strong>your stars</strong> in the background. Then <strong>✨ Enrich</strong>
+    distills <em>Purpose · Domain · Entities</em>. Clustering is a separate step.
   </p>
 </div>
 
 {#if status === 'idle'}
   <button on:click={startPull}>⤓ Pull from GitHub</button>
 {:else if status === 'pulling'}
-  <div class="info-msg"><span class="spinner">⟳</span>
-    {#if phase === 'repos'}Pulling your repos… ({owned.length})
-    {:else if phase === 'forks'}Repos {repoCount} ✓ · pulling your forks…
-    {:else}Repos {repoCount} ✓ · forks {forkCount} ✓ · pulling your stars…{/if}
-  </div>
+  <div class="info-msg"><span class="spinner">⟳</span> Pulling your repos &amp; forks… ({owned.length})</div>
 {:else if status === 'done'}
-  <div class="ok-msg">Pulled — {repoCount} repos · {forkFromOwned || forkCount} forks · {stars.length} stars.</div>
+  <div class="ok-msg">
+    Pulled — {repoCount} repos · {forkFromOwned || forkCount} forks ·
+    {#if starsLoading}<span class="spinner">⟳</span> pulling stars…{:else}{stars.length} stars.{/if}
+  </div>
   {#each pullErrors as e}<div class="error-msg" style="margin-top:0.4rem">{e}</div>{/each}
   <div class="actions-row">
     <button on:click={startPull} class="secondary">⤓ Re-pull</button>
