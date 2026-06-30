@@ -1,5 +1,6 @@
 <script>
-  import { session } from '$lib/stores';
+  import { session, lastStep } from '$lib/stores';
+  import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import '../app.css';
@@ -10,6 +11,10 @@
   }
 
   $: active = (href) => $page.url.pathname.startsWith(href) ? 'active' : '';
+  // Remember the last real workflow route so landing on "/" can resume it.
+  $: if (browser && $page.url.pathname && $page.url.pathname !== '/') {
+    lastStep.set($page.url.pathname);
+  }
 </script>
 
 <nav>

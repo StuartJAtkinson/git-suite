@@ -18,3 +18,7 @@ export const session = persisted('gs_session', null);
 
 // current scan_id from last scan run
 export const currentScanId = persisted('gs_scan_id', null);
+
+// last workflow route visited — landing on "/" resumes here (when logged in),
+// else falls back to /setup (the first step).
+export const lastStep = persisted('gs_last_step', null);
