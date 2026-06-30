@@ -98,9 +98,12 @@
       stars = (await api.getStars()).stars || [];
     } catch (e) { pullErrors = [...pullErrors, `Stars pull failed: ${e.message}`]; }
 
-    await loadHubs();
-    await refreshMeta();
+    // The pull is done the moment stars land. Hub backfill + heads/records are
+    // background enrichment (heads = one live GitHub GET per repo, can be slow)
+    // — don't block the status on them, or it looks frozen on "pulling stars".
     status = 'done';
+    loadHubs();
+    refreshMeta();
   }
 
   // ✨ Enrich — LLM distill only: Purpose / Domain / Entities. No clustering.
