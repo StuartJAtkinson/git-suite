@@ -28,14 +28,12 @@ NAV_ROUTES = [
     ("setup",       "list_providers",          None),         # /api/config/providers
     ("scan",        "latest_scan",             {"session_id": "s1"}),  # /api/scan/latest/{session_id}
     ("hubs",        "list_hubs",               None),         # /api/hubs
-    ("hubs",        "hub_status",              {"hub": "personal-ai-os"}),  # scan_id is a query param
     ("plan",        "get_plan",                None),         # /api/plan
     ("replan",      "state",                   {"session_id": "s1"}),  # network -> assert route only
     ("reconcile",   "reconcile",               {"session_id": "s1"}),  # network -> assert route only
     ("overlap",     "overlap",                 {"session_id": "s1"}),  # network -> assert route only
     ("execute",     "preview",                 {"session_id": "s1"}),  # network -> assert route only
     ("stars",       "get_stars",               None),         # /api/stars
-    ("stars",       "stars_dedup",             {"session_id": "s1"}),
     ("migration",   "hub_migration",           {"hub": "personal-ai-os", "session_id": "s1"}),
     ("order",       "get_order",               {"session_id": "s1", "hub": "personal-ai-os"}),
     ("cluster",     "propose",                 {"session_id": "s1"}),
@@ -46,10 +44,8 @@ NAV_ROUTES = [
 OFFLINE_BODIES = {
     ("config",      "list_providers"),
     ("hubs",        "list_hubs"),
-    ("hubs",        "hub_status"),
     ("plan",        "get_plan"),
     ("stars",       "get_stars"),
-    ("stars",       "stars_dedup"),
     ("migration",   "hub_migration"),
     ("order",       "get_order"),
 }
@@ -91,10 +87,6 @@ def test_full_nav_walkthrough(temp_db, isolated_plan):
                   "absorbs", "alternatives"):
             assert f in hubs[0], f"hub response missing {f!r}"
 
-        status = c.get("/api/hubs/personal-ai-os/status").json()
-        for f in ("hub", "absorbs", "archives", "commercial_refs"):
-            assert f in status, f"hub status missing {f!r}"
-
         # Plan
         plan = c.get("/api/plan").json()
         assert "hubs" in plan and "personal-ai-os" in plan["hubs"]
@@ -102,7 +94,6 @@ def test_full_nav_walkthrough(temp_db, isolated_plan):
 
         # Stars
         assert c.get("/api/stars").json()["count"] == 0
-        assert c.get("/api/stars/dedup/s1").json()["available"] is False
 
         # Migration (uses the seeded scan for the live/done flags)
         mig = c.get("/api/migration/hub/personal-ai-os/s1").json()

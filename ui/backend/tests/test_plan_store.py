@@ -97,19 +97,6 @@ def test_upsert_edits_existing_hub_keeping_absorbs(isolated_plan):
     assert hub["boundary"] == "b" and hub["absorbs"] == ["foo"]
 
 
-def test_add_and_remove_hub_alternative(isolated_plan):
-    isolated_plan.add_hub_alternative("media-hub", "Stash", "oss")
-    isolated_plan.add_hub_alternative("media-hub", "Stash", "oss")  # idempotent
-    oss = isolated_plan.get_plan()["hubs"]["media-hub"]["alternatives"]["oss"]
-    assert oss.count("Stash") == 1
-    isolated_plan.remove_hub_alternative("media-hub", "Stash", "oss")
-    assert "Stash" not in isolated_plan.get_plan()["hubs"]["media-hub"]["alternatives"]["oss"]
-    with pytest.raises(ValueError):
-        isolated_plan.add_hub_alternative("media-hub", "X", "bogus")
-    with pytest.raises(ValueError):
-        isolated_plan.add_hub_alternative("no-such-hub", "X", "oss")
-
-
 def test_creative_hub_homes_vtuberlive(isolated_plan):
     p = isolated_plan.get_plan()
     assert p["hubs"]["creative-hub"]["priority"] is None     # emergent, no seeded layer

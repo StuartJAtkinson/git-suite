@@ -14,17 +14,12 @@ import base64
 import json
 import logging
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-
 import plan_store
 from database import get_db
-from routers.auth import require_session
 from services.columns import COLUMNS
 from services.github import get_file, push_file
 
 log = logging.getLogger(__name__)
-router = APIRouter()
 
 _ROADMAP_START = "<!-- integration-roadmap-start -->"
 _ROADMAP_END = "<!-- integration-roadmap-end -->"
@@ -63,7 +58,6 @@ def _format_repo_block(repo: str, row: dict | None, *, is_hub: bool = False) -> 
 
 def compose_section(
     hub: str,
-    refs: list[dict],
     plan: dict | None = None,
     hub_order_rows: list[dict] | None = None,
 ) -> str:
@@ -83,18 +77,7 @@ def compose_section(
     oss_list = ". ".join(alts.get("oss", []))
     commercial_list = ". ".join(alts.get("commercial", []))
 
-    scraped_names = [r["name"] for r in refs if r.get("name") and r["name"] != "Unknown"]
-    if scraped_names:
-        commercial_list = commercial_list + (". " if commercial_list else "") + ". ".join(scraped_names)
-
     absorbs_block = "\n".join(f"- {r}" for r in absorbs) if absorbs else "- (none yet)"
-
-    feature_lines = []
-    for ref in refs:
-        if ref.get("features"):
-            feature_lines.append(f"\n**{ref['name']}** ({ref['url']})")
-            feature_lines.extend(f"- {f}" for f in ref["features"])
-    scraped_block = "\n".join(feature_lines) if feature_lines else ""
 
     # Build the ToK ordering block. Re-order the absorbs by the position
     # stored in hub_order (with the hub repo pinned to position 0); any
@@ -142,9 +125,6 @@ _Columns: {columns_legend}._
 ### Commercial alternatives
 {commercial_list or '(none documented)'}
 """
-    if scraped_block:
-        section += f"\n### Scraped feature benchmarks\n{scraped_block}\n"
-
     section += f"""
 > Aim: pull functionality from the repos above and take further inspiration from the OSS and
 > commercial alternatives. A future goal is to ensure 2-way sync compatibility with open-source
@@ -159,14 +139,6 @@ def _inject(existing: str, section: str) -> str:
         end = existing.index(_ROADMAP_END) + len(_ROADMAP_END)
         return existing[:start] + section + existing[end:]
     return existing.rstrip() + "\n\n" + section + "\n"
-
-
-async def _refs_for(hub: str) -> list[dict]:
-    async for db in get_db():
-        rows = await db.execute_fetchall(
-            "SELECT url, name, features FROM commercial_refs WHERE hub = ?", (hub,)
-        )
-    return [{"url": r["url"], "name": r["name"], "features": json.loads(r["features"])} for r in rows]
 
 
 async def _hub_order_for(hub: str) -> list[dict]:
@@ -192,9 +164,8 @@ async def _hub_order_for(hub: str) -> list[dict]:
 
 async def readme_status(token: str, owner: str, hub: str, plan: dict | None = None) -> dict:
     """Whether the hub's README roadmap section is missing or out of date."""
-    refs = await _refs_for(hub)
     hub_order_rows = await _hub_order_for(hub)
-    section = compose_section(hub, refs, plan, hub_order_rows)
+    section = compose_section(hub, plan, hub_order_rows)
     existing = await get_file(token, owner, hub, "README.md")
     if existing is None:
         return {"hub": hub, "exists": False, "needs_update": True, "reason": "no README"}
@@ -205,9 +176,8 @@ async def readme_status(token: str, owner: str, hub: str, plan: dict | None = No
 
 async def push_hub_readme(token: str, owner: str, hub: str, plan: dict | None = None) -> dict:
     """Compose + push the hub's README roadmap section. Reusable by Execute."""
-    refs = await _refs_for(hub)
     hub_order_rows = await _hub_order_for(hub)
-    section = compose_section(hub, refs, plan, hub_order_rows)
+    section = compose_section(hub, plan, hub_order_rows)
     existing = await get_file(token, owner, hub, "README.md")
     if existing is None:
         base, sha = f"# {hub}\n\n", None
@@ -220,24 +190,3 @@ async def push_hub_readme(token: str, owner: str, hub: str, plan: dict | None = 
                     message=f"chore: update integration roadmap [{hub}]", sha=sha)
     log.info("README pushed for %s (sha_was=%s)", hub, sha)
     return {"pushed": True, "hub": hub, "sha_was": sha}
-
-
-class PushReadmeRequest(BaseModel):
-    session_id: str
-    hub: str
-
-
-@router.post("/readme/push")
-async def push_readme(body: PushReadmeRequest):
-    token, owner = await require_session(body.session_id)
-    if body.hub not in plan_store.get_plan().get("hubs", {}):
-        raise HTTPException(status_code=404, detail="Unknown hub")
-    return await push_hub_readme(token, owner, body.hub)
-
-
-@router.get("/readme/preview/{hub}")
-async def preview_readme(hub: str, session_id: str):
-    await require_session(session_id)
-    refs = await _refs_for(hub)
-    hub_order_rows = await _hub_order_for(hub)
-    return {"hub": hub, "section": compose_section(hub, refs, None, hub_order_rows)}

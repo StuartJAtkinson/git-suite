@@ -27,10 +27,6 @@ export const api = {
 
   // Hubs
   getHubs: () => req('GET', '/api/hubs'),
-  getHubStatus: (hub) =>
-    req('GET', `/api/hubs/${hub}/status`),
-  archiveRepo: (session_id, hub, repo) =>
-    req('POST', '/api/hubs/archive', { session_id, hub, repo }),
   markAbsorbed: (hub, repo) =>
     req('POST', '/api/hubs/absorb', { hub, repo }),
 
@@ -49,18 +45,6 @@ export const api = {
     req('POST', `/api/scan/distill/revalidate/${session_id}`, {}),
   verdicts: (session_id) =>
     req('GET', `/api/scan/distill/verdicts/${session_id}`),
-
-  // Commercial refs
-  scrapeUrl: (hub, url) =>
-    req('POST', '/api/commercial/scrape', { hub, url }),
-  deleteRef: (ref_id) =>
-    req('DELETE', `/api/commercial/${ref_id}`),
-
-  // README
-  pushReadme: (session_id, hub) =>
-    req('POST', '/api/readme/push', { session_id, hub }),
-  previewReadme: (hub, session_id) =>
-    req('GET', `/api/readme/preview/${hub}?session_id=${session_id}`),
 
   // Config
   getConfig: () => req('GET', '/api/config'),
@@ -85,10 +69,6 @@ export const api = {
   pruneGhosts: (session_id) => req('POST', `/api/replan/prune-ghosts/${session_id}`),
   setHubBoundary: (hub, boundary) =>
     req('POST', '/api/plan/hub-boundary', { hub, boundary }),
-  addHubAlternative: (hub, name, kind = 'oss') =>
-    req('POST', '/api/plan/hub-alternative', { hub, name, kind }),
-  removeHubAlternative: (hub, name, kind = 'oss') =>
-    req('POST', '/api/plan/hub-alternative', { hub, name, kind, remove: true }),
 
   // Overlap (hub venn / boundaries)
   getOverlap: (session_id) => req('GET', `/api/overlap/${session_id}`),
@@ -96,7 +76,6 @@ export const api = {
   // Stars (dedup: owned + starred in one framework)
   refreshStars: (session_id) => req('POST', `/api/stars/refresh/${session_id}`),
   getStars: () => req('GET', '/api/stars'),
-  getStarsDedup: (session_id) => req('GET', `/api/stars/dedup/${session_id}`),
 
   // Cluster (assisted group formation — mixed: owned + forks + stars)
   // recompute=false returns the saved result (no re-embedding); true forces a

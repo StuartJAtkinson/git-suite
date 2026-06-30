@@ -270,7 +270,7 @@
               <span class="chain-item" class:head={i === 0}>{i + 1}. {c.display} <span class="chain-model">{c.model}</span></span>
             {/each}
           {:else}
-            No usable provider — replan/scrape fall back to rules only. Add an API key below.
+            No usable provider — replan/migration fall back to rules only. Add an API key below.
           {/if}
         </div>
       {/if}
@@ -393,7 +393,6 @@
         <ul>
           <li><b>Replan</b> — verdict proposals (categorisation)</li>
           <li><b>Migration</b> — per-repo checklists</li>
-          <li><b>Commercial</b> — scrape → feature extraction</li>
         </ul>
       </div>
       <div class="use-group">

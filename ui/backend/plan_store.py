@@ -212,36 +212,6 @@ def remove_hub(name: str) -> dict:
         return {"removed": name}
 
 
-def add_hub_alternative(hub: str, name: str, kind: str = "oss") -> dict:
-    """Append a starred/external project to a hub's OSS/commercial alternatives
-    list (idempotent). This is how a Stars suggestion gets accepted into the plan."""
-    return _edit_alternative(hub, name, kind, add=True)
-
-
-def remove_hub_alternative(hub: str, name: str, kind: str = "oss") -> dict:
-    return _edit_alternative(hub, name, kind, add=False)
-
-
-def _edit_alternative(hub: str, name: str, kind: str, add: bool) -> dict:
-    if kind not in ("oss", "commercial"):
-        raise ValueError(f"unknown kind {kind!r}")
-    if not name or not name.strip():
-        raise ValueError("alternative name required")
-    with _LOCK:
-        plan = _load()
-        if hub not in plan.get("hubs", {}):
-            raise ValueError(f"unknown hub {hub!r}")
-        alts = plan["hubs"][hub].setdefault("alternatives", {"oss": [], "commercial": []})
-        lst = alts.setdefault(kind, [])
-        if add:
-            if name not in lst:
-                lst.append(name)
-        else:
-            alts[kind] = [a for a in lst if a != name]
-        _write(plan)
-        return alts
-
-
 def set_hub_boundary(hub: str, boundary: str) -> dict:
     """Edit a hub's boundary statement (the scope rule fed to the LLM)."""
     with _LOCK:

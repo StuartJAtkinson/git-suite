@@ -41,15 +41,6 @@ async def init_db() -> None:
                 finished_at TEXT
             );
 
-            CREATE TABLE IF NOT EXISTS commercial_refs (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                hub        TEXT NOT NULL,
-                url        TEXT NOT NULL,
-                name       TEXT NOT NULL,
-                features   TEXT NOT NULL,   -- JSON array of strings
-                added_at   TEXT DEFAULT (datetime('now'))
-            );
-
             CREATE TABLE IF NOT EXISTS hub_actions (
                 hub      TEXT NOT NULL,
                 repo     TEXT NOT NULL,

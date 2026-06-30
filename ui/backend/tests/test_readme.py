@@ -4,7 +4,7 @@
 
 def test_compose_reads_live_plan(isolated_plan):
     from routers import readme
-    section = readme.compose_section("media-hub", [], plan=isolated_plan.get_plan())
+    section = readme.compose_section("media-hub", plan=isolated_plan.get_plan())
     assert "Integration Roadmap" in section
     assert "comictagger" in section          # a seeded media-hub absorb
     assert readme._ROADMAP_START in section and readme._ROADMAP_END in section
@@ -13,23 +13,15 @@ def test_compose_reads_live_plan(isolated_plan):
 def test_compose_reflects_plan_edits(isolated_plan):
     from routers import readme
     isolated_plan.set_verdict("brand-new-repo", "absorb", "media-hub")
-    section = readme.compose_section("media-hub", [], plan=isolated_plan.get_plan())
+    section = readme.compose_section("media-hub", plan=isolated_plan.get_plan())
     assert "brand-new-repo" in section        # proves it's the live plan, not the seed
 
 
 def test_compose_includes_alternatives(isolated_plan):
     from routers import readme
-    section = readme.compose_section("personal-ai-os", [], plan=isolated_plan.get_plan())
+    section = readme.compose_section("personal-ai-os", plan=isolated_plan.get_plan())
     assert "OSS alternatives" in section
     assert "Commercial alternatives" in section
-
-
-def test_compose_merges_scraped_refs(isolated_plan):
-    from routers import readme
-    refs = [{"url": "https://x.test", "name": "AcmeProduct", "features": ["does X", "does Y"]}]
-    section = readme.compose_section("code-suite", refs, plan=isolated_plan.get_plan())
-    assert "AcmeProduct" in section
-    assert "does X" in section
 
 
 # --- Tree-of-Knowledge ordering block -------------------------------------
@@ -48,7 +40,7 @@ def test_compose_renders_tok_block_when_hub_order_present(isolated_plan):
         {"repo": "simklExporter", "position": 2, "is_gather": 1, "is_analyse": 0, "is_display": 0,
          "compat_tags": [], "feature_annotations": []},
     ]
-    section = readme.compose_section("media-hub", [], isolated_plan.get_plan(), hub_order_rows)
+    section = readme.compose_section("media-hub", isolated_plan.get_plan(), hub_order_rows)
     assert "Tree-of-Knowledge ordering" in section
     # Position numbers appear in order
     p1 = section.index("`#1`")
@@ -69,8 +61,8 @@ def test_compose_omits_tok_block_when_no_hub_order(isolated_plan):
     keeps the original alphabetical 'Repos to absorb' block and does not
     add the ordering subsection."""
     from routers import readme
-    section_no_rows = readme.compose_section("media-hub", [], isolated_plan.get_plan(), None)
-    section_empty = readme.compose_section("media-hub", [], isolated_plan.get_plan(), [])
+    section_no_rows = readme.compose_section("media-hub", isolated_plan.get_plan(), None)
+    section_empty = readme.compose_section("media-hub", isolated_plan.get_plan(), [])
     assert "Tree-of-Knowledge ordering" not in section_no_rows
     assert "Tree-of-Knowledge ordering" not in section_empty
     # Original list is still there
@@ -88,7 +80,7 @@ def test_compose_tok_block_pins_hub_repo_to_top(isolated_plan):
         {"repo": "comictagger", "position": 0, "is_gather": 1, "is_analyse": 0, "is_display": 0,
          "compat_tags": [], "feature_annotations": []},
     ]
-    section = readme.compose_section("media-hub", [], isolated_plan.get_plan(), hub_order_rows)
+    section = readme.compose_section("media-hub", isolated_plan.get_plan(), hub_order_rows)
     # The "_(hub)_" marker appears before any `#N` position
     hub_idx = section.index("_(hub)_")
     p1 = section.index("`#")
@@ -106,7 +98,7 @@ def test_compose_tok_block_falls_back_for_unordered_repos(isolated_plan):
         {"repo": "comictagger", "position": 1, "is_gather": 1, "is_analyse": 0, "is_display": 0,
          "compat_tags": [], "feature_annotations": []},
     ]
-    section = readme.compose_section("media-hub", [], isolated_plan.get_plan(), hub_order_rows)
+    section = readme.compose_section("media-hub", isolated_plan.get_plan(), hub_order_rows)
     # Unordered absorbs from the seed (e.g. simklExporter) are still
     # rendered, with the 'not yet ordered' marker.
     assert "not yet ordered" in section

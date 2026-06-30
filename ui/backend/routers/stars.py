@@ -1,21 +1,16 @@
 """
-stars.py — starred-repo snapshot + dedup endpoints.
+stars.py — starred-repo snapshot endpoints.
 
 POST /stars/refresh/{session_id}  — pull all starred repos into starred_repo
 GET  /stars                       — snapshot status + rows
-GET  /stars/dedup/{session_id}    — owned-vs-starred duplicates + per-hub
-                                    starred suggestions (semantic or keyword)
 """
 import json
 import logging
 
 from fastapi import APIRouter
 
-import plan_store
 from database import get_db
 from routers.auth import require_session
-from routers.reconcile import reconcile
-from services import stars as stars_svc
 from services.github import list_starred
 
 log = logging.getLogger(__name__)
@@ -79,19 +74,3 @@ async def get_stars():
     stars = await _load_stars()
     fetched_at = max((s.get("fetched_at") or "" for s in stars), default=None)
     return {"count": len(stars), "fetched_at": fetched_at, "stars": stars}
-
-
-@router.get("/stars/dedup/{session_id}")
-async def stars_dedup(session_id: str):
-    """Match the latest scan + hubs against the starred snapshot."""
-    stars = await _load_stars()
-    if not stars:
-        return {"available": False, "reason": "No starred snapshot — refresh first.",
-                "method": None, "duplicates": [], "hub_suggestions": {}}
-
-    recon = await reconcile(session_id)
-    plan = plan_store.get_plan()
-    result = await stars_svc.dedup(recon["repos"], stars, plan.get("hubs", {}))
-    result["available"] = True
-    result["star_count"] = len(stars)
-    return result
