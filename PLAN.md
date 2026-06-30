@@ -43,7 +43,73 @@ LAYER 9 — CREATIVE & GRAPHICS
 
 ---
 
+## ARCHITECTURE MODEL — hubs standardise, they don't contain (2026-06-30 reframe)
+
+Earlier drafts read as "absorb repo X **into** hub Y" — the hub swallows the code.
+**That is no longer the model.** The shift, in four parts:
+
+### 1. Own every tool (the repo library)
+Each tool a hub could use must exist as *my own* first-class repo:
+- **Forks → owned repos.** A fork I actually rely on is promoted to a real owned
+  repo (de-forked / re-homed), not left as a dependency on someone else's tree.
+- **Starred features → owned repos.** When I use a *feature* of a starred project,
+  that capability is extracted/reimplemented into an appropriate owned repo — the
+  star is inspiration; the capability lives in something I control.
+- The portfolio becomes a **curated library of owned, single-purpose tool repos**,
+  each standardised (the doc/branch alignment sweep is step one of "standardised").
+
+### 2. Hubs are modular apps over the library — never containers
+A domain hub (`map-suite`, `media-hub`, …) is **not** a repo that vendors its members'
+code. It is (eventually) a **modular web app or Electron app** that:
+- **Standardises** its member repos to one best-practice dev baseline (structure,
+  docs, tests — what the alignment sweep produces),
+- Gives each an **environment-independent install** (Docker) so any member runs the
+  same anywhere,
+- Presents the domain as one coherent surface (orchestration/launcher), while the
+  tool code stays in its own repo.
+
+> So "**Absorbs:**" in the hub list below now reads "**member repos this hub
+> standardises and can compose**" — membership and orchestration, *not* code ingestion.
+
+### 3. Meta-Hub — above the domain hubs
+One layer up, a **Meta-Hub** ties the domain hubs together. Two forms (build the second):
+- *(a) Installer / orchestrator* — connects to each domain hub and installs them all
+  (one command brings up the whole stack).
+- *(b) Recommendation MCP (preferred — the AI-forward form).* It knows every hub's
+  **domain** and every tool's **features**, so a natural-language intent composes a
+  cross-domain tool set on demand:
+  > "Since you're using **maps** + **political data** and want to **create videos** →
+  > take these 2 from `map-suite`, this 1 from the political set, these 3 from
+  > media-creation, these 2 from social-media."
+  >
+  The MCP recommends and provisions; it doesn't own the tools.
+
+### 4. Meta-Hub owns the data / infra source of truth
+The Meta-Hub also manages the **stack's database + container tech as one source of
+truth**, so individual projects don't each spin up their own:
+- **One unified DB install** all project backends route to (per-project
+  schemas/namespaces on a shared engine), and/or
+- **One canonical Docker/config layer** the hubs and tools read from — single source
+  of truth for connection strings, secrets, ports, volumes.
+
+This is the sibling of `homelab-core` (infra control plane): the Meta-Hub is where
+portfolio-level **data + infra config converges**.
+
+**Net:** git-suite's job widens from "absorb/archive/keep + push hub READMEs" to
+**(i)** curate an owned, standardised repo library (promote forks, extract starred
+features), **(ii)** stand up domain hubs as modular standardising apps with Docker
+installs, and **(iii)** stand up a Meta-Hub that recommends/installs across hubs and
+centralises DB + Docker config.
+
+---
+
 ## REPOS TO ARCHIVE (37 repos — remove from active work)
+
+> **Reframe note (2026-06-30):** under the model above, an "archive" verdict is not
+> always a death sentence. A fork I depend on becomes **promote → owned repo**; a
+> starred project whose *feature* I use becomes **extract feature → owned repo**.
+> Only genuine dead-ends (no path to production, superseded duplicates) are truly
+> archived. Re-triage this list through that lens.
 
 These have been superseded, are duplicates, or are hobby projects with no clear path to production.
 

@@ -2,20 +2,34 @@
 
 **Canonical home:** https://github.com/StuartJAtkinson/git-suite
 
-A self-hosted web app for **consolidating a sprawling GitHub portfolio into a small set
-of maintained "hubs."** It scans your owned repos (public *and* private), helps you
-decide each one's fate — **absorb** into a hub, **archive**, or **keep** — and then
-executes those decisions back against GitHub.
+A self-hosted web app for turning a sprawling GitHub portfolio into a **curated library
+of owned, standardised tool repos** organised under a small set of **domain hubs**. It
+scans your owned repos (public *and* private), helps you decide each one's role —
+**standardise** it into a hub, **promote** a fork to an owned repo, **extract** a starred
+project's feature into one, **keep**, or **archive** — and executes those decisions back
+against GitHub.
 
-The portfolio target (which hubs exist, what they absorb, the layer structure) lives in
+> **Hubs standardise, they don't contain.** A hub never vendors its members' code; it is
+> a modular web/Electron app that standardises, Docker-packages and composes the owned
+> tool repos that belong to its domain. Above them sits a **Meta-Hub** — a recommendation
+> MCP that composes cross-domain tool sets on demand and owns the unified DB + Docker
+> config as one source of truth. See [PLAN.md → Architecture model](./PLAN.md) for the
+> full shift.
+
+The portfolio target (hubs, layers, the standardise/promote/extract lists) lives in
 [PLAN.md](./PLAN.md). This README is about the *tool* that gets you there.
 
 ---
 
 ## Core idea
 
-Planning is **cheap, local, and reversible**; execution is a **separate, deliberate**
-step that touches GitHub.
+The portfolio is a **library of owned, single-purpose tool repos**; **hubs are modular
+apps that standardise and compose that library, never containers that swallow it**; and a
+**Meta-Hub** recommends/installs across hubs and centralises data + infra config. (Full
+model: [PLAN.md → Architecture model](./PLAN.md).)
+
+Operationally, planning is **cheap, local, and reversible**; execution is a **separate,
+deliberate** step that touches GitHub.
 
 - **Plan is data, not code.** The canonical plan lives in `plan.json` under
   `GIT_SUITE_HOME` (defaults to `~/.git-suite`; in Docker, `/app/data` so the
@@ -115,6 +129,6 @@ cd ui/backend && python -m pytest        # 99 tests
 
 ---
 
-*Last updated: 2026-06-18 — `gh auth` button removed; state persistence
-centralized under `GIT_SUITE_HOME` (Docker uses `/app/data` on the existing
-host mount so `state.db` + `config.json` + `plan.json` all survive rebuilds).*
+*Last updated: 2026-06-30 — reframed around the "hubs standardise, don't contain" model:
+owned-repo library, hubs as modular standardising apps, and a Meta-Hub (recommendation
+MCP + unified DB/Docker source of truth). See PLAN.md → Architecture model.*
