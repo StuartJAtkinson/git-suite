@@ -37,8 +37,8 @@ export const api = {
     req('GET', `/api/scan/latest/${session_id}`),
   heads: (session_id) =>
     req('GET', `/api/scan/heads/${session_id}`),
-  distill: (session_id) =>
-    req('POST', `/api/scan/distill/${session_id}`, {}),
+  distill: (session_id, limit = 0) =>
+    req('POST', `/api/scan/distill/${session_id}${limit ? `?limit=${limit}` : ''}`, {}),
   distillRecords: (session_id) =>
     req('GET', `/api/scan/distill/${session_id}/records`),
 

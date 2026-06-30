@@ -326,18 +326,28 @@ async def _repos_for_distill(session_id: str) -> list[dict]:
 
 
 @router.post("/scan/distill/{session_id}")
-async def distill(session_id: str):
-    """Run the LLM distillation loop over every repo in the latest scan +
-    stars snapshot. Cached by src_hash. Stops on credit/quota exhaustion."""
+async def distill(session_id: str, limit: int = 0):
+    """Distil ONE batch of up to `limit` not-yet-cached repos (limit=0 = all),
+    then report progress so the UI can loop until done. Cached by src_hash, so
+    it resumes where it left off. `stop_on_error=False` — a transient failure on
+    one repo skips it (retried next batch); only a hard credit/quota stop sets
+    `stop_reason`."""
     await require_session(session_id)
     repos = await _repos_for_distill(session_id)
+    total = len(repos)
     if not repos:
-        return {"done": 0, "failed": 0, "total": 0, "stop_reason": ""}
-    records, stop_reason = await distill_svc.records(repos, stop_on_error=True)
+        return {"done": 0, "total": 0, "cached": 0, "remaining": 0, "stop_reason": ""}
+
+    todo = await distill_svc.uncached(repos)
+    already = total - len(todo)
+    batch = todo[:limit] if limit and limit > 0 else todo
+    recs, stop_reason = await distill_svc.records(batch, stop_on_error=False)
+    done = sum(1 for r in recs.values() if r.get("purpose"))
     return {
-        "done": sum(1 for r in records.values() if r.get("purpose")),
-        "failed": sum(1 for r in records.values() if not r.get("purpose")),
-        "total": len(records),
+        "done": done,                          # newly distilled this batch
+        "total": total,
+        "cached": already + done,              # total with a record now
+        "remaining": max(0, len(todo) - done),  # still to do
         "stop_reason": stop_reason,
     }
 

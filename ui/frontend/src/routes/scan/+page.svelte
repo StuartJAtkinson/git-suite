@@ -24,6 +24,7 @@
   let pullErrors = [];     // per-phase failures, surfaced (no silent swallow)
   let enrichStatus = '';   // '' | 'running' | 'done'
   let enrichMsg = '';
+  let enrichStop = false;  // user pressed Stop mid-loop
   let accessStatus = '';   // '' | 'checking' | 'done'  (opt-in heads check)
   let errorMsg = '';
   let ws;
@@ -118,19 +119,30 @@
     finally { starsLoading = false; }
   }
 
-  // ✨ Enrich — LLM distill only: Purpose / Domain / Entities. No clustering.
+  // ✨ Enrich — LLM read of each repo (Purpose / Domain / Entities), looped in
+  // batches so it chews through the whole portfolio over time. Cached + resumable:
+  // re-running (or Stop → Enrich) picks up where it left off. No clustering.
   async function enrich() {
-    enrichStatus = 'running';
+    enrichStatus = 'running'; enrichStop = false;
     enrichMsg = 'Enriching — reading each repo for Purpose / Domain / Entities…';
     try {
-      const d = await api.distill($session.session_id);
-      enrichMsg = d.stop_reason
-        ? `Enrich stopped: ${d.stop_reason} (${d.done}/${d.total}).`
-        : `Enriched ${d.done}/${d.total} repos.`;
-      await refreshMeta();
+      while (!enrichStop) {
+        const d = await api.distill($session.session_id, 25);   // one batch
+        await refreshMeta();                                    // fill table as we go
+        if (d.remaining <= 0) { enrichMsg = `Enriched all ${d.total} repos.`; break; }
+        if (d.stop_reason) {
+          enrichMsg = `Paused (${d.cached}/${d.total}) — ${d.stop_reason}. Press Enrich to resume.`;
+          break;
+        }
+        enrichMsg = `Enriching… ${d.cached}/${d.total}`;
+        await new Promise((r) => setTimeout(r, 400));           // gentle between batches
+      }
+      if (enrichStop) enrichMsg = `Stopped — resume anytime with Enrich.`;
     } catch (e) { enrichMsg = e.message; }
     finally { enrichStatus = 'done'; }
   }
+
+  function stopEnrich() { enrichStop = true; }
 
   $: repoCount = owned.filter((r) => !r.is_fork).length;
   $: forkFromOwned = owned.filter((r) => r.is_fork).length;
@@ -186,9 +198,11 @@
   {#each pullErrors as e}<div class="error-msg" style="margin-top:0.4rem">{e}</div>{/each}
   <div class="actions-row">
     <button on:click={startPull} class="secondary">⤓ Re-pull</button>
-    <button on:click={enrich} class="primary" disabled={enrichStatus === 'running'}>
-      {enrichStatus === 'running' ? 'Enriching…' : '✨ Enrich'}
-    </button>
+    {#if enrichStatus === 'running'}
+      <button on:click={stopEnrich} class="primary">⏸ Stop enriching</button>
+    {:else}
+      <button on:click={enrich} class="primary">✨ Enrich</button>
+    {/if}
     <button on:click={checkAccess} class="secondary" disabled={accessStatus === 'checking'}
             title="One GitHub request per repo + star — heavier, use sparingly">
       {accessStatus === 'checking' ? 'Checking…' : '🔎 Check access'}

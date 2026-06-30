@@ -135,6 +135,20 @@ async def _store(items: list[tuple[str, dict, str]]) -> None:
 
 
 # ── public API ──────────────────────────────────────────────────────────────
+async def uncached(repos: list[dict]) -> list[dict]:
+    """The repos whose distilled record isn't cached for the current src+prompt
+    (i.e. the ones a batch still needs to do). Order preserved."""
+    srcs = {_key(r): _src(r) for r in repos}
+    cache = await _cached(list(srcs))
+    out = []
+    for r in repos:
+        k = _key(r)
+        hit = cache.get(k)
+        if not (hit and hit[1] == _cache_hash(srcs[k])):
+            out.append(r)
+    return out
+
+
 async def records(repos: list[dict], stop_on_error: bool = True,
                   concurrency: int = 6) -> tuple[dict[str, dict], str | None]:
     """Distil each repo. Returns ({key: record}, stop_reason).
