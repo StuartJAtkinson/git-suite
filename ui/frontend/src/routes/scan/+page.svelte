@@ -121,12 +121,12 @@
   // ✨ Enrich — LLM distill only: Purpose / Domain / Entities. No clustering.
   async function enrich() {
     enrichStatus = 'running';
-    enrichMsg = 'Enriching — distilling Purpose / Domain / Entities…';
+    enrichMsg = 'Enriching — reading each repo for Purpose / Domain / Entities…';
     try {
       const d = await api.distill($session.session_id);
       enrichMsg = d.stop_reason
-        ? `Distill stopped: ${d.stop_reason} (${d.done}/${d.total}).`
-        : `Distilled ${d.done}/${d.total} repos.`;
+        ? `Enrich stopped: ${d.stop_reason} (${d.done}/${d.total}).`
+        : `Enriched ${d.done}/${d.total} repos.`;
       await refreshMeta();
     } catch (e) { enrichMsg = e.message; }
     finally { enrichStatus = 'done'; }
@@ -137,7 +137,7 @@
 
   $: records_view = [
     ...owned.map((r) => {
-      const fn = r._full_name || r.name;
+      const fn = r.full_name || r.name;   // distill + heads are keyed by full_name
       const head = headsMap[fn] || {};
       return {
         key: fn, name: r.name, source: r.is_fork ? 'fork' : 'owned',
@@ -226,7 +226,7 @@
       <span class="badge">{SOURCE_GLYPH.owned} owned: {counts.owned || 0}</span>
       <span class="badge">{SOURCE_GLYPH.fork} forks: {counts.fork || 0}</span>
       <span class="badge">{SOURCE_GLYPH.star} stars: {counts.star || 0}</span>
-      <span class="badge" style="background:#eef2ff;color:#4338ca">distilled: {Object.keys(records).length}</span>
+      <span class="badge" style="background:#eef2ff;color:#4338ca">enriched: {Object.keys(records).length}</span>
     </div>
     <table class="records">
       <thead>
