@@ -5,29 +5,27 @@
   import { api, scanWs } from '$lib/api';
   import { SOURCE_GLYPH } from '$lib/columns';
 
-  // Scan pulls owned repos. Heads checks every repo for accessibility + builds
-  // the README URL. The Distill button runs the LLM loop (same prompt per
-  // repo → strict JSON {purpose, entities, domain}), cached in repo_domain.
-  // Cluster consumes domain+entities; purpose is what you read on hover.
+  // Two actions only:
+  //   A) Scan / Re-scan  — pull owned repos + forks + stars (no token spend).
+  //   B) Enrich          — the LLM pass: Purpose / Domain / Entities (distill)
+  //                        + Fit (revalidate against the saved clustering).
+  // Cluster and Hub are NOT computed here — they are backfilled from the
+  // Cluster step's saved result and the plan. This page only displays them.
 
   let owned = [];          // owned repos (own forks via is_fork)
   let stars = [];          // starred repos
   let headsMap = {};       // full_name -> head row
   let records = {};        // full_name/name -> {purpose, entities, domain}
   let warnings = [];       // repos needing attention (404/403/etc)
-  let clusterMap = {};     // name -> cluster label
-  let clusterNote = '';
+  let clusterMap = {};     // name -> cluster label (backfilled from Cluster step)
+  let hubMap = {};         // name -> hub (backfilled from the live plan)
   let verdicts = {};       // name -> fit | drift | mis-clustered | ''
   let verdictClusterHash = '';
   let verdictCounts = { fit: 0, drift: 0, 'mis-clustered': 0, skipped: 0 };
 
-  let status = 'idle';     // idle | scanning | enriching | done | error
-  let clusterStatus = '';  // '' | 'running' | 'done' | 'error'
-  let distillStatus = '';  // '' | 'running' | 'done' | 'error'
-  let distillMsg = '';     // human-readable progress / stop reason
-  let distillProgress = { done: 0, total: 0, failed: 0 };
-  let revalidateStatus = '';
-  let revalidateMsg = '';
+  let status = 'idle';     // idle | scanning | snapshotting | done | error
+  let enrichStatus = '';   // '' | 'running' | 'done'
+  let enrichMsg = '';      // human-readable progress / stop reason
   let errorMsg = '';
   let ws;
 
@@ -36,23 +34,34 @@
 
   async function rehydrate() {
     try {
-      const [scan, s, c] = await Promise.all([
+      const [scan, s] = await Promise.all([
         api.latestScan($session.session_id).catch(() => null),
         api.getStars().catch(() => ({ stars: [] })),
-        api.getClusters($session.session_id, {}).catch(() => ({ available: false })),
       ]);
       if (!scan?.repos?.length) return;
       owned = scan.repos;
       stars = s.stars || [];
-      if (c.available) {
-        for (const cl of c.clusters)
-          for (const m of cl.members) clusterMap[m.repo] = cl.suggested_name;
-        clusterMap = clusterMap;
-      }
-      // Heads + records in the background; don't block the table.
-      refreshMeta();
+      await loadClusters();   // backfill Cluster/Hub from the Cluster step
+      refreshMeta();          // heads + records + fit, in the background
       status = 'done';
     } catch (e) { /* stay idle */ }
+  }
+
+  async function loadClusters() {
+    // Backfill only — never recompute. The Cluster step owns clustering and
+    // hub formation; here we just read its saved result (Cluster column) and
+    // the live plan (Hub column), so both reflect what Cluster produced.
+    const [c, recon] = await Promise.all([
+      api.getClusters($session.session_id, {}).catch(() => ({ available: false })),
+      api.reconcile($session.session_id).catch(() => ({ repos: [] })),
+    ]);
+    clusterMap = {}; hubMap = {};
+    if (c.available) {
+      for (const cl of c.clusters)
+        for (const m of cl.members) clusterMap[m.repo] = cl.suggested_name;
+    }
+    for (const r of recon.repos || []) if (r.hub) hubMap[r.name] = r.hub;
+    clusterMap = clusterMap; hubMap = hubMap;
   }
 
   async function refreshMeta() {
@@ -75,24 +84,27 @@
     } catch (e) { /* non-fatal */ }
   }
 
+  // A) Scan / Re-scan
   function startScan() {
     status = 'scanning';
-    owned = []; stars = []; clusterMap = {}; clusterNote = '';
-    headsMap = {}; warnings = []; records = {}; distillMsg = '';
+    owned = []; stars = []; clusterMap = {};
+    headsMap = {}; warnings = []; records = {}; enrichMsg = '';
     errorMsg = '';
     api.startScan($session.session_id).then(({ scan_id }) => {
       currentScanId.set(scan_id);
       ws = scanWs(
         scan_id,
         (repo) => (owned = [...owned, repo]),
-        () => enrich(),
+        () => afterScan(),
         (msg) => { status = 'error'; errorMsg = msg; }
       );
     }).catch((e) => { status = 'error'; errorMsg = e.message; });
   }
 
-  async function enrich() {
-    status = 'enriching';
+  // Scan completion: snapshot forks + stars (part of the scan, not "enrich"),
+  // then backfill any saved clustering + cached records.
+  async function afterScan() {
+    status = 'snapshotting';
     try {
       await Promise.all([
         api.refreshForks($session.session_id),
@@ -100,80 +112,48 @@
       ]);
       const s = await api.getStars();
       stars = s.stars || [];
-      // ponytail: clustering is a manual step now (the Cluster button) so a scan
-      // doesn't blitz LLM/embedding tokens. Load any saved result only.
-      const c = await api.getClusters($session.session_id, {}).catch(() => ({ available: false }));
-      if (c.available) {
-        for (const cl of c.clusters)
-          for (const m of cl.members) clusterMap[m.repo] = cl.suggested_name;
-        clusterMap = clusterMap;
-      }
-      // Heads + rehydrate cached records
+      await loadClusters();
       await refreshMeta();
     } catch (e) { errorMsg = e.message; }
     finally { status = 'done'; }
   }
 
-  async function runCluster() {
-    clusterStatus = 'running';
-    clusterNote = '';
+  // B) Enrich — the LLM pass: Purpose/Domain/Entities (distill) + Fit
+  // (revalidate). Fit needs a saved clustering; if there's none yet it no-ops
+  // and tells you to cluster first, then Enrich again.
+  async function enrich() {
+    enrichStatus = 'running';
+    enrichMsg = 'Enriching — distilling Purpose / Domain / Entities…';
     try {
-      const c = await api.getClusters($session.session_id, { recompute: true });
-      if (c.available) {
-        clusterMap = {};
-        for (const cl of c.clusters)
-          for (const m of cl.members) clusterMap[m.repo] = cl.suggested_name;
-        clusterMap = clusterMap;
+      const d = await api.distill($session.session_id);
+      let m = d.stop_reason
+        ? `Distill stopped: ${d.stop_reason} (${d.done}/${d.total}).`
+        : `Distilled ${d.done}/${d.total} repos.`;
+
+      enrichMsg = m + ' Checking cluster Fit…';
+      const v = await api.revalidate($session.session_id);
+      if (v.counts) verdictCounts = v.counts;
+      verdictClusterHash = v.cluster_hash || '';
+      if (!verdictClusterHash) {
+        m += ' Fit pending — run the Cluster step, then Enrich again.';
       } else {
-        clusterNote = c.reason || 'Clustering unavailable.';
+        m += ` Fit: ${verdictCounts.fit} ✓ · ${verdictCounts.drift} ↘ · ${verdictCounts['mis-clustered']} ✗.`;
       }
-    } catch (e) { clusterNote = e.message; }
-    finally { clusterStatus = 'done'; }
-  }
-
-  async function runDistill() {
-    distillStatus = 'running';
-    distillMsg = 'Distilling…';
-    distillProgress = { done: 0, total: 0, failed: 0 };
-    try {
-      // No streaming endpoint yet — show indeterminate progress while it runs
-      // and report the final counts. Loop endpoint streams next iteration.
-      const r = await api.distill($session.session_id);
-      distillProgress = { done: r.done, total: r.total, failed: r.failed };
-      distillMsg = r.stop_reason
-        ? `Stopped: ${r.stop_reason}. Distilled ${r.done}/${r.total}.`
-        : `Distilled ${r.done}/${r.total} repos.`;
+      enrichMsg = m;
       await refreshMeta();
-    } catch (e) { distillMsg = e.message; }
-    finally { distillStatus = 'done'; }
-  }
-
-  async function runRevalidate() {
-    revalidateStatus = 'running';
-    revalidateMsg = 'Asking the LLM whether each repo still fits its cluster…';
-    try {
-      const r = await api.revalidate($session.session_id);
-      if (r.stop_reason) {
-        revalidateMsg = `Stopped: ${r.stop_reason}.`;
-      }
-      if (r.counts) verdictCounts = r.counts;
-      if (r.cluster_hash) verdictClusterHash = r.cluster_hash;
-      // Refresh from cache (the endpoint wrote through).
-      await refreshMeta();
-    } catch (e) { revalidateMsg = e.message; }
-    finally { revalidateStatus = 'done'; }
+    } catch (e) { enrichMsg = e.message; }
+    finally { enrichStatus = 'done'; }
   }
 
   // Unified records: owned + stars. full_name is the distill key; stars have
-  // it, owned don't — we key owned rows by their `name` (which equals the
-  // short part of full_name) and resolve readme URL via the heads call.
+  // it, owned don't — we key owned rows by their `name`.
   $: records_view = [
     ...owned.map((r) => {
       const fn = r._full_name || r.name;
       const head = headsMap[fn] || {};
       return {
         key: fn, name: r.name, source: r.is_fork ? 'fork' : 'owned',
-        hub: r.mid_cat, language: r.language, stars: r.stars,
+        hub: hubMap[r.name] || r.mid_cat || '', language: r.language, stars: r.stars,
         readme_url: head.readme_url || r.url,
         repo_url: head.url || r.url,
         rec: records[fn] || records[r.name] || null,
@@ -203,32 +183,30 @@
 
 <div class="page-header">
   <h1>Repo Scan</h1>
-  <p class="sub">Scan scrapes your repos, forks &amp; stars (no token spend). Then run <strong>Distill</strong> and <strong>Cluster</strong> when you're ready — both are separate, resumable steps so you control when the LLM/embedding tokens are spent. Hubs group by <strong>substance</strong> (what a repo is for), not its tech stack.</p>
+  <p class="sub">
+    Two steps. <strong>A) Scan / Re-scan</strong> pulls your repos, forks &amp;
+    stars (no token spend). <strong>B) Enrich</strong> runs the LLM pass that
+    fills <em>Fit, Purpose, Domain, Entities</em>. <strong>Cluster</strong> and
+    <strong>Hub</strong> are backfilled from the Cluster step — not computed here.
+  </p>
 </div>
 
 {#if status === 'idle'}
-  <button on:click={startScan}>Start scan</button>
+  <button on:click={startScan}>A) Start scan</button>
 {:else if status === 'scanning'}
   <div class="info-msg"><span class="spinner">⟳</span> Scanning — {owned.length} repos found…</div>
-{:else if status === 'enriching'}
+{:else if status === 'snapshotting'}
   <div class="info-msg"><span class="spinner">⟳</span> Snapshotting forks &amp; stars…</div>
 {:else if status === 'done'}
   <div class="ok-msg">Done — {owned.length} repos, {stars.length} stars, {Object.keys(clusterMap).length} clustered.</div>
   <div class="actions-row">
-    <button on:click={startScan} class="secondary">Re-scan</button>
-    <button on:click={runDistill} class="primary" disabled={distillStatus === 'running'}>
-      {distillStatus === 'running' ? 'Distilling…' : '✨ Distill all'}
+    <button on:click={startScan} class="secondary">A) Re-scan</button>
+    <button on:click={enrich} class="primary" disabled={enrichStatus === 'running'}>
+      {enrichStatus === 'running' ? 'Enriching…' : '✨ B) Enrich'}
     </button>
-    <button on:click={runCluster} class="primary" disabled={clusterStatus === 'running'}>
-      {clusterStatus === 'running' ? 'Clustering…' : '🧩 Cluster repos'}
-    </button>
-    <button on:click={runRevalidate} class="secondary" disabled={revalidateStatus === 'running' || Object.keys(clusterMap).length === 0}>
-      {revalidateStatus === 'running' ? 'Revalidating…' : '🔁 Revalidate clusters'}
-    </button>
-    <a href="/cluster"><button class="success">Go to Cluster</button></a>
+    <a href="/cluster"><button class="success">Go to Cluster →</button></a>
   </div>
-  {#if distillMsg}<div class="info-msg" style="margin-top:0.5rem">{distillMsg}</div>{/if}
-  {#if revalidateMsg}<div class="info-msg" style="margin-top:0.5rem">{revalidateMsg}</div>{/if}
+  {#if enrichMsg}<div class="info-msg" style="margin-top:0.5rem">{enrichMsg}</div>{/if}
   {#if verdictClusterHash && (verdictCounts.fit + verdictCounts.drift + verdictCounts['mis-clustered']) > 0}
     <div class="drift-banner" style="margin-top:0.6rem">
       <span class="vpill v-fit">✓ fit · {verdictCounts.fit}</span>
@@ -242,8 +220,6 @@
   <div class="error-msg">{errorMsg}</div>
   <button on:click={startScan} class="secondary" style="margin-top: 0.5rem">Retry</button>
 {/if}
-
-{#if clusterNote}<div class="info-msg" style="margin-top:0.6rem">{clusterNote} <a href="/setup">Open Setup →</a></div>{/if}
 
 {#if warnings.length > 0}
   <div class="section">
@@ -265,6 +241,7 @@
 {#if records_view.length > 0}
   <div class="section">
     <div class="section-head"><h2>Records ({records_view.length})</h2></div>
+    <p class="sub">Cluster &amp; Hub are filled by the Cluster step; Fit/Purpose/Domain/Entities by Enrich.</p>
     <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.6rem;">
       <span class="badge">{SOURCE_GLYPH.owned} owned: {counts.owned || 0}</span>
       <span class="badge">{SOURCE_GLYPH.fork} forks: {counts.fork || 0}</span>
