@@ -4,20 +4,24 @@
 
 A self-hosted web app for turning a sprawling GitHub portfolio into a **curated library
 of owned, standardised tool repos** organised under a small set of **domain hubs**. It
-scans your owned repos (public *and* private), helps you decide each one's role —
+scans your owned repos (public *and* private) and helps you *plan* each one's role —
 **standardise** it into a hub, **promote** a fork to an owned repo, **extract** a starred
-project's feature into one, **keep**, or **archive** — and executes those decisions back
-against GitHub.
+project's feature into one, **keep**, or **archive** — then executes the consolidation
+actions it can (archive, create a hub repo, push README/MIGRATION.md) back against GitHub.
+The deeper roles (promote, extract) are decisions the tool records; the building happens
+in the portfolio repos themselves.
 
 > **Hubs standardise, they don't contain.** A hub never vendors its members' code; it is
 > a modular web/Electron app that standardises, Docker-packages and composes the owned
 > tool repos that belong to its domain. Above them sits a **Meta-Hub** — a recommendation
 > MCP that composes cross-domain tool sets on demand and owns the unified DB + Docker
-> config as one source of truth. See [PLAN.md → Architecture model](./PLAN.md) for the
-> full shift.
+> config as one source of truth.
+>
+> *This describes the **portfolio's** target shape — what the hubs and Meta-Hub become as
+> their own apps. git-suite does not build them; it is the planning tool that gets you
+> there.*
 
-The portfolio target (hubs, layers, the standardise/promote/extract lists) lives in
-[PLAN.md](./PLAN.md). This README is about the *tool* that gets you there.
+This README is about the *tool* that gets you there.
 
 ---
 
@@ -25,16 +29,15 @@ The portfolio target (hubs, layers, the standardise/promote/extract lists) lives
 
 The portfolio is a **library of owned, single-purpose tool repos**; **hubs are modular
 apps that standardise and compose that library, never containers that swallow it**; and a
-**Meta-Hub** recommends/installs across hubs and centralises data + infra config. (Full
-model: [PLAN.md → Architecture model](./PLAN.md).)
+**Meta-Hub** recommends/installs across hubs and centralises data + infra config.
 
 Operationally, planning is **cheap, local, and reversible**; execution is a **separate,
 deliberate** step that touches GitHub.
 
 - **Plan is data, not code.** The canonical plan lives in `plan.json` under
   `GIT_SUITE_HOME` (defaults to `~/.git-suite`; in Docker, `/app/data` so the
-  existing host mount covers it). Seeded once from `plan.py`. Every verdict,
-  hub, and boundary is an edit to that file — never a code change.
+  existing host mount covers it). It starts empty — no hubs are seeded. Every
+  verdict, hub, and boundary is an edit to that file — never a code change.
 - **Remote-only.** The portfolio is sourced entirely from the GitHub API. A local
   checkout carries no meaning: presence in a folder never qualifies, classifies, or
   sources a repo, and there is no local path configuration.
@@ -54,14 +57,13 @@ writes back to `plan.json`; nothing reaches GitHub until **Execute**.
 |-------|--------------|
 | **Setup** | First step — GitHub connection (PAT); configure LLM and embedding providers (API key + model + failover priority — call URLs are hardcoded per provider and models are fetched live from each provider's own listing endpoint). Shows where each chain is actually used. |
 | **Scan** | Pulls every owned repo (public + private) over a live WebSocket, capturing topics, stars, fork/archived flags, `pushed_at`. |
-| **Stars** | Starred repos as a dedup input: snapshot everything you've starred, then surface owned repos a starred project already covers (build-vs-adopt — archive yours) and starred OSS alternatives per hub. Semantic when embeddings are configured, keyword overlap otherwise. |
-| **Cluster** | Embeds unassigned repos and union-find clusters them over a cosine threshold (tightness slider); suggests a theme so you can form a new hub or grow an existing one. |
-| **Hubs** | Create/define hubs (name, layer, priority, description, boundary rule) and see each hub's absorb/archive status. |
+| **Cluster** | Embeds **owned repos + forks + stars in one space** and groups them with spherical k-means (# clusters slider); suggests a theme so you can promote a member into a hub or form a new one. Stars double as a dedup signal — a starred project that already covers an owned repo. |
+| **Order** | Per-hub Tree-of-Knowledge layout — arranges a hub's members from foundational (Gather) through Analyse to Display; per-row reorder + LLM Suggest; feeds the hub README's ordering section. |
 | **Overlap** | Semantic venn — scores repos against hub profiles to surface boundary cases and a hub×hub overlap matrix; edit per-hub boundaries here. |
 | **Replan** | Iterative two-phase loop: *incremental* (fill orphans / prune ghosts) until fully planned, then *structural* (split / new-hub advisories). Proposes verdicts you accept or reject. |
 | **Triage** | Keyboard-fast verdict queue over remaining repos (absorb / keep / archive / orphan). |
 | **Execute** | Dry-run preview diffed against **live** GitHub state, then idempotent batch actions: archive repos, create missing hubs, push composed hub READMEs + MIGRATION.md. |
-| **Layers** | Layer audit — repos rolled up by layer, surfacing cross-layer conflicts. |
+| **Hubs** | Hub Audit — orphan repos plus each hub's members, ordered by hub size. |
 | **Summary** | Reconciliation dashboard: live / absorbed / archived / undecided / ghost counts, per-hub progress, and the next-action list. |
 
 ---
@@ -124,11 +126,10 @@ cd ui/backend && python -m pytest        # 99 tests
 
 ## Documentation
 
-- [PLAN.md](./PLAN.md) — the canonical portfolio roadmap (layers, hubs, archive/create lists).
 - [ISSUES.md](./ISSUES.md) — running open/resolved issue log.
 
 ---
 
 *Last updated: 2026-06-30 — reframed around the "hubs standardise, don't contain" model:
 owned-repo library, hubs as modular standardising apps, and a Meta-Hub (recommendation
-MCP + unified DB/Docker source of truth). See PLAN.md → Architecture model.*
+MCP + unified DB/Docker source of truth).*

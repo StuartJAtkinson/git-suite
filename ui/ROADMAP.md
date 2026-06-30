@@ -4,8 +4,8 @@ A guided cockpit for consolidating a sprawling GitHub portfolio into a small set
 of hub platforms. It treats the plan as **data**, continuously **reconciles**
 intent against live GitHub, and turns decisions into real, idempotent actions.
 
-> Status: the staged plan (Setup → Scan → Stars → Cluster → Hubs → Overlap →
-> Replan → Triage → Execute → Layers → Summary) is built and well past its
+> Status: the staged plan (Setup → Scan → Cluster → Order → Overlap →
+> Replan → Triage → Execute → Hubs → Summary) is built and well past its
 > original scope. This doc describes what actually exists.
 
 ---
@@ -70,6 +70,42 @@ Health: `http://localhost:2800/health`. API docs: `/docs`.
 
 ---
 
+## Architecture model — directed grouping → analysis → promotion → planning
+
+git-suite is not a "sort repos into buckets" tool. It is a directed pipeline that ends
+as a **guided installer**, where the *hub* is a **DAG** from git-suite to a set of
+modular apps/info it can read. Two terms that are easy to conflate:
+
+- **Hub membership** = *standardise + group*. A hub never vendors a member's code —
+  "hubs standardise, they don't contain."
+- **Absorb** = pulling a *feature* (from a star or fork) **into an owned repo** — not
+  swallowing a whole repo into a hub.
+
+The full pipeline (✅ built · ◻ not yet):
+
+1. ✅ **Analyse nodes** — each repo node carries a feature analysis (entities, types,
+   purpose). *(the distill step)*
+2. ✅ **Group & standardise** — cluster repos into hubs; membership standardises +
+   groups, no ingestion.
+3. ◻ **Own** — promote forks → owned repos (de-fork), confirm each sits in the right
+   hub, delete the originating fork once owned.
+4. ✅ **Order & type** — within a hub, order + type repos by **read / analyse /
+   visualise** *(the Order page's Gather/Analyse/Display ToK layout)*.
+5. ◻ **Feature-identify** — feed the ordered+typed context to an LLM to identify each
+   repo's features.
+6. ◻ **Recommend absorbs** — recommend which *features* (from stars/forks) to absorb
+   into the owned repos; own-the-fork-and-delete; **unstar** stars whose features are
+   unwanted or already covered more fully by an owned repo.
+7. ◻ **Align** — align the projects' design principles across the owned library.
+8. ◻ **Guided installer** — git-suite becomes a guided installer; the hub DAG points at
+   modular hub apps/info. git-suite is the planning/analysis/recommendation/install
+   brain — it does **not** build the hub apps themselves (that's the portfolio's shape).
+
+Steps 3 and 5–8 are the unbuilt half; they're tracked as Open items in
+[`../ISSUES.md`](../ISSUES.md).
+
+---
+
 ## The loop
 
 ```
@@ -92,16 +128,13 @@ Health: `http://localhost:2800/health`. API docs: `/docs`.
 |------|--------------|
 | **Setup** | First step — GitHub connection (PAT); LLM provider config (API key + failover priority; call URLs are hardcoded per provider, models are fetched live from each provider's own listing endpoint and filtered to completion-capable ones); embedding provider + live-listed embedding models; chain readout showing where each is used |
 | **Scan** | Streams the live portfolio (incl. private repos) over a same-origin WebSocket; enriched fields (topics, stars, fork, pushed_at, archived, size) |
-| **Hubs** | Per-hub card grid; create / remove hubs; per-row edit (re-upsert to change meta); `→ Order` link to the per-hub ToK layout |
-| **Order** | Per-hub Tree-of-Knowledge layout — one ordered list of a hub's absorbs (foundational first, presentation last); three classification checkboxes (Gather / Analyse / Display) act as filters; per-row arrow reordering + per-row and per-hub LLM Suggest; per-hub compat-tag vocabulary override |
-| **Stars** | Starred repos as a dedup input — snapshot all starred repos, then match owned repos ("a starred project already does this" → archive-mine action) and hubs (starred OSS-alternative suggestions); semantic with keyword fallback |
-| **Cluster** | Assisted group formation — embeds **owned + forks + stars in one space** (mixed-source, default) or owned-only (legacy), union-find clusters them, suggests a theme, user names a new hub / promotes a member / adds to existing; per-member `[O]/[F]/[S]` prefix symbols show source at a glance |
-| **Hub detail** (`/hubs/{hub}`) | Per-hub absorbs, alternatives (OSS/commercial), commercial scrape, README preview/push, migration checklist per absorb + push MIGRATION.md |
+| **Cluster** | Assisted group formation — embeds **owned + forks + stars in one space** (mixed-source, default) or owned-only (legacy), groups them with spherical k-means (# clusters slider), suggests a theme, user names a new hub / promotes a member / adds to existing; per-member `[O]/[F]/[S]` prefix symbols show source at a glance. Stars double as a dedup signal (a starred project that already covers an owned repo) |
+| **Order** | Per-hub Tree-of-Knowledge layout — one ordered list of a hub's members (foundational first, presentation last); three classification checkboxes (Gather / Analyse / Display) act as filters; per-row arrow reordering + per-row and per-hub LLM Suggest; per-hub compat-tag vocabulary override |
 | **Overlap** | Hub×hub overlap matrix (semantic when embeddings configured, keyword fallback), boundary-case repos, editable hub boundaries |
 | **Replan** | Two-phase proposal loop (incremental → structural); accept/reject proposals; prune ghosts; blank/reset plan; history |
 | **Triage** | Keyboard-fast verdict queue (1–N absorb, a/k/o/s); stub badges |
-| **Execute** | Dry-run preview diffed against live GitHub, then idempotent batch actions: archive repos, create missing hubs, push composed hub READMEs (which now include the ToK ordering subsection); hub lifecycle (archive / return / delete) |
-| **Layers** | Layer 0–9 view of hubs and their repos |
+| **Execute** | Dry-run preview diffed against live GitHub, then idempotent batch actions: archive repos, create missing hubs, push composed hub READMEs (which include the ToK ordering subsection) + per-absorb migration checklists / MIGRATION.md; hub lifecycle (archive / return / delete) |
+| **Hubs** | Hub Audit — orphan repos plus each hub's members, ordered by hub size |
 | **Summary** | Reconciliation dashboard: live / absorbed / archived / undecided / ghost / stub counts, per-hub progress, next-action list |
 
 ---
@@ -145,7 +178,7 @@ services/
   github.py        REST: list/archive/unarchive/delete/create, files, readme
   replan.py        proposal engine (rules + LLM + embedding, two-phase)
   migration.py     checklist + scaffold + MIGRATION.md
-  cluster.py       union-find over cosine threshold + theme suggest
+  cluster.py       spherical k-means over embeddings (# clusters) + theme suggest
   stars.py         owned-vs-starred dedup + per-hub suggestions (semantic / keyword)
   models.py        live model listing per provider dialect (no static lists)
   overlap.py       boundary cases + hub×hub matrix (semantic / keyword)

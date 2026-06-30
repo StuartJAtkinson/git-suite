@@ -2,7 +2,14 @@
 
 ## Open
 
-_(none)_
+_Pipeline gap — the built app implements "absorb = repo→hub"; the intended model is "absorb = features→owned repo". Steps 3, 5, 6, 7, 8 of the [architecture model](ui/ROADMAP.md#architecture-model--directed-grouping--analysis--promotion--planning) are unbuilt. See [[git-suite-pipeline-model]]._
+
+- [ ] **Step 3 — Own (promote fork → owned repo)** — de-fork a fork into a real owned repo, confirm it sits in the right hub cluster, delete the originating fork once owned. Today scan only flags `is_fork`; there's no promote/de-fork action *(found 2026-06-30)*
+- [ ] **Step 5 — Feature-identify per repo** — extend the distill output (currently purpose/entities/domain) into an explicit per-repo **feature** list, using the hub's ordered+typed (read/analyse/visualise) context as input to the LLM *(found 2026-06-30)*
+- [ ] **Step 6 — Recommend feature-absorbs** — recommend which *features* from stars/forks to absorb into which owned repo; surface own-the-fork-and-delete actions and **unstar** recommendations for stars whose features are unwanted or already covered more fully by an owned repo. (Reframes the current repo-level `absorb` verdict toward feature-level.) *(found 2026-06-30)*
+- [ ] **Step 7 — Align design principles** — once a hub's repos are owned + ordered, align their design principles (structure/docs/tests baseline) across the owned library *(found 2026-06-30)*
+- [ ] **Step 8 — Guided installer (hub DAG)** — turn the plan into a guided installer where the hub is a DAG from git-suite to modular hub apps/info it reads; git-suite stays the install brain, does not build the hub apps *(found 2026-06-30)*
+- [ ] **'Absorb' vocabulary carries the old meaning** — verdict `absorb`, `absorb_pct`, Triage "absorbs", README "Absorbs:" all mean repo→hub ingestion; the intended sense is feature→owned-repo. Decide rename vs. clarify when Step 6 lands (deferred, not urgent) *(found 2026-06-30)*
 
 ## Resolved
 

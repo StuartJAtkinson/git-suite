@@ -1,9 +1,10 @@
 # Roadmap — git-suite
 
 Self-hosted web app for consolidating a sprawling GitHub portfolio into a small
-set of maintained "hubs" (absorb / archive / keep). The portfolio target lives in
-[`PLAN.md`](PLAN.md); planning is cheap/local/reversible, execution is a separate
-deliberate step against GitHub.
+set of maintained "hubs" (absorb / archive / keep). Hubs are not predefined — they
+emerge from the live GitHub scan (cluster → promote/create) and are processed
+manually with assistance; planning is cheap/local/reversible, execution is a
+separate deliberate step against GitHub.
 
 ## Phase 1 — Scan & plan ✅
 - [x] Scan owned repos (public + private)
@@ -16,7 +17,7 @@ deliberate step against GitHub.
 - [ ] Dry-run / diff before execution
 
 ## Phase 3 — Hubs
-- [ ] Define hub/layer structure from PLAN.md
+- [ ] Let hub structure emerge from the scan (cluster → promote/create)
 - [ ] Track which repos each hub has absorbed
 - [ ] Re-scan to verify portfolio matches target
 
