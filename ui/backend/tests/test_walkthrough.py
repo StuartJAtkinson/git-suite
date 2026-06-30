@@ -37,6 +37,7 @@ NAV_ROUTES = [
     ("migration",   "hub_migration",           {"hub": "personal-ai-os", "session_id": "s1"}),
     ("order",       "get_order",               {"session_id": "s1", "hub": "personal-ai-os"}),
     ("cluster",     "propose",                 {"session_id": "s1"}),
+    ("promote",     "list_forks",              {"session_id": "s1"}),  # network -> assert route only
 ]
 
 

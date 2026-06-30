@@ -58,6 +58,7 @@ writes back to `plan.json`; nothing reaches GitHub until **Execute**.
 | **Setup** | First step — GitHub connection (PAT); configure LLM and embedding providers (API key + model + failover priority — call URLs are hardcoded per provider and models are fetched live from each provider's own listing endpoint). Shows where each chain is actually used. |
 | **Scan** | Pulls every owned repo (public + private) over a live WebSocket, capturing topics, stars, fork/archived flags, `pushed_at`. |
 | **Cluster** | Embeds **owned repos + forks + stars in one space** and groups them with spherical k-means (# clusters slider); suggests a theme so you can promote a member into a hub or form a new one. Stars double as a dedup signal — a starred project that already covers an owned repo. |
+| **Own** | Step 3 — review owned forks (parent/upstream status), decide promote (→ keep / absorb into a hub) or drop (→ archive), and generate a git detach checklist. GitHub has no de-fork API, so the actual move is yours to run. |
 | **Order** | Per-hub Tree-of-Knowledge layout — arranges a hub's members from foundational (Gather) through Analyse to Display; per-row reorder + LLM Suggest; feeds the hub README's ordering section. |
 | **Overlap** | Semantic venn — scores repos against hub profiles to surface boundary cases and a hub×hub overlap matrix; edit per-hub boundaries here. |
 | **Replan** | Iterative two-phase loop: *incremental* (fill orphans / prune ghosts) until fully planned, then *structural* (split / new-hub advisories). Proposes verdicts you accept or reject. |

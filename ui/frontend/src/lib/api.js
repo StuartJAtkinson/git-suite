@@ -91,6 +91,13 @@ export const api = {
   refreshForks: (session_id) =>
     req('POST', `/api/cluster/refresh-forks/${session_id}`, {}),
 
+  // Promote (Step 3 "Own" — turn owned forks into first-class repos)
+  listForks: (session_id) => req('GET', `/api/promote/${session_id}`),
+  decideFork: (repo, decision, hub = null) =>
+    req('POST', '/api/promote/decide', { repo, decision, hub }),
+  promoteChecklist: (session_id, repo, hub = null, parent = null) =>
+    req('POST', `/api/promote/checklist/${session_id}`, { repo, hub, parent }),
+
   // Order (per-hub ontological ordering, Tree of Knowledge layout)
   getOrder: (session_id, hub) =>
     req('GET', `/api/order/${session_id}/${hub}`),
