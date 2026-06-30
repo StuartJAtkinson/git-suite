@@ -1,7 +1,7 @@
 # git-suite Roadmap
 
-**Last updated:** 2026-06-12 | **Owner:** Stuart Atkinson
-*(Previously dated "May 2026" — refreshed with hub boundaries, cluster stage, and the correct archive count.)*
+**Last updated:** 2026-06-30 | **Owner:** Stuart Atkinson
+*(2026-06-30: reconciled against the 14 aligned local repos — fixed the heart-on-a-sleeve→map-suite misfile, added `genealogy-hub`, surfaced `organised-commons` as a standalone, flagged the atelier-harness/Pane duplicate, recorded the SQLFluffParsing→sql-schema-miner and heart-on-a-sleeve→map-merch renames.)*
 
 ---
 
@@ -93,8 +93,9 @@ Each is directly inspired by patterns from 684 starred repos.
 
 ### 1. `personal-ai-os`
 **Inspired by:** `jan` (open ChatGPT alt), `anything-llm`, `kotaemon` (RAG UI), `open-webui`
-**Absorbs:** `quivr` (RAG), `EMailParseAI` (email parsing), `heart-on-a-sleeve` (emotional events)
-**What it does:** Unified local AI operating system — RAG + memory + email ingestion + emotional event tracking in one self-hosted platform. One binary, one API, privacy-first.
+**Absorbs:** `quivr` (RAG), `EMailParseAI` (email parsing), `multitudes` (identity/footprint clustering)
+**What it does:** Unified local AI operating system — RAG + memory + email ingestion + identity-facet clustering in one self-hosted platform. One binary, one API, privacy-first.
+> **2026-06-30 correction:** `heart-on-a-sleeve` was previously listed here as "emotional events" — that was a name-association error. It is an OSM map-to-merch renderer and belongs in `map-suite` (see §I). Renamed to `map-merch`.
 **Stack:** Python/FastAPI + SQLite + embedding DB + MCP integration
 
 ### 2. `ontology-align`
@@ -123,7 +124,7 @@ Each is directly inspired by patterns from 684 starred repos.
 
 ### 6. `map-suite`
 **Inspired by:** `OSMBuildings` (3D buildings), `mapus` (collaborative maps), `anyplace` (indoor), `arnis` (Minecraft terrain), `streets-gl` (WebGL OSM)
-**Absorbs:** `planetiler`, `OSM2World`, `streets-gl`, `openindoor6`, `OsmGo`, `Fantasy-Map-Generator`, `place-time` (as H3 spatial index backend)
+**Absorbs:** `planetiler`, `OSM2World`, `streets-gl`, `openindoor6`, `OsmGo`, `Fantasy-Map-Generator`, `place-time` (as H3 spatial index backend), `map-merch` (OSM→SVG/STL merch renderer; formerly `heart-on-a-sleeve`)
 **What it does:** Unified OSM-based mapping platform — indoor, outdoor, procedural fantasy, 3D, political/geospatial all in one. `Fantasy-Map-Generator` + `OsmGo` + `openindoor6` + `streets-gl` become one platform with different renderers/views.
 **Stack:** TypeScript/Node + CesiumJS/Leaflet + OSM data + vector tiles
 
@@ -135,9 +136,37 @@ Each is directly inspired by patterns from 684 starred repos.
 
 ### 8. `code-suite`
 **Inspired by:** `bloop` (semantic code search), `all-repos` (bulk clone/sweep), `Sourcegraph` (code intelligence)
-**Absorbs:** `bloop`, `all-repos`, `CodeAtlasVsix`, `Coding-Cheatsheets`, `DoIHaveEverything`, `astral`
+**Absorbs:** `bloop`, `all-repos`, `CodeAtlasVsix`, `Coding-Cheatsheets`, `DoIHaveEverything`, `astral`, `sql-schema-miner` (SQL corpus → schema/ER miner; formerly `SQLFluffParsing`), `Sagex3-Script-Parser`, `neo4J-SQL-Graphs`
 **What it does:** Unified code management — bulk repo operations, semantic code search, code graph visualisation. `Coding-Cheatsheets` becomes a searchable web app. Share common API/data layer across all tools.
 **Stack:** Rust (bloop core), Python (all-repos), TypeScript (web UI)
+
+### 9. `genealogy-hub`  *(added 2026-06-30 — the PLAN previously had no genealogy home)*
+**Inspired by:** `Gramps`, `gedcom-rdf`, FTAnalyzer
+**Absorbs:** `Genealogy` (the Ancestry→FTAnalyzer→Gramps→GEDCOM/WikiTree pipeline), `FTAnalyzer`, `wikitree-sourcer`, `AncestryBrowsableSchema`
+**What it does:** Self-hosted, Docker-free genealogy workspace — import (Ancestry/scrape) → error-fix (FTAnalyzer) → source-of-truth (Gramps) → GEDCOM MCP for queries + WikiTree MCP for online research. Personal data stays local; the tooling is the reusable part.
+**Stack:** Python + GEDCOM/RDF + Gramps SQLite + MCP servers
+**Note:** the three "keep as-is" genealogy repos below are this hub's members, not standalones.
+
+---
+
+## STANDALONE PLATFORMS (not a hub member, not archived)
+
+| Repo | Notes |
+|------|-------|
+| `organised-commons` | **Was absent from this plan.** Federated "places"/commons platform (FastAPI + SvelteKit + ActivityPub) — de-atomise/localise the means of production. Its own platform; LAYER 2 (automation/workflow) federation, but does not fold into `work-hub`. Keep standalone. |
+
+---
+
+## AGENT-MANAGER DUPLICATE — resolve before either ships
+
+`atelier-harness` (Rust, 131 commits, 14.4k LoC, active) and `Pane` (TypeScript, 30
+commits, mostly `.claude/` scaffolding, stale since early June) are **the same product
+vision** — a terminal-first AI agent *client* (switch/resume sessions, "assist not
+scale"). `atelier-harness` is the canonical implementation; `Pane` has the cleaner
+public name/positioning ("agent client, not provider"). **Action:** keep
+`atelier-harness` as the codebase, archive `Pane`, optionally adopt Pane's name/framing.
+`Archon` (harness *builder* for deterministic AI coding) is a different, framework-level
+thing — do **not** merge it in.
 
 ---
 
@@ -311,14 +340,14 @@ prevents.
 
 ---
 
-## Portfolio alignment — place-time + heart-on-a-sleeve are the concrete map-suite seed (FEATURE-MATRIX §I)
+## Portfolio alignment — place-time + map-merch are the concrete map-suite seed (FEATURE-MATRIX §I)
 
 The planned `map-suite` hub already has its two implementation seeds:
 
 - **place-time** (`H:\GitHub\place-time`) — H3 spatial indexing, temporal layers,
   multi-source geo ingestion (Overpass/BGS/ONS). TypeScript.
-- **heart-on-a-sleeve** (`H:\GitHub\heart-on-a-sleeve`) — OSM→SVG/STL rendering, Cesium
-  selection UI, cosLat projection. Python.
+- **map-merch** (`H:\GitHub\map-merch`, formerly `heart-on-a-sleeve`) — OSM→SVG/STL
+  rendering, Cesium selection UI, cosLat projection. Python.
 
 Both independently carry an Overpass client and cosLat projection math — the duplicate
 that `map-suite` consolidation should resolve. **Caveat:** they are different runtimes,
