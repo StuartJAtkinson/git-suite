@@ -112,7 +112,6 @@ button.ghost:hover:not(:disabled) { background: #f3f4f6; }
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
 }
 .hub-card:hover { border-color: #0057b7; box-shadow: 0 3px 12px rgba(0,87,183,0.12); transform: translateY(-1px); text-decoration: none; }
-.hub-layer-tag { font-size: 0.7rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-bottom: 0.35rem; }
 .hub-card h3 { margin: 0 0 0.4rem; font-size: 0.975rem; }
 .hub-card .desc { margin: 0 0 0.9rem; font-size: 0.85rem; color: #4b5563; line-height: 1.45; }
 .hub-meta { display: flex; justify-content: space-between; align-items: center; }

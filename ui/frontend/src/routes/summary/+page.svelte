@@ -86,7 +86,7 @@
       <div class="hub-progress-row">
         <div class="hub-info">
           <span class="hub-name">{hub.name}</span>
-          <span class="layer-tag-sm">{hub.absorb_total} repos</span>
+          <span class="hub-tag-sm">{hub.absorb_total} repos</span>
         </div>
         <div class="hub-bars">
           {#if hub.absorb_total > 0}
@@ -185,7 +185,7 @@
 }
 .hub-info { display: flex; align-items: center; gap: 0.5rem; min-width: 160px; }
 .hub-name { font-size: 0.875rem; font-weight: 500; font-family: monospace; }
-.layer-tag-sm { font-size: 0.68rem; background: #eff6ff; color: #1e40af; border-radius: 4px; padding: 0.1em 0.4em; }
+.hub-tag-sm { font-size: 0.68rem; background: #eff6ff; color: #1e40af; border-radius: 4px; padding: 0.1em 0.4em; }
 .hub-bars { flex: 1; display: flex; gap: 1rem; align-items: center; }
 .mini-bar-group { display: flex; align-items: center; gap: 0.35rem; flex: 1; }
 .mini-label { font-size: 0.7rem; color: #6b7280; width: 38px; }

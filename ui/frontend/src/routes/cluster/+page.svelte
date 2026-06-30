@@ -10,7 +10,7 @@
   // cluster. The suggested cluster name is only a faint centre LABEL — never the
   // hub name. You PROMOTE a real repo as the hub (preferred) or CREATE one
   // (label is just a last-resort placeholder). Drag nodes to arrange/pin; click
-  // to select which repos a hub draws from. Layer/classification is set later
+  // to select which repos a hub draws from. Classification is set later
   // on Order (source/process/viz).
 
   let data = null;

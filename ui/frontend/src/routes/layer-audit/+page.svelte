@@ -58,14 +58,14 @@
 
 <div class="section">
   <div class="section-head"><h2>Hubs</h2></div>
-  <div class="layer-grid">
+  <div class="hub-grid">
     {#each hubs as hub}
-      <div class="layer-col">
-        <div class="layer-header">
-          <span class="layer-name">{hub.name}</span>
-          <span class="layer-hub">{hub.repos.length} repos</span>
+      <div class="hub-col">
+        <div class="hub-header">
+          <span class="hub-name">{hub.name}</span>
+          <span class="hub-count">{hub.repos.length} repos</span>
         </div>
-        <div class="layer-repos">
+        <div class="hub-repos">
           {#if hub.repos.length === 0}
             <span class="empty-small">—</span>
           {:else}
@@ -81,18 +81,18 @@
 {/if}
 
 <style>
-.layer-grid {
+.hub-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 1rem;
 }
-.layer-col {
+.hub-col {
   background: #fff;
   border: 1px solid #dde1e9;
   border-radius: 10px;
   overflow: hidden;
 }
-.layer-header {
+.hub-header {
   background: #1a1a2e;
   color: #fff;
   padding: 0.5rem 0.75rem;
@@ -100,9 +100,9 @@
   align-items: center;
   gap: 0.5rem;
 }
-.layer-name { font-size: 0.8rem; font-weight: 500; }
-.layer-hub { margin-left: auto; font-size: 0.68rem; font-family: monospace; color: #9fb3d8; }
-.layer-repos { padding: 0.6rem; display: flex; flex-direction: column; gap: 0.25rem; min-height: 60px; }
+.hub-name { font-size: 0.8rem; font-weight: 500; }
+.hub-count { margin-left: auto; font-size: 0.68rem; font-family: monospace; color: #9fb3d8; }
+.hub-repos { padding: 0.6rem; display: flex; flex-direction: column; gap: 0.25rem; min-height: 60px; }
 .repo-chip {
   font-size: 0.75rem;
   background: #f3f4f6;
