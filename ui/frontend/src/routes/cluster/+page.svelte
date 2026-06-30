@@ -1,5 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
+  import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import { forceSimulation, forceManyBody, forceCollide, forceX, forceY } from 'd3-force';
   import { session } from '$lib/stores';
@@ -41,8 +42,10 @@
   });
   onDestroy(() => {
     sim?.stop();
-    window.removeEventListener('pointermove', onMove);
-    window.removeEventListener('pointerup', onUp);
+    if (browser) {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    }
   });
 
   async function load(recompute = false) {
