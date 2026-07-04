@@ -343,12 +343,16 @@ async def distill(session_id: str, limit: int = 0):
     batch = todo[:limit] if limit and limit > 0 else todo
     recs, stop_reason = await distill_svc.records(batch, stop_on_error=False)
     done = sum(1 for r in recs.values() if r.get("purpose"))
+    # The repos finished this batch (name + domain) so the UI can show progress.
+    done_repos = [{"repo": k, "domain": v.get("domain", "")}
+                  for k, v in recs.items() if v.get("purpose")]
     return {
         "done": done,                          # newly distilled this batch
         "total": total,
         "cached": already + done,              # total with a record now
         "remaining": max(0, len(todo) - done),  # still to do
         "stop_reason": stop_reason,
+        "done_repos": done_repos,
     }
 
 

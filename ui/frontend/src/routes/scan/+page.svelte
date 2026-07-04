@@ -25,6 +25,10 @@
   let enrichStatus = '';   // '' | 'running' | 'done'
   let enrichMsg = '';
   let enrichStop = false;  // user pressed Stop mid-loop
+  let enrichCached = 0;    // repos with a record so far
+  let enrichTotal = 0;
+  let enrichLog = [];      // [{repo, domain}] most-recent-first (live ticker)
+  const ENRICH_BATCH = 2;  // tiny batches → ticks every few seconds (LLM ~slow)
   let accessStatus = '';   // '' | 'checking' | 'done'  (opt-in heads check)
   let errorMsg = '';
   let ws;
@@ -120,25 +124,36 @@
   }
 
   // ✨ Enrich — LLM read of each repo (Purpose / Domain / Entities), looped in
-  // batches so it chews through the whole portfolio over time. Cached + resumable:
-  // re-running (or Stop → Enrich) picks up where it left off. No clustering.
+  // SMALL batches so it's visibly working: every few seconds the count ticks up
+  // and the just-finished repos scroll past with their domain. Cached +
+  // resumable: Stop → Enrich picks up exactly where it left off. No clustering.
   async function enrich() {
-    enrichStatus = 'running'; enrichStop = false;
-    enrichMsg = 'Enriching — reading each repo for Purpose / Domain / Entities…';
+    enrichStatus = 'running'; enrichStop = false; enrichLog = [];
+    enrichMsg = 'Starting…';
+    let batchNo = 0;
     try {
       while (!enrichStop) {
-        const d = await api.distill($session.session_id, 25);   // one batch
-        await refreshMeta();                                    // fill table as we go
-        if (d.remaining <= 0) { enrichMsg = `Enriched all ${d.total} repos.`; break; }
+        batchNo += 1;
+        const d = await api.distill($session.session_id, ENRICH_BATCH);
+        enrichTotal = d.total;
+        enrichCached = d.cached;
+        for (const r of (d.done_repos || [])) {
+          const short = (r.repo || '').split('/').pop();
+          enrichLog = [{ repo: short, domain: r.domain }, ...enrichLog].slice(0, 15);
+        }
+        await refreshMeta();                                  // table fills live too
+        if (d.remaining <= 0) {
+          enrichMsg = `✓ Enriched all ${d.total} repos.`; break;
+        }
         if (d.stop_reason) {
-          enrichMsg = `Paused (${d.cached}/${d.total}) — ${d.stop_reason}. Press Enrich to resume.`;
+          enrichMsg = `Paused at ${d.cached}/${d.total} — ${d.stop_reason}. Press Enrich to resume.`;
           break;
         }
-        enrichMsg = `Enriching… ${d.cached}/${d.total}`;
-        await new Promise((r) => setTimeout(r, 400));           // gentle between batches
+        enrichMsg = `Enriching… ${d.cached}/${d.total} (batch ${batchNo}, +${d.done})`;
+        await new Promise((r) => setTimeout(r, 250));         // gentle between batches
       }
-      if (enrichStop) enrichMsg = `Stopped — resume anytime with Enrich.`;
-    } catch (e) { enrichMsg = e.message; }
+      if (enrichStop) enrichMsg = `Stopped at ${enrichCached}/${enrichTotal} — resume with Enrich.`;
+    } catch (e) { enrichMsg = `Enrich error: ${e.message}`; }
     finally { enrichStatus = 'done'; }
   }
 
@@ -209,7 +224,24 @@
     </button>
     <a href="/cluster"><button class="success">Next: Cluster →</button></a>
   </div>
-  {#if enrichMsg}<div class="info-msg" style="margin-top:0.5rem">{enrichMsg}</div>{/if}
+  {#if enrichMsg || enrichLog.length}
+    <div class="enrich-panel">
+      <div class="enrich-head">
+        {#if enrichStatus === 'running'}<span class="spinner">⟳</span>{/if}
+        <span>{enrichMsg}</span>
+      </div>
+      {#if enrichTotal}
+        <div class="ebar"><div class="efill" style="width:{enrichCached / enrichTotal * 100}%"></div></div>
+      {/if}
+      {#if enrichLog.length}
+        <ul class="enrich-log">
+          {#each enrichLog as e (e.repo)}
+            <li><span class="ok">✓</span> <b>{e.repo}</b> <span class="arrow">→</span> {e.domain || '—'}</li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
+  {/if}
 {:else}
   <div class="error-msg">{errorMsg}</div>
   <button on:click={startPull} class="secondary" style="margin-top: 0.5rem">Retry</button>
@@ -299,4 +331,14 @@
   ul.warnlist { list-style: none; padding: 0; margin: 0; }
   ul.warnlist li { padding: 0.35rem 0.5rem; border-bottom: 1px solid #f1f5f9; display: flex; gap: 0.6rem; align-items: baseline; }
   .warn-reason { color: #b45309; font-size: 0.8rem; }
+
+  .enrich-panel { margin-top: 0.6rem; padding: 0.6rem 0.8rem; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; }
+  .enrich-head { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: #1e293b; }
+  .ebar { height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; margin: 0.5rem 0; }
+  .efill { height: 100%; background: #4338ca; transition: width 0.25s; }
+  .enrich-log { list-style: none; margin: 0.3rem 0 0; padding: 0; font-size: 0.78rem; max-height: 200px; overflow-y: auto; }
+  .enrich-log li { padding: 0.12rem 0; color: #475569; }
+  .enrich-log b { font-family: monospace; color: #1e293b; }
+  .enrich-log .ok { color: #16a34a; }
+  .enrich-log .arrow { color: #9ca3af; }
 </style>
