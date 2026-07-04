@@ -70,10 +70,22 @@ export const api = {
   // Cluster (assisted group formation — mixed: owned + forks + stars)
   // recompute=false returns the saved result (no re-embedding); true forces a
   // fresh clustering pass and overwrites it. k = target cluster count (omit for
-  // the server default ~√(n/2)).
-  getClusters: (session_id, { k = null, source = 'mixed', recompute = false, savedOnly = false } = {}) => {
+  // the server default ~√(n/2)). anchors=true runs an anchor-driven pass: only
+  // the FREE pool (orphans minus hub members) is re-clustered, and each result
+  // cluster is labelled anchored_to=<hub> if its centroid cosine to that hub's
+  // centroid is >= anchor_threshold.
+  getClusters: (session_id, {
+    k = null,
+    source = 'mixed',
+    recompute = false,
+    savedOnly = false,
+    anchors = false,
+    anchorThreshold = null,
+  } = {}) => {
     const q = new URLSearchParams({ source, recompute });
     if (savedOnly) q.set('saved_only', true);
+    if (anchors) q.set('anchors', true);
+    if (anchorThreshold != null) q.set('anchor_threshold', anchorThreshold);
     if (k != null) q.set('k', k);
     return req('GET', `/api/cluster/${session_id}?${q}`);
   },

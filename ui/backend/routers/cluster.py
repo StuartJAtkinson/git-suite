@@ -95,6 +95,8 @@ async def propose(
     source: str = "mixed",
     recompute: bool = False,
     saved_only: bool = False,
+    anchors: bool = False,
+    anchor_threshold: float = 0.7,
 ):
     """Propose clusters.
 
@@ -107,6 +109,11 @@ async def propose(
                   Clustering spends embedding tokens, so backfill callers (the
                   Scan page) pass this — only the explicit Cluster action
                   (recompute=true) ever triggers a fresh pass.
+    anchors       when true, treat every promoted hub as a pinned centroid and
+                  re-cluster only the FREE pool (orphans minus hub members).
+                  Each resulting cluster is labelled anchored_to=<hub> if its
+                  centroid cosine to that hub is >= anchor_threshold. Off by
+                  default — the user opts in to anchor-driven re-clustering.
 
     The result is persisted per session; without ?recompute=true a saved result
     is returned as-is (no re-embedding/re-distilling).
@@ -123,14 +130,38 @@ async def propose(
 
     recon = await reconcile(session_id)
     orphans = recon["orphans"]                      # unassigned, live repos
-    hubs = list(plan_store.get_plan().get("hubs", {}).keys())
+    plan = plan_store.get_plan()
+    hubs = list(plan.get("hubs", {}).keys())
+    placement = plan_store.repo_placement(plan)
+
+    # ── anchor-driven mode: drop hub members from the free pool, then snap ─
+    if anchors and hubs:
+        anchored_names = {
+            name for name, place in placement.items()
+            if place.get("verdict") in ("absorb", "keep")
+        }
+        free_orphans = [r for r in orphans if r["name"] not in anchored_names]
+        # Hydrate anchored members from the same scan rows so we can re-embed.
+        anchored_repos = [r for r in recon["repos"] if r["name"] in anchored_names]
+        # Group anchored_repos by hub for snap_to_anchors.
+        hub_to_members: dict[str, list[dict]] = {}
+        for r in anchored_repos:
+            place = placement.get(r["name"]) or {}
+            hub = place.get("hub") or r["name"]  # keep-verdict hubs land on themselves
+            hub_to_members.setdefault(hub, []).append(_own_member_dicts([r])[0])
+    else:
+        free_orphans = orphans
+        hub_to_members = {}
+        anchored_names = set()
 
     # owned is mixed-with-no-forks-no-stars; the `source` toggle only decides
-    # whether forks/stars join the same embedding space.
-    owned = _own_member_dicts(orphans)
-    forks = [] if source == "owned" else await _load_with_topics(
+    # whether forks/stars join the same embedding space. In anchor mode we keep
+    # forks/stars out of the free pool — they're external references, not
+    # cluster-candidates for *my* portfolio.
+    owned = _own_member_dicts(free_orphans)
+    forks = [] if source == "owned" or anchors else await _load_with_topics(
         "SELECT * FROM fork ORDER BY pushed_at DESC")
-    stars = [] if source == "owned" else await _load_with_topics(
+    stars = [] if source == "owned" or anchors else await _load_with_topics(
         "SELECT * FROM starred_repo")
 
     n = len(owned) + len(forks) + len(stars)
@@ -142,10 +173,16 @@ async def propose(
                           "Embeddings (Ollama nomic-embed-text) and ensure "
                           "Ollama is running.",
                 "clusters": [], "hubs": hubs, "orphan_count": len(orphans),
+                "anchored": list(hub_to_members.keys()),
                 "source": source,
                 "counts": {"owned": len(owned), "forks": len(forks), "stars": len(stars)}}
+    if hub_to_members:
+        groups = await cluster.snap_to_anchors(groups, hub_to_members,
+                                                threshold=anchor_threshold)
     payload = {"available": True, "k": eff_k, "clusters": groups, "hubs": hubs,
                "orphan_count": len(orphans), "source": source,
+               "anchored": list(hub_to_members.keys()),
+               "anchor_threshold": anchor_threshold if hub_to_members else None,
                "counts": {"owned": len(owned), "forks": len(forks), "stars": len(stars)}}
     await _save_result(session_id, payload)
     return payload

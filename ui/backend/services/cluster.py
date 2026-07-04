@@ -6,6 +6,11 @@ Embeds the unassigned repos and groups them into a target number of clusters
 The user promotes a member to be the hub or names a new one (with a description
 that becomes the hub's LLM-alignment boundary).
 
+Re-clustering: once a cluster has been promoted to a hub, the next pass can
+treat that hub's members as anchors — its centroid is pinned, the rest of the
+portfolio re-clusters around it, and each free cluster either snaps into the
+nearest anchor (cosine >= threshold) or stays free. See snap_to_anchors().
+
 No heavy ML deps: k-means is pure-Python Lloyd's iteration (see _kmeans).
 """
 from __future__ import annotations
@@ -235,4 +240,119 @@ async def build_clusters_mixed(
         })
     # Largest first; ties broken by name for determinism in tests.
     clusters.sort(key=lambda c: (-c["size"], c["suggested_name"]))
+    return clusters
+
+
+# ── anchor-driven re-cluster ───────────────────────────────────────────────
+async def _embed_member(r: dict) -> list[float] | None:
+    """Embed one repo the same way build_clusters_mixed does (distilled domain
+    + entities, with the nomic clustering prefix). Returns unit vector or None
+    if embeddings are unavailable."""
+    recs, _ = await distill.records([r], stop_on_error=False)
+    rec = recs.get(distill._key(r)) or {}
+    domain = rec.get("domain", "")
+    entities = " ".join(rec.get("entities") or [])
+    text = " ".join(p for p in (domain, entities) if p) or _text_for(r)
+    vecs = await embeddings.embed([_EMBED_PREFIX + text])
+    if not vecs or vecs[0] is None:
+        return None
+    return _unit(vecs[0])
+
+
+async def _anchor_centroid(members: list[dict]) -> list[float] | None:
+    """Mean of member vectors, re-normalised. None if no member embedded."""
+    vecs: list[list[float]] = []
+    for m in members:
+        v = await _embed_member(m)
+        if v is not None:
+            vecs.append(v)
+    if not vecs:
+        return None
+    dim = len(vecs[0])
+    mean = [sum(v[d] for v in vecs) / len(vecs) for d in range(dim)]
+    return _unit(mean)
+
+
+async def snap_to_anchors(
+    clusters: list[dict],
+    anchors: dict[str, list[dict]],
+    threshold: float = 0.7,
+) -> list[dict]:
+    """Snap each cluster to its nearest anchored hub, or leave it free.
+
+    clusters : output of build_clusters_mixed (each has 'members' with the
+               same shape distill.records keys on).
+    anchors  : {hub_name: [repo_dict, ...]} — promoted hubs whose member set
+               is considered decided. The dict can be empty (no-op).
+    threshold: minimum cosine between a cluster's centroid and an anchor's
+               centroid for the cluster to be absorbed into the anchor.
+
+    Returns a NEW list of cluster dicts. Each cluster gains:
+        anchored_to  : hub_name | None
+        anchor_sim   : float  (cosine to the chosen anchor, or best candidate)
+
+    Side effect: clusters that snap into an anchor are NOT removed — the caller
+    decides whether to merge their members into the hub or just label them.
+    Membership is preserved so the UI can show "12 members would join homelab"
+    before the user commits.
+
+    # ponytail: one pass, no re-clustering of anchors. Anchors are pinned; we
+    # only compute their centroids once. Fine at portfolio scale.
+    """
+    if not anchors or not clusters:
+        for c in clusters:
+            c.setdefault("anchored_to", None)
+            c.setdefault("anchor_sim", 0.0)
+        return clusters
+
+    # Compute centroids. dict order is insertion order in py3.7+, which is fine
+    # for determinism — anchors are loaded from plan_store in stable order.
+    cents: dict[str, list[float]] = {}
+    for hub_name, members in anchors.items():
+        c = await _anchor_centroid(members)
+        if c is not None:
+            cents[hub_name] = c
+
+    if not cents:
+        for c in clusters:
+            c.setdefault("anchored_to", None)
+            c.setdefault("anchor_sim", 0.0)
+        return clusters
+
+    hub_names = list(cents.keys())
+    hub_vecs = [cents[h] for h in hub_names]
+
+    for cluster in clusters:
+        members = cluster.get("members", [])
+        if not members:
+            cluster["anchored_to"] = None
+            cluster["anchor_sim"] = 0.0
+            continue
+        # Re-embed this cluster's members the same way; reuse cached vecs where
+        # possible via embeddings.embed (it keys on sha256(text) per model).
+        recs, _ = await distill.records(members, stop_on_error=False)
+        texts = []
+        for m in members:
+            rec = recs.get(distill._key(m)) or {}
+            domain = rec.get("domain", "")
+            entities = " ".join(rec.get("entities") or [])
+            text = " ".join(p for p in (domain, entities) if p) or _text_for(m)
+            texts.append(_EMBED_PREFIX + text)
+        vecs = await embeddings.embed(texts)
+        pts = [_unit(v) for v in vecs if v is not None]
+        if not pts:
+            cluster["anchored_to"] = None
+            cluster["anchor_sim"] = 0.0
+            continue
+        dim = len(pts[0])
+        cen = [sum(p[d] for p in pts) / len(pts) for d in range(dim)]
+        cen = _unit(cen)
+        # Pick the best hub; record its sim either way.
+        best_h, best_sim = None, -2.0
+        for h, hv in zip(hub_names, hub_vecs):
+            sim = _dot(cen, hv)
+            if sim > best_sim:
+                best_sim, best_h = sim, h
+        cluster["anchor_sim"] = round(best_sim, 4)
+        cluster["anchored_to"] = best_h if best_sim >= threshold else None
     return clusters
