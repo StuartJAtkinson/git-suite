@@ -315,7 +315,7 @@
             {modelBusy[provider] ? '…' : '↻'}
           </button>
         </div>
-        {#if modelErr[provider]}
+        {#if modelErr[provider] && !(modelLists[provider] || []).length}
           <p class="hint" style="color:#92400e; margin:0.2rem 0 0">{modelErr[provider]} — type a model name manually.</p>
         {/if}
       </div>
