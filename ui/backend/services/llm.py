@@ -122,9 +122,24 @@ async def _call_anthropic(base_url, key, model, prompt, system, max_tokens) -> s
             "messages": [{"role": "user", "content": prompt}]}
     if system:
         body["system"] = system
+    # Anthropic-compat providers (e.g. MiniMax at api.minimax.io/anthropic)
+    # may chain a mandatory thinking block before the text answer. If the
+    # caller passed a tight max_tokens (e.g. 200 for a distill JSON parse),
+    # the thinking block eats the entire budget and produces no text. Floor
+    # to 4096 so the final text block has room regardless of provider quirks.
+    body["max_tokens"] = max(body["max_tokens"], 4096)
+    # Anthropic-compat providers (e.g. MiniMax at api.minimax.io/anthropic)
+    # already include the /v1 segment in their base_url; doubling up
+    # (base/v1/v1/messages) returns 404. Strip a trailing /v1 if present so
+    # the canonical https://api.anthropic.com default still gets its /v1.
+    base = base_url.rstrip("/") if base_url else "https://api.anthropic.com/v1"
+    if base.endswith("/v1"):
+        url = f"{base}/messages"
+    else:
+        url = f"{base}/v1/messages"
     async with httpx.AsyncClient(timeout=120) as client:
         r = await client.post(
-            f"{base_url or 'https://api.anthropic.com/v1'}/messages",
+            url,
             headers={"x-api-key": key, "anthropic-version": "2023-06-01",
                      "content-type": "application/json"},
             json=body,
@@ -132,9 +147,14 @@ async def _call_anthropic(base_url, key, model, prompt, system, max_tokens) -> s
         if r.status_code >= 400:                # body carries the exhaust/quota text
             raise RuntimeError(f"HTTP {r.status_code}: {r.text[:300]}")
         data = r.json()
-        if not data.get("content"):
-            raise RuntimeError("anthropic returned empty content")
-        return data["content"][0]["text"]
+        content = data.get("content") or []
+        # Take the last text block — Anthropic-compat providers (e.g. MiniMax)
+        # may emit intermediate `thinking` blocks before the answer.
+        text = next((b.get("text") for b in reversed(content)
+                     if isinstance(b, dict) and b.get("type") == "text"), None)
+        if not text:
+            raise RuntimeError("anthropic returned no text block")
+        return text
 
 
 async def _call_openai_compat(base_url, key, model, prompt, system, max_tokens) -> str:
