@@ -63,6 +63,35 @@ def _own_member_dicts(orphans: list[dict]) -> list[dict]:
     return out
 
 
+def _apply_forbids(clusters: list[dict], forbid_map: dict[str, list[str]]) -> list[dict]:
+    """Drop any cluster member whose stuck `forbid` list mentions either the
+    cluster's anchored hub or its suggested name. Returns the dropped members
+    so the caller can roll them back into the orphan count.
+
+    In-place: clusters are mutated; empties are removed.
+    """
+    if not forbid_map:
+        return []
+    dropped: list[dict] = []
+    keep: list[dict] = []
+    for c in clusters:
+        labels = {c.get("suggested_name") or "", c.get("anchored_to") or ""}
+        labels.discard("")
+        kept_members = []
+        for m in c.get("members", []):
+            forbids = forbid_map.get(m.get("repo") or m.get("name") or "", [])
+            if any(f in labels for f in forbids):
+                dropped.append(m)
+            else:
+                kept_members.append(m)
+        if kept_members:
+            c["members"] = kept_members
+            c["size"] = len(kept_members)
+            keep.append(c)
+    clusters[:] = keep
+    return dropped
+
+
 async def _save_result(session_id: str, payload: dict) -> None:
     async for db in get_db():
         await db.execute(
@@ -97,6 +126,7 @@ async def propose(
     saved_only: bool = False,
     anchors: bool = False,
     anchor_threshold: float = 0.7,
+    min_cluster_size: int = 1,
 ):
     """Propose clusters.
 
@@ -114,6 +144,9 @@ async def propose(
                   Each resulting cluster is labelled anchored_to=<hub> if its
                   centroid cosine to that hub is >= anchor_threshold. Off by
                   default — the user opts in to anchor-driven re-clustering.
+    min_cluster_size
+                  drop clusters smaller than this into the unassigned pool
+                  instead of forcing tiny singletons into a "cluster".
 
     The result is persisted per session; without ?recompute=true a saved result
     is returned as-is (no re-embedding/re-distilling).
@@ -133,6 +166,7 @@ async def propose(
     plan = plan_store.get_plan()
     hubs = list(plan.get("hubs", {}).keys())
     placement = plan_store.repo_placement(plan)
+    forbid_map = plan_store.forbids_map(plan)
 
     # ── anchor-driven mode: drop hub members from the free pool, then snap ─
     if anchors and hubs:
@@ -166,8 +200,9 @@ async def propose(
 
     n = len(owned) + len(forks) + len(stars)
     eff_k = k if k is not None else cluster.default_k(n)
-    groups = await cluster.build_clusters_mixed(owned, forks, stars, eff_k)
-    if groups is None:
+    built = await cluster.build_clusters_mixed(owned, forks, stars, eff_k,
+                                               min_cluster_size=max(1, min_cluster_size))
+    if built is None:
         return {"available": False,
                 "reason": "Embeddings not configured/reachable — set Setup → "
                           "Embeddings (Ollama nomic-embed-text) and ensure "
@@ -176,11 +211,19 @@ async def propose(
                 "anchored": list(hub_to_members.keys()),
                 "source": source,
                 "counts": {"owned": len(owned), "forks": len(forks), "stars": len(stars)}}
+    groups, dropped_singletons = built
     if hub_to_members:
         groups = await cluster.snap_to_anchors(groups, hub_to_members,
                                                 threshold=anchor_threshold)
+    # Forbid pass — drop any cluster member whose `forbids` list mentions the
+    # cluster's anchor hub OR its suggested_name; the dropped member rejoins
+    # the unassigned pool via the orphan count.
+    forb_dropped = _apply_forbids(groups, forbid_map)
+    dropped_singletons.extend(forb_dropped)
     payload = {"available": True, "k": eff_k, "clusters": groups, "hubs": hubs,
-               "orphan_count": len(orphans), "source": source,
+               "orphan_count": len(orphans) + len(dropped_singletons),
+               "orphan_count_returned": len(dropped_singletons),
+               "source": source,
                "anchored": list(hub_to_members.keys()),
                "anchor_threshold": anchor_threshold if hub_to_members else None,
                "counts": {"owned": len(owned), "forks": len(forks), "stars": len(stars)}}

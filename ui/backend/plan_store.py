@@ -46,7 +46,7 @@ def _seed_plan() -> dict:
     """The default plan on first run: fully empty. Nothing is assumed — no
     hubs, no repo→hub assignments, no archives. Hubs emerge only from the actual
     GitHub scan (clustering → promote/create); there is no curated seed."""
-    return {"hubs": {}, "archives": {}, "keeps": []}
+    return {"hubs": {}, "archives": {}, "keeps": [], "forbids": {}}
 
 
 def _heal(plan: dict) -> dict:
@@ -59,6 +59,7 @@ def _heal(plan: dict) -> dict:
     plan.setdefault("hubs", {})
     plan.setdefault("archives", {})
     plan.setdefault("keeps", [])
+    plan.setdefault("forbids", {})
     plan.pop("layer_names", None)
     for hub in plan["hubs"].values():
         hub.pop("layer", None)
@@ -125,6 +126,7 @@ def blank() -> dict:
             },
             "archives": {},
             "keeps": [],
+            "forbids": {},
         }
         _write(plan)
         return plan
@@ -168,11 +170,47 @@ def _unassign(plan: dict, repo: str) -> None:
         meta["absorbs"] = [r for r in meta.get("absorbs", []) if r != repo]
 
 
+def _drop_forbids(plan: dict, repo: str) -> None:
+    """Erase any sticky 'don't cluster back to X' notes for a repo."""
+    plan.get("forbids", {}).pop(repo, None)
+
+
+def forbids_map(plan: dict | None = None) -> dict[str, list[str]]:
+    """repo -> ordered list of cluster/hub labels it must not re-enter."""
+    plan = plan or get_plan()
+    return {k: list(v) for k, v in plan.get("forbids", {}).items() if v}
+
+
+def set_forbid(repo: str, hub: str) -> dict:
+    """Record 'never re-cluster this repo into hub'. Deduped; idempotent."""
+    if not repo or not hub:
+        raise ValueError("repo and hub both required")
+    with _LOCK:
+        plan = _load()
+        buckets = plan.setdefault("forbids", {})
+        existing = buckets.get(repo, [])
+        if hub not in existing:
+            existing.append(hub)
+        buckets[repo] = existing
+        _write(plan)
+        log.info("forbid %s <- %s", repo, hub)
+        return {"repo": repo, "hub": hub, "forbids": forbids_map(plan)}
+
+
+def clear_forbids(repo: str) -> dict:
+    """Drop every forbid entry for a repo (e.g. once the user places it)."""
+    with _LOCK:
+        plan = _load()
+        plan.get("forbids", {}).pop(repo, None)
+        _write(plan)
+        return {"repo": repo, "cleared": True}
+
+
 def clear() -> dict:
     """Truly empty plan: no hubs, no assignments. Nothing is assumed to be a
     hub — hubs are rebuilt explicitly from the scan."""
     with _LOCK:
-        plan = {"hubs": {}, "archives": {}, "keeps": []}
+        plan = {"hubs": {}, "archives": {}, "keeps": [], "forbids": {}}
         _write(plan)
         return plan
 
@@ -241,6 +279,10 @@ def set_verdict(repo: str, verdict: str, hub: str | None = None) -> dict:
             if not hub or hub not in plan.get("hubs", {}):
                 raise ValueError("absorb requires a known hub")
         _unassign(plan, repo)
+        # A real placement wipes any sticky forbid list — that repo is now
+        # placed, the cluster-must-not-avoid note is moot.
+        if verdict in ("absorb", "archive", "keep"):
+            _drop_forbids(plan, repo)
 
         if verdict == "absorb":
             absorbs = plan["hubs"][hub].setdefault("absorbs", [])

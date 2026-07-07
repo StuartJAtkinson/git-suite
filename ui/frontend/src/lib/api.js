@@ -81,18 +81,27 @@ export const api = {
     savedOnly = false,
     anchors = false,
     anchorThreshold = null,
+    minClusterSize = null,
   } = {}) => {
     const q = new URLSearchParams({ source, recompute });
     if (savedOnly) q.set('saved_only', true);
     if (anchors) q.set('anchors', true);
     if (anchorThreshold != null) q.set('anchor_threshold', anchorThreshold);
     if (k != null) q.set('k', k);
+    if (minClusterSize != null) q.set('min_cluster_size', minClusterSize);
     return req('GET', `/api/cluster/${session_id}?${q}`);
   },
   formHub: (session_id, body) =>
     req('POST', `/api/cluster/form/${session_id}`, body),
   refreshForks: (session_id) =>
     req('POST', `/api/cluster/refresh-forks/${session_id}`, {}),
+
+  // Forbids — sticky "don't cluster this repo back into hub X" preferences.
+  forbidRepo: (repo, hub) =>
+    req('POST', '/api/plan/forbid', { repo, hub }),
+  clearForbids: (repo) =>
+    req('DELETE', '/api/plan/forbid', { repo }),
+  getForbids: () => req('GET', '/api/plan/forbids'),
 
   // Promote (Step 3 "Own" — turn owned forks into first-class repos)
   listForks: (session_id) => req('GET', `/api/promote/${session_id}`),

@@ -85,3 +85,29 @@ async def set_verdict(body: VerdictRequest):
         return plan_store.set_verdict(body.repo, body.verdict, body.hub)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+class ForbidRequest(BaseModel):
+    repo: str
+    hub: str
+
+
+class ForbidClearRequest(BaseModel):
+    repo: str
+
+
+@router.post("/plan/forbid")
+async def forbid(body: ForbidRequest):
+    """Sticky 'never re-cluster this repo into hub <hub>'. Cleared automatically
+    once the repo is placed (absorb / archive / keep)."""
+    return plan_store.set_forbid(body.repo, body.hub)
+
+
+@router.delete("/plan/forbid")
+async def clear_forbid(body: ForbidClearRequest):
+    return plan_store.clear_forbids(body.repo)
+
+
+@router.get("/plan/forbids")
+async def list_forbids():
+    return plan_store.forbids_map()

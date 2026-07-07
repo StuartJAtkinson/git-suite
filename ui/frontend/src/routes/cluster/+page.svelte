@@ -21,12 +21,15 @@
   let errorMsg = '';
   let msg = '';
   let k = 8;               // target number of clusters (k-means)
+  let minClusterSize = 2;  // primeness: drop tiny clusters into unassigned
   let busy = false;
   let refreshing = false;
   let source = 'mixed';
   let hoveredId = null;
   let selected = new Set();
   let newHubName = '';
+  let forbids = {};        // repo -> [hub, ...] (sticky)
+  let showsForbids = false;
   let width = 960;
   const HEIGHT = 700;
   const R = 8;             // node radius
@@ -48,15 +51,20 @@
     }
   });
 
-  async function load(recompute = false) {
+  async function load(recompute = false, opts = {}) {
     loading = true; errorMsg = ''; selected = new Set(); hoveredId = null;
     try {
       // On mount (recompute=false) read saved-only — NEVER auto-compute, so
       // landing here never spends embedding tokens. Clustering happens only on
       // an explicit action (Re-cluster / slider / source / refresh) -> recompute.
-      data = await api.getClusters($session.session_id, { k, source, recompute, savedOnly: !recompute });
+      data = await api.getClusters($session.session_id, {
+        k, source, recompute, savedOnly: !recompute && !opts.force,
+        anchors: opts.anchors ?? false,
+        minClusterSize: opts.minClusterSize ?? minClusterSize,
+      });
       if (data.k) k = data.k;   // reflect the saved pass
       build(data.clusters || []);
+      try { forbids = await api.getForbids(); } catch { forbids = {}; }
     } catch (e) { errorMsg = e.message; }
     finally { loading = false; }
   }
@@ -162,11 +170,55 @@
     } catch (e) { errorMsg = e.message; }
     finally { busy = false; }
   }
+
+  // ── manual tweaks ────────────────────────────────────────────────────────
+  async function unassignOne(n) {
+    busy = true; errorMsg = '';
+    try {
+      await api.setVerdict(n.repo, 'orphan');
+      nodes = nodes.filter((x) => x.repo !== n.repo).map((x, i) => ({ ...x, id: i }));
+      clusters = clusters.filter((c) => c.size > 0);
+      sim?.nodes(nodes).alpha(0.4).restart();
+      msg = `Unassigned ${n.repo} — back to triage.`;
+    } catch (e) { errorMsg = e.message; }
+    finally { busy = false; }
+  }
+
+  async function forbidFromCluster(n, c) {
+    if (!c) return;
+    busy = true; errorMsg = '';
+    try {
+      await api.forbidRepo(n.repo, c.suggested_name);
+      forbids = await api.getForbids();
+      n.forbids = (n.forbids || []).includes(c.suggested_name)
+        ? n.forbids : [...(n.forbids || []), c.suggested_name];
+      nodes = nodes;
+      msg = `Won't re-cluster ${n.repo} into ${c.suggested_name}.`;
+    } catch (e) { errorMsg = e.message; }
+    finally { busy = false; }
+  }
+
+  async function clearForbidsForRepo(repo) {
+    busy = true; errorMsg = '';
+    try {
+      await api.clearForbids(repo);
+      delete forbids[repo];
+      for (const n of nodes) if (n.repo === repo) n.forbids = [];
+      nodes = nodes; forbids = forbids;
+    } catch (e) { errorMsg = e.message; }
+    finally { busy = false; }
+  }
 </script>
 
 <div class="page-header">
   <h1>Cluster — form hubs</h1>
-  <p class="sub">Every repo is a node, grouped by function. The grey label is just the cluster's theme — <b>promote a real repo</b> as the hub, or select repos and <b>create</b> one. Drag to arrange &amp; pin.</p>
+  <p class="sub">
+    Every repo is a node, grouped by function. The grey label is just the cluster's theme —
+    <b>promote a real repo</b> as the hub, or select repos and <b>create</b> one.
+    Drag to arrange &amp; pin. Hover a node to <b>unassign</b> it or <b>forbid</b> it from
+    re-entering its cluster, then run <b>↻ Cluster orphans</b> to drop the remaining unassigned
+    repos into the existing hubs.
+  </p>
 </div>
 
 {#if errorMsg}<div class="error-msg">{errorMsg}</div>{/if}
@@ -204,8 +256,22 @@
       <input type="range" min="2" max="30" step="1" bind:value={k} on:change={() => load(true)} />
       {k}
     </label>
+    <label class="thr">min size
+      <input type="range" min="1" max="6" step="1" bind:value={minClusterSize}
+        on:change={() => load(true)} title="Drop clusters smaller than this into the unassigned pool" />
+      {minClusterSize}
+    </label>
     {#if data.saved}<span class="saved-pill">saved</span>{/if}
-    <button class="ghost sm" on:click={() => load(true)}>↻ Re-cluster</button>
+    {#if Object.keys(forbids).length}
+      <button class="ghost sm pill-soft" on:click={() => (showsForbids = !showsForbids)}>
+        🛇 Forbids ({Object.values(forbids).reduce((n, l) => n + l.length, 0)})
+      </button>
+    {/if}
+    <button class="primary sm" disabled={busy} on:click={() => load(true, { anchors: true })}
+      title="Place the unassigned repos into the existing anchored clusters (no full recompute)">
+      ↻ Cluster orphans
+    </button>
+    <button class="ghost sm" on:click={() => load(true)}>↻ Re-cluster from scratch</button>
     <button class="ghost sm" disabled={refreshing} on:click={async () => {
       refreshing = true; errorMsg = ''; msg = '';
       try {
@@ -214,6 +280,23 @@
       } catch (e) { errorMsg = e.message; } finally { refreshing = false; }
     }}>{refreshing ? 'Refreshing…' : '↻ Refresh forks/stars'}</button>
   </div>
+
+  {#if showsForbids && Object.keys(forbids).length}
+    <div class="forbid-panel">
+      <div class="forbid-head">
+        <b>Sticky forbids</b>
+        <span class="hint">Repos listed here won't be re-clustered into their named cluster(s). Forgets on placement.</span>
+      </div>
+      {#each Object.entries(forbids) as [repo, hubs]}
+        <div class="forbid-row">
+          <span class="forbid-repo">{repo}</span>
+          <span class="forbid-arrow">🛇</span>
+          {#each hubs as h}<span class="forbid-hub">{h}</span>{/each}
+          <button class="btn-remove" on:click={() => clearForbidsForRepo(repo)}>clear</button>
+        </div>
+      {/each}
+    </div>
+  {/if}
 
   <!-- selection action bar -->
   <div class="selbar" class:active={selected.size > 0}>
@@ -240,6 +323,7 @@
       {#each nodes as n (n.id)}
         <div class="node src-{n.source?.[0]?.toUpperCase() || 'O'}"
              class:sel={selected.has(n.repo)} class:hov={hoveredId === n.id}
+             class:forbids={(forbids[n.repo] || n.forbids || []).length > 0}
              style="left:{n.x}px; top:{n.y}px; z-index:{hoveredId === n.id ? 60 : (selected.has(n.repo) ? 20 : 2)}"
              on:pointerdown={(e) => onDown(n, e)}
              on:mouseenter={() => (hoveredId = n.id)}
@@ -258,8 +342,19 @@
               <div class="c-meta">
                 {#if n.language}<span class="c-lang">{n.language}</span>{/if}
                 {#if n.stars}<span>★ {n.stars}</span>{/if}
+                {#if n.cluster != null && clusters[n.cluster]}
+                  <span class="c-cluster">⛁ {clusters[n.cluster].suggested_name}</span>
+                {/if}
               </div>
               <button class="promote" disabled={busy} on:click|stopPropagation={() => form(n.repo)}>★ Promote as hub</button>
+              {#if n.cluster != null && clusters[n.cluster]}
+                <button class="forbid-btn" disabled={busy}
+                  on:click|stopPropagation={() => forbidFromCluster(n, clusters[n.cluster])}>
+                  🛇 Don't cluster back to {clusters[n.cluster].suggested_name}
+                </button>
+              {/if}
+              <button class="unassign-btn" disabled={busy}
+                on:click|stopPropagation={() => unassignOne(n)}>✕ Unassign to triage</button>
             </div>
           {:else}
             <span class="ntitle">{n.repo}</span>
@@ -319,4 +414,36 @@
     background: #fff; border-radius: 6px; cursor: pointer; font-weight: 700; }
   .promote:hover { background: #4f46e5; color: #fff; }
   .promote:disabled { opacity: 0.5; }
+
+  .forbid-btn { width: 100%; font-size: 0.74rem; padding: 0.28rem; margin-top: 0.3rem;
+    border: 1px solid #f59e0b; color: #b45309; background: #fffbeb; border-radius: 6px;
+    cursor: pointer; font-weight: 600; }
+  .forbid-btn:hover { background: #fde68a; }
+  .forbid-btn:disabled { opacity: 0.5; }
+
+  .unassign-btn { width: 100%; font-size: 0.74rem; padding: 0.28rem; margin-top: 0.3rem;
+    border: 1px solid #d1d5db; color: #6b7280; background: #fff; border-radius: 6px;
+    cursor: pointer; font-weight: 500; }
+  .unassign-btn:hover { border-color: #dc2626; color: #dc2626; }
+  .unassign-btn:disabled { opacity: 0.5; }
+
+  .c-cluster { background: #eef2ff; color: #4338ca; border-radius: 4px; padding: 0.03em 0.4em; font-weight: 600; }
+
+  .node.forbids .dot { box-shadow: 0 0 0 3px #fbbf24, 0 1px 3px rgba(0,0,0,0.25); }
+  .node.forbids .ntitle { background: rgba(254,243,199,0.9); color: #92400e; }
+
+  .primary.sm { background: #4f46e5; color: #fff; border: none; border-radius: 6px; padding: 0.32rem 0.7rem; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+  .primary.sm:disabled { opacity: 0.5; }
+  .pill-soft { background: #fffbeb; border-color: #fde68a; color: #b45309; }
+
+  .forbid-panel { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+    padding: 0.6rem 0.8rem; margin-bottom: 0.5rem; font-size: 0.84rem; }
+  .forbid-head { display: flex; gap: 0.5rem; align-items: baseline; margin-bottom: 0.4rem; }
+  .forbid-head .hint { color: #92400e; }
+  .forbid-row { display: flex; align-items: center; gap: 0.4rem; padding: 0.18rem 0; flex-wrap: wrap; }
+  .forbid-repo { font-family: monospace; font-weight: 600; }
+  .forbid-arrow { color: #b45309; }
+  .forbid-hub { background: #fde68a; color: #92400e; border-radius: 4px;
+    padding: 0.05em 0.45em; font-size: 0.78rem; font-weight: 600; }
+  .forbid-row .btn-remove { margin-left: auto; }
 </style>

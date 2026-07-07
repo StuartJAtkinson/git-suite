@@ -5,7 +5,7 @@ import pytest
 def test_production_seed_is_blank(isolated_plan):
     # First-run default assumes nothing — no hubs, no assignments.
     blank = isolated_plan._seed_plan()
-    assert blank == {"hubs": {}, "archives": {}, "keeps": []}
+    assert blank == {"hubs": {}, "archives": {}, "keeps": [], "forbids": {}}
 
 
 def test_sample_plan_shape(isolated_plan):
@@ -134,3 +134,35 @@ def test_blank_clears_assignments_keeps_hub_shells(isolated_plan):
     assert p["archives"] == {} and p["keeps"] == []
     # a hub is still implicitly keep
     assert isolated_plan.repo_placement(p)["media-hub"]["verdict"] == "keep"
+
+
+# --- forbids ---------------------------------------------------------------
+
+
+def test_set_forbid_records_and_dedupes(isolated_plan):
+    isolated_plan.set_forbid("foo", "maps-hub")
+    isolated_plan.set_forbid("foo", "maps-hub")           # second call is a no-op
+    isolated_plan.set_forbid("foo", "audio-hub")
+    assert isolated_plan.forbids_map()["foo"] == ["maps-hub", "audio-hub"]
+
+
+def test_set_verdict_absorb_clears_forbids(isolated_plan):
+    isolated_plan.set_forbid("foo", "maps-hub")
+    isolated_plan.set_forbid("foo", "audio-hub")
+    isolated_plan.set_verdict("foo", "absorb", "media-hub")
+    # Any real placement wipes the stickies — the repo is now placed.
+    assert "foo" not in isolated_plan.forbids_map()
+
+
+def test_clear_forbids_drops_just_that_repo(isolated_plan):
+    isolated_plan.set_forbid("foo", "maps-hub")
+    isolated_plan.set_forbid("bar", "audio-hub")
+    isolated_plan.clear_forbids("foo")
+    fm = isolated_plan.forbids_map()
+    assert "foo" not in fm and "bar" in fm
+
+
+def test_forbids_map_drops_empty_buckets(isolated_plan):
+    isolated_plan.set_forbid("foo", "maps-hub")
+    isolated_plan.clear_forbids("foo")
+    assert isolated_plan.forbids_map() == {}

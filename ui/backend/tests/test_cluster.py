@@ -88,6 +88,30 @@ def test_build_clusters_mixed_returns_none_without_embeddings(monkeypatch):
     )) is None
 
 
+def test_build_clusters_mixed_drops_singletons_with_min_size(monkeypatch):
+    """min_cluster_size=2 demotes one-member clusters to orphans_returned."""
+    from services import embeddings
+    monkeypatch.setattr(embeddings, "has_embeddings", lambda: True)
+    # Two tight blobs + one totally unlike them → k=2 puts the loner alone;
+    # with min_cluster_size=2, the loner gets dropped into the orphan list.
+    monkeypatch.setattr(embeddings, "embed", _fake_embed_factory({
+        "alpha": [1.0, 0.0, 0.0],
+        "beta":  [0.0, 1.0, 0.0],
+    }))
+    pool = [
+        {"name": "alpha-1", "aim": "alpha", "topics": [], "language": "", "stars": 0},
+        {"name": "alpha-2", "aim": "alpha", "topics": [], "language": "", "stars": 0},
+        {"name": "beta-1",  "aim": "beta",  "topics": [], "language": "", "stars": 0},
+    ]
+    clusters, dropped = asyncio.run(cluster.build_clusters_mixed(
+        pool, [], [], k=2, min_cluster_size=2,
+    ))
+    sizes = sorted(c["size"] for c in clusters)
+    assert sizes == [2]              # one stays, the lone beta is dropped
+    assert len(dropped) == 1
+    assert dropped[0]["name"] == "beta-1"
+
+
 def test_build_clusters_mixed_tags_sources_and_groups(temp_db, monkeypatch):
     from services import embeddings
     monkeypatch.setattr(embeddings, "has_embeddings", lambda: True)
@@ -110,7 +134,7 @@ def test_build_clusters_mixed_tags_sources_and_groups(temp_db, monkeypatch):
          "language": "C++", "stars": 50, "full_name": "ext/audio-fx"},
     ]
 
-    clusters = asyncio.run(cluster.build_clusters_mixed(owned, forks, stars, k=2))
+    clusters, _orphans = asyncio.run(cluster.build_clusters_mixed(owned, forks, stars, k=2))
     assert clusters is not None
     # Largest first; the maps cluster has 3 members, the audio one has 1.
     assert clusters[0]["size"] == 3
@@ -170,3 +194,22 @@ def test_propose_owned_legacy_path_still_works(temp_db, isolated_plan, monkeypat
     assert res["counts"] == {"owned": 1, "forks": 0, "stars": 0}
     # No fork or star in the input; only the owned repo shows up.
     assert res["clusters"][0]["members"][0]["source"] == "owned"
+
+
+def test_apply_forbids_drops_member_and_keeps_rest():
+    from routers.cluster import _apply_forbids
+    clusters = [
+        {"suggested_name": "maps-hub", "members": [
+            {"repo": "tilemaker"}, {"repo": "streets-gl"},
+        ], "size": 2},
+        {"suggested_name": "audio-hub", "members": [
+            {"repo": "audio-fx"}, {"repo": "audio-fx-2"},
+        ], "size": 2},
+    ]
+    forbid_map = {"tilemaker": ["maps-hub"], "streets-gl": ["audio-hub"]}
+    dropped = _apply_forbids(clusters, forbid_map)
+    # Only tilemaker is dropped: streets-gl's forbid ("audio-hub") doesn't match.
+    assert {d["repo"] for d in dropped} == {"tilemaker"}
+    # The maps cluster now has 1 member; audio cluster untouched.
+    assert clusters[0]["size"] == 1
+    assert clusters[1]["size"] == 2

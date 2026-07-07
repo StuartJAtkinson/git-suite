@@ -146,19 +146,23 @@ async def build_clusters_mixed(
     forks: list[dict],
     stars: list[dict],
     k: int | None = None,
-) -> list[dict] | None:
+    min_cluster_size: int = 1,
+) -> tuple[list[dict], list[dict]] | None:
     """Cluster owned + forks + stars in one embedding space.
 
     Each repo is first distilled to a one-line semantic domain (LLM, cached),
     then that distillation is embedded (with the nomic `clustering:` prefix) and
     partitioned into `k` groups by spherical k-means. `k` defaults to ~√(n/2).
 
-    Returns a list of cluster dicts:
+    Returns `(clusters, orphans_returned)`:
+      clusters: list of cluster dicts:
         {
           "members": [{"repo": ..., "source": "owned"|"fork"|"star", ...}, ...],
           "suggested_name": ...,
           "suggested_description": ...,
         }
+      orphans_returned: repos that came out below `min_cluster_size` and were
+        kept out of any cluster. Caller merges them into the unassigned pool.
 
     Returns None if embeddings are unavailable (caller can show a clear
     "configure embeddings" message). Cluster ordering is largest-first.
@@ -207,8 +211,14 @@ async def build_clusters_mixed(
     groups = _kmeans(vecs, k if k is not None else default_k(len(pool)))
 
     clusters: list[dict] = []
+    orphans_returned: list[dict] = []
     for idxs in groups:
         members = [pool[i] for i in idxs]
+        if min_cluster_size > 1 and len(members) < min_cluster_size:
+            # Singletons (or below the user's `min`) go back to the unassigned
+            # pool — don't force-merge the long tail into one starving cluster.
+            orphans_returned.extend(members)
+            continue
         # Name the cluster from its distilled substance (domain + entities),
         # not the raw tech topics — the name should read like the activity it
         # serves, e.g. "tabletop role-playing", not "python" or "bot".
@@ -240,7 +250,7 @@ async def build_clusters_mixed(
         })
     # Largest first; ties broken by name for determinism in tests.
     clusters.sort(key=lambda c: (-c["size"], c["suggested_name"]))
-    return clusters
+    return clusters, orphans_returned
 
 
 # ── anchor-driven re-cluster ───────────────────────────────────────────────
