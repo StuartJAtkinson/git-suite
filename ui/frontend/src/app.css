@@ -31,7 +31,7 @@ nav .user img { width: 28px; height: 28px; border-radius: 50%; border: 2px solid
 nav .user span { color: #cdd4e0; }
 
 /* ── Layout ── */
-main { max-width: 1080px; margin: 2rem auto; padding: 0 1.25rem; }
+main { padding: 1.25rem 1.5rem; }
 
 /* ── Cards ── */
 .card {
