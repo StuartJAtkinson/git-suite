@@ -17,7 +17,7 @@
   let loading = true;
   let errorMsg = '';
   let msg = '';
-  let k = 8;                // cluster count — fed to "Cluster" button only
+  let k = 20;               // cluster count — fed to "Cluster" button only. Higher = more granular columns; the user can drop it for broader hubs.
   let coherence = 0.40;     // avg member→centroid cosine floor; below this a group falls to orphans. Prime pass uses 0.20 (let clusters emerge); orphan pass uses this value (snap to existing themes).
   let busy = false;
   let hoveredId = null;

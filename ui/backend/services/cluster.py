@@ -42,8 +42,12 @@ def _dot(a: list[float], b: list[float]) -> float:
 
 
 def default_k(n: int) -> int:
-    """A sane target cluster count for n repos when the user hasn't picked one."""
-    return max(2, round(math.sqrt(n / 2))) if n > 3 else max(1, n)
+    """A sane target cluster count for n repos when the user hasn't picked one.
+    Returns ~sqrt(n) — tighter than the older sqrt(n/2), because the
+    cluster_text composition already does most of the semantic work and the
+    user wants granular columns, not 5 giant ones.
+    """
+    return max(2, round(math.sqrt(n))) if n > 3 else max(1, n)
 
 
 def _kmeans(vectors: list[list[float]], k: int, iters: int = 30) -> list[list[int]]:

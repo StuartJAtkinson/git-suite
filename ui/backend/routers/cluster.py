@@ -239,7 +239,7 @@ async def propose(
     eff_k = k if k is not None else cluster.default_k(n)
     built = await cluster.build_clusters_mixed(owned, forks, stars, eff_k,
                                                min_cluster_size=max(1, min_cluster_size),
-                                               coherence_floor=coherence_floor if anchors else 0.20)
+                                               coherence_floor=coherence_floor if anchors else 0.30)
     if built is None:
         return {"available": False,
                 "reason": "Embeddings not configured/reachable — set Setup → "
