@@ -2,234 +2,226 @@
   import { onMount, onDestroy } from 'svelte';
   import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
-  import { forceSimulation, forceManyBody, forceCollide, forceX, forceY } from 'd3-force';
   import { session } from '$lib/stores';
   import { api } from '$lib/api';
   import { SOURCE_GLYPH } from '$lib/columns';
 
-  // Every repo (owned + forks + stars) is a node, force-grouped by semantic
-  // cluster. The suggested cluster name is only a faint centre LABEL — never the
-  // hub name. You PROMOTE a real repo as the hub (preferred) or CREATE one
-  // (label is just a last-resort placeholder). Drag nodes to arrange/pin; click
-  // to select which repos a hub draws from. Classification is set later
-  // on Order (source/process/viz).
+  // Layout: each cluster is a vertical column. Within a column, owned sits at
+  // the top, then forks, then stars. Cells are rectangles big enough to read;
+  // they never overlap (column does the spacing). The d3 force simulation is
+  // gone — placement is deterministic.
 
   let data = null;
-  let nodes = [];          // one per repo
-  let clusters = [];       // {index, name, description, lx, ly}  (centre labels)
+  let clusters = [];        // [{suggested_name, members, size, lx, ly}]
+  let orphans = [];         // [{repo, ...}] — repo not in any cluster this pass
   let loading = true;
   let errorMsg = '';
   let msg = '';
-  let k = 8;               // target number of clusters (k-means)
-  let minClusterSize = 2;  // primeness: drop tiny clusters into unassigned
+  let k = 8;                // cluster count — fed to "Cluster" button only
   let busy = false;
-  let refreshing = false;
-  let source = 'mixed';
   let hoveredId = null;
-  let selected = new Set();
-  let newHubName = '';
-  let forbids = {};        // repo -> [hub, ...] (sticky)
-  let showsForbids = false;
-  let width = 960;
-  const HEIGHT = 700;
-  const R = 8;             // node radius
-  let sim = null;
-  let stageEl;
-  let drag = null;         // {node, moved}
+  let selected = new Set();   // hover-to-select cluster picker
+  let width = 1200;
+  const HEADER_H = 30;
+  const CELL_W = 168;
+  const CELL_H = 56;
+  const CELL_GAP = 6;
+  const COL_GAP = 24;
+  const PADDING = 28;
 
   onMount(async () => {
     if (!$session) { goto('/'); return; }
     await load();
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-  });
-  onDestroy(() => {
-    sim?.stop();
-    if (browser) {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-    }
   });
 
   async function load(recompute = false, opts = {}) {
-    loading = true; errorMsg = ''; selected = new Set(); hoveredId = null;
+    loading = true; errorMsg = '';
     try {
-      // On mount (recompute=false) read saved-only — NEVER auto-compute, so
-      // landing here never spends embedding tokens. Clustering happens only on
-      // an explicit action (Re-cluster / slider / source / refresh) -> recompute.
       data = await api.getClusters($session.session_id, {
-        k, source, recompute, savedOnly: !recompute && !opts.force,
+        k, recompute, savedOnly: !recompute,
         anchors: opts.anchors ?? false,
-        minClusterSize: opts.minClusterSize ?? minClusterSize,
       });
-      if (data.k) k = data.k;   // reflect the saved pass
-      build(data.clusters || []);
-      try { forbids = await api.getForbids(); } catch { forbids = {}; }
+      if (data.k) k = data.k;
+      build(data.clusters || [], opts.anchors ? data.clusters || [] : []);
     } catch (e) { errorMsg = e.message; }
     finally { loading = false; }
   }
 
-  function clusterAnchor(i, total) {
-    const cols = Math.ceil(Math.sqrt(total));
-    const rows = Math.ceil(total / cols);
-    const col = i % cols, row = Math.floor(i / cols);
-    return { x: ((col + 0.5) / cols) * width, y: ((row + 0.5) / rows) * HEIGHT };
+  // Build the layout. For an anchored pass the orphans surface separately so
+  // the sidebar can list them.
+  function normalise(m) {
+    return {
+      repo: m.repo || m.name || m.full_name,
+      source: m.source || 'owned',
+      language: m.language || '',
+      stars: m.stars || 0,
+      domain: m.domain || '',
+      entities: m.entities || [],
+      aim: m.aim || m.description || '',
+      purpose: m.purpose || '',
+    };
   }
 
-  function build(cl) {
-    sim?.stop();
-    clusters = cl.map((c, i) => {
-      const a = clusterAnchor(i, cl.length || 1);
-      return { index: i, name: c.suggested_name, description: c.suggested_description, ax: a.x, ay: a.y, lx: a.x, ly: a.y };
+  function build(allClusters, _anchorMember) {
+    clusters = allClusters.map((c, idx) => {
+      const all = (c.members || []).map(normalise);
+      const owned = all.filter((m) => m.source === 'owned');
+      const forks = all.filter((m) => m.source === 'fork');
+      const stars = all.filter((m) => m.source === 'star');
+      return {
+        index: idx,
+        suggested_name: c.suggested_name,
+        suggested_description: c.suggested_description,
+        anchored_to: c.anchored_to || null,
+        owned, forks, stars,
+        size: owned.length + forks.length + stars.length,
+      };
     });
-    nodes = [];
-    cl.forEach((c, ci) => {
-      c.members.forEach((m) => {
-        const a = clusterAnchor(ci, cl.length || 1);
-        nodes.push({
-          id: nodes.length, cluster: ci,
-          repo: m.repo, aim: m.aim, domain: m.domain,
-          entities: m.entities || [], purpose: m.purpose || "",
-          source: m.source,
-          language: m.language, stars: m.stars,
-          x: a.x + (Math.random() - 0.5) * 60, y: a.y + (Math.random() - 0.5) * 60,
-        });
-      });
+    orphans = (data.orphans_returned || []).map(normalise);
+    placeColumns();
+  }
+
+  // Deterministic column placement — width comes from the page container.
+  function placeColumns() {
+    const totalW = Math.max(width, PADDING * 2 + clusters.length * (CELL_W + COL_GAP));
+    clusters = clusters.map((c, i) => {
+      const cx = PADDING + i * (CELL_W + COL_GAP) + CELL_W / 2;
+      return { ...c, lx: cx, ly: HEADER_H };
     });
-    if (!nodes.length) return;
-    sim = forceSimulation(nodes)
-      .force('collide', forceCollide(R + 3))
-      .force('charge', forceManyBody().strength(-22))
-      .force('x', forceX((n) => clusters[n.cluster].ax).strength(0.22))
-      .force('y', forceY((n) => clusters[n.cluster].ay).strength(0.22))
-      .on('tick', tick);
+    // Recompute stage height from the tallest column.
+    heightForLayout = HEADER_H + PADDING + maxColRows() * (CELL_H + CELL_GAP);
+  }
+  let heightForLayout = 600;
+
+  function maxColRows() {
+    return clusters.reduce((m, c) => Math.max(m, c.owned.length + c.forks.length + c.stars.length), 1);
   }
 
-  function tick() {
-    // recompute each cluster's label position as the centroid of its nodes
-    for (const c of clusters) { c._sx = 0; c._sy = 0; c._n = 0; }
-    for (const n of nodes) { const c = clusters[n.cluster]; c._sx += n.x; c._sy += n.y; c._n++; }
-    for (const c of clusters) if (c._n) { c.lx = c._sx / c._n; c.ly = c._sy / c._n; }
-    nodes = nodes; clusters = clusters;
+  // Position a member within its cluster column by source-order (owned top).
+  function cellPos(c, source, row) {
+    const ownedN = c.owned.length, forksN = c.forks.length;
+    const y = HEADER_H + PADDING + row * (CELL_H + CELL_GAP) + CELL_H / 2;
+    const x = c.lx;
+    return { x, y };
   }
 
-  // ── drag (sets fx/fy; stays pinned so manual arrangement sticks) ──
-  function onDown(n, e) {
-    drag = { node: n, moved: false };
-    n.fx = n.x; n.fy = n.y;
-    sim?.alphaTarget(0.3).restart();
-    e.target.setPointerCapture?.(e.pointerId);
-  }
-  function onMove(e) {
-    if (!drag) return;
-    drag.moved = true;
-    const r = stageEl.getBoundingClientRect();
-    drag.node.fx = e.clientX - r.left;
-    drag.node.fy = e.clientY - r.top;
-  }
-  function onUp() {
-    if (!drag) return;
-    if (!drag.moved) toggleSelect(drag.node);   // a click, not a drag
-    sim?.alphaTarget(0);
-    drag = null;                                  // keep fx/fy → pinned in place
+  function memberRow(c, m) {
+    if (m.source === 'fork') return c.owned.length + c.forks.indexOf(m);
+    if (m.source === 'star') return c.owned.length + c.forks.length + c.stars.indexOf(m);
+    return c.owned.indexOf(m);                 // owned (default)
   }
 
-  function toggleSelect(n) {
-    selected.has(n.repo) ? selected.delete(n.repo) : selected.add(n.repo);
-    selected = selected;
-  }
-  function clearSel() { selected = new Set(); }
-
-  // dominant cluster label among the current selection — the last-resort name
-  function suggestedLabel() {
-    if (!selected.size) return '';
-    const tally = {};
-    for (const n of nodes) if (selected.has(n.repo)) tally[n.cluster] = (tally[n.cluster] || 0) + 1;
-    const best = Object.entries(tally).sort((a, b) => b[1] - a[1])[0];
-    return best ? clusters[best[0]].name : '';
+  function rect(c, source, row) {
+    const { x, y } = cellPos(c, source, row);
+    return `left:${x - CELL_W / 2}px; top:${y - CELL_H / 2}px; width:${CELL_W}px; height:${CELL_H}px;`;
   }
 
-  async function form(promote) {
-    const members = new Set(selected);
-    if (promote) members.add(promote);
-    const hub_name = (promote || newHubName || suggestedLabel() || '').trim();
-    if (!hub_name) { errorMsg = 'Name the hub, or promote a repo.'; return; }
-    if (members.size === 0) { errorMsg = 'Select the repos this hub draws from.'; return; }
-    busy = true; errorMsg = ''; msg = '';
+  // ── actions ─────────────────────────────────────────────────────────────
+  async function doCluster(scratch) {
+    busy = true; errorMsg = '';
     try {
-      const desc = clusters.find((c) => c.name === suggestedLabel())?.description || '';
-      const r = await api.formHub($session.session_id, {
-        hub_name, description: desc, boundary: desc,
-        members: [...members], promote: promote || null,
+      data = null; await load(true, { anchors: !scratch });
+      msg = scratch ? 'Clustered from scratch.' : 'Placed orphans into existing clusters.';
+    } catch (e) { errorMsg = e.message; }
+    finally { busy = false; }
+  }
+
+  async function promoteToHub(member) {
+    const name = member.repo;
+    busy = true; errorMsg = '';
+    try {
+      const col = clusters.find((c) => c.owned.includes(member)
+                              || c.forks.includes(member)
+                              || c.stars.includes(member));
+      const members = col ? [
+        ...col.owned.map((m) => m.repo),
+        ...col.forks.map((m) => m.repo),
+        ...col.stars.map((m) => m.repo),
+      ] : [member.repo];
+      await api.formHub($session.session_id, {
+        hub_name: name, description: col?.suggested_description || '',
+        boundary: col?.suggested_description || '',
+        members, promote: name,
       });
-      msg = `${promote ? 'Promoted' : 'Created'} ${r.hub} — absorbed ${r.absorbed.length} repo(s).`;
-      const gone = new Set([...members, r.hub]);
-      nodes = nodes.filter((n) => !gone.has(n.repo)).map((n, i) => ({ ...n, id: i }));
-      selected = new Set(); newHubName = '';
-      sim?.nodes(nodes).alpha(0.4).restart();
+      msg = `Promoted ${name}.`;
+      await load(false);
     } catch (e) { errorMsg = e.message; }
     finally { busy = false; }
   }
 
-  // ── manual tweaks ────────────────────────────────────────────────────────
-  async function unassignOne(n) {
+  // Remove a member from its current cluster → it joins the orphan sidebar.
+  // The forbid list is updated server-side to mark this cluster as off-limits
+  // for the next re-cluster pass; reassigning the repo into a cluster wipes
+  // the forbid entry.
+  async function removeFromCluster(member, cluster) {
     busy = true; errorMsg = '';
     try {
-      await api.setVerdict(n.repo, 'orphan');
-      nodes = nodes.filter((x) => x.repo !== n.repo).map((x, i) => ({ ...x, id: i }));
-      clusters = clusters.filter((c) => c.size > 0);
-      sim?.nodes(nodes).alpha(0.4).restart();
-      msg = `Unassigned ${n.repo} — back to triage.`;
+      await api.setVerdict(member.repo, 'orphan');
+      await api.forbidRepo(member.repo, cluster.suggested_name);
+      // Reflect locally so the canvas + sidebar update without a re-fetch.
+      clusters = clusters.map((c) => {
+        if (c.index !== cluster.index) return c;
+        return {
+          ...c,
+          owned: c.owned.filter((m) => m !== member),
+          forks: c.forks.filter((m) => m !== member),
+          stars: c.stars.filter((m) => m !== member),
+          size: c.size - 1,
+        };
+      }).filter((c) => c.size > 0);
+      orphans = [...orphans, { ...member }];
+      msg = `${member.repo} moved to orphans — won't re-cluster into ${cluster.suggested_name}.`;
     } catch (e) { errorMsg = e.message; }
     finally { busy = false; }
   }
 
-  async function forbidFromCluster(n, c) {
-    if (!c) return;
+  async function assignOrphanToCluster(orphan, clusterLabel) {
+    if (!clusterLabel) return;                     // "(unassigned)" — leave orphan alone
     busy = true; errorMsg = '';
     try {
-      await api.forbidRepo(n.repo, c.suggested_name);
-      forbids = await api.getForbids();
-      n.forbids = (n.forbids || []).includes(c.suggested_name)
-        ? n.forbids : [...(n.forbids || []), c.suggested_name];
-      nodes = nodes;
-      msg = `Won't re-cluster ${n.repo} into ${c.suggested_name}.`;
+      const col = clusters.find((c) => c.suggested_name === clusterLabel);
+      if (!col) return;
+      await api.clearForbids(orphan.repo);          // placement wipes forbids
+      const tag = clusterLabel.startsWith('★ ')
+        ? 'owned' : (col.stars.find((m) => m.repo === orphan.repo) ? 'star'
+                    : col.forks.find((m) => m.repo === orphan.repo) ? 'fork' : 'owned');
+      clusters = clusters.map((c) => {
+        if (c.suggested_name !== clusterLabel) return c;
+        return { ...c, [tag === 'owned' ? 'owned' : tag]: [...c[tag], orphan], size: c.size + 1 };
+      }).filter((c) => c.size > 0);
+      orphans = orphans.filter((o) => o !== orphan);
+      msg = `${orphan.repo} → ${clusterLabel}.`;
     } catch (e) { errorMsg = e.message; }
     finally { busy = false; }
   }
 
-  async function clearForbidsForRepo(repo) {
-    busy = true; errorMsg = '';
-    try {
-      await api.clearForbids(repo);
-      delete forbids[repo];
-      for (const n of nodes) if (n.repo === repo) n.forbids = [];
-      nodes = nodes; forbids = forbids;
-    } catch (e) { errorMsg = e.message; }
-    finally { busy = false; }
+  // ── helpers ─────────────────────────────────────────────────────────────
+  $: totalCount = clusters.reduce((n, c) => n + c.size, 0) + orphans.length;
+
+  function borderKey(source) {
+    return source === 'fork' ? 'F' : source === 'star' ? 'S' : 'O';
   }
 </script>
 
+<svelte:window bind:innerWidth={width} />
+
 <div class="page-header">
-  <h1>Cluster — form hubs</h1>
+  <h1>Cluster</h1>
   <p class="sub">
-    Every repo is a node, grouped by function. The grey label is just the cluster's theme —
-    <b>promote a real repo</b> as the hub, or select repos and <b>create</b> one.
-    Drag to arrange &amp; pin. Hover a node to <b>unassign</b> it or <b>forbid</b> it from
-    re-entering its cluster, then run <b>↻ Cluster orphans</b> to drop the remaining unassigned
-    repos into the existing hubs.
+    Prime cluster, then drop orphans into the columns you've already laid out.
+    Hover a card to promote it (becomes the hub) or remove it (joins the orphan
+    sidebar). Names and ordering aren't curated — they emerge from the embedding.
   </p>
 </div>
 
 {#if errorMsg}<div class="error-msg">{errorMsg}</div>{/if}
 {#if msg}<div class="ok-msg" style="margin-top:0.6rem">{msg}</div>{/if}
-{#if loading}<p class="loading">Embedding &amp; clustering repos…</p>{/if}
+{#if loading}<p class="loading">Working…</p>{/if}
 
 {#if !loading && data && !data.available}
   <div class="info-msg" style="margin-top:1rem">
     {#if data.saved === false}
-      Not clustered yet — clustering runs only when you ask.
-      <button class="ghost sm" style="margin-left:0.5rem" on:click={() => load(true)}>🧩 Cluster now</button>
+      Not clustered yet. <button class="ghost sm" on:click={() => doCluster(true)}>🧩 Cluster now</button>
     {:else}
       {data.reason} <a href="/setup">Open Setup →</a>
     {/if}
@@ -237,213 +229,212 @@
 {/if}
 
 {#if !loading && data && data.available}
-  <div class="bar">
-    <span>
-      {nodes.length} repos · {clusters.length} clusters
-      {#if data.source === 'mixed' && data.counts}
-        · <span class="src-pill src-O">{data.counts.owned} owned</span>
-        <span class="src-pill src-F">{data.counts.forks} forks</span>
-        <span class="src-pill src-S">{data.counts.stars} stars</span>
+  <div class="toolbar">
+    <div class="toolbar-stats">
+      <b>{clusters.length}</b> clusters · <b>{totalCount}</b> repos
+      {#if data.orphans_returned?.length}
+        · <span class="stat-orphans">{orphans.length} orphans</span>
       {/if}
-    </span>
-    <label class="src">source
-      <select bind:value={source} on:change={() => load(true)}>
-        <option value="mixed">mixed (owned + forks + stars)</option>
-        <option value="owned">owned only</option>
-      </select>
-    </label>
-    <label class="thr"># clusters
-      <input type="range" min="2" max="30" step="1" bind:value={k} on:change={() => load(true)} />
-      {k}
-    </label>
-    <label class="thr">min size
-      <input type="range" min="1" max="6" step="1" bind:value={minClusterSize}
-        on:change={() => load(true)} title="Drop clusters smaller than this into the unassigned pool" />
-      {minClusterSize}
-    </label>
-    {#if data.saved}<span class="saved-pill">saved</span>{/if}
-    {#if Object.keys(forbids).length}
-      <button class="ghost sm pill-soft" on:click={() => (showsForbids = !showsForbids)}>
-        🛇 Forbids ({Object.values(forbids).reduce((n, l) => n + l.length, 0)})
-      </button>
-    {/if}
-    <button class="primary sm" disabled={busy} on:click={() => load(true, { anchors: true })}
-      title="Place the unassigned repos into the existing anchored clusters (no full recompute)">
-      ↻ Cluster orphans
-    </button>
-    <button class="ghost sm" on:click={() => load(true)}>↻ Re-cluster from scratch</button>
-    <button class="ghost sm" disabled={refreshing} on:click={async () => {
-      refreshing = true; errorMsg = ''; msg = '';
-      try {
-        const [f, s] = await Promise.all([api.refreshForks($session.session_id), api.refreshStars($session.session_id)]);
-        msg = `Refreshed ${f.count} fork(s) and ${s.count ?? 0} star(s).`; await load(true);
-      } catch (e) { errorMsg = e.message; } finally { refreshing = false; }
-    }}>{refreshing ? 'Refreshing…' : '↻ Refresh forks/stars'}</button>
-  </div>
-
-  {#if showsForbids && Object.keys(forbids).length}
-    <div class="forbid-panel">
-      <div class="forbid-head">
-        <b>Sticky forbids</b>
-        <span class="hint">Repos listed here won't be re-clustered into their named cluster(s). Forgets on placement.</span>
-      </div>
-      {#each Object.entries(forbids) as [repo, hubs]}
-        <div class="forbid-row">
-          <span class="forbid-repo">{repo}</span>
-          <span class="forbid-arrow">🛇</span>
-          {#each hubs as h}<span class="forbid-hub">{h}</span>{/each}
-          <button class="btn-remove" on:click={() => clearForbidsForRepo(repo)}>clear</button>
-        </div>
-      {/each}
     </div>
-  {/if}
-
-  <!-- selection action bar -->
-  <div class="selbar" class:active={selected.size > 0}>
-    {#if selected.size > 0}
-      <b>{selected.size} selected</b>
-      <input class="hub-in" bind:value={newHubName} placeholder={suggestedLabel() || 'new hub name'} />
-      <button class="create" disabled={busy} on:click={() => form(null)}>
-        {busy ? 'Forming…' : '✚ Create hub'}
-      </button>
-      <span class="seltip">…or hover a selected repo and hit ★ Promote (preferred)</span>
-      <button class="ghost sm" on:click={clearSel}>Clear</button>
-    {:else}
-      <span class="muted">Click repos to select which a hub draws from · drag to arrange · hover for details.</span>
-    {/if}
+    <label class="k-in">
+      # clusters
+      <input type="number" min="2" max="30" bind:value={k} />
+    </label>
+    <button class="primary" disabled={busy} on:click={() => doCluster(true)} title="Fresh k-means pass over the whole free pool">
+      Cluster
+    </button>
+    <button class="primary soft" disabled={busy} on:click={() => doCluster(false)}
+      title="Snap the remaining orphans into the existing columns; one new theme can crystallise if 60+ remain">
+      Cluster orphans
+    </button>
+    {#if data.saved}<span class="saved-pill">saved</span>{/if}
   </div>
 
-  {#if nodes.length === 0}
-    <p class="empty">No repos to cluster — nothing unassigned at this tightness.</p>
-  {:else}
-    <div class="stage" bind:this={stageEl} bind:clientWidth={width} style="height:{HEIGHT}px">
-      {#each clusters as c (c.index)}
-        <div class="clabel" style="left:{c.lx}px; top:{c.ly}px">{c.name}</div>
-      {/each}
-      {#each nodes as n (n.id)}
-        <div class="node src-{n.source?.[0]?.toUpperCase() || 'O'}"
-             class:sel={selected.has(n.repo)} class:hov={hoveredId === n.id}
-             class:forbids={(forbids[n.repo] || n.forbids || []).length > 0}
-             style="left:{n.x}px; top:{n.y}px; z-index:{hoveredId === n.id ? 60 : (selected.has(n.repo) ? 20 : 2)}"
-             on:pointerdown={(e) => onDown(n, e)}
-             on:mouseenter={() => (hoveredId = n.id)}
-             on:mouseleave={() => (hoveredId = n.id === hoveredId ? null : hoveredId)}
-             role="button" tabindex="0">
-          <span class="dot"></span>
-          {#if hoveredId === n.id}
-            <div class="card" on:pointerdown|stopPropagation>
-              <div class="c-name">{SOURCE_GLYPH[n.source] || SOURCE_GLYPH.owned} {n.repo}</div>
-              {#if n.purpose}<div class="c-purpose">{n.purpose}</div>{/if}
-              {#if n.domain}<div class="c-domain">{n.domain}</div>{/if}
-              {#if n.entities && n.entities.length}
-                <div class="c-entities">{n.entities.join(' · ')}</div>
+  <div class="layout">
+    <aside class="orphan-bar">
+      <div class="orphan-head">
+        <b>Orphans</b>
+        <span class="hint">{orphans.length}</span>
+      </div>
+      {#if orphans.length === 0}
+        <p class="muted small">None left — every repo is in a column.</p>
+      {:else}
+        {#each orphans as o (o.repo)}
+          <div class="orphan-row border-{borderKey(o.source)}" on:mouseenter={() => (hoveredId = o.repo)} on:mouseleave={() => (hoveredId = null)}>
+            <span class="orphan-name">{o.repo}</span>
+            <select class="orphan-pick"
+              on:change={(e) => assignOrphanToCluster(o, e.target.value)}
+              disabled={busy}>
+              <option value="">(keep orphan)</option>
+              {#each clusters as c}
+                <option value={c.suggested_name}>→ {c.suggested_name}</option>
+              {/each}
+            </select>
+          </div>
+        {/each}
+      {/if}
+    </aside>
+
+    <div class="canvas">
+      {#if clusters.length === 0}
+        <p class="empty">No clusters remaining — every orphan is in the sidebar.</p>
+      {:else}
+        <div class="stage" bind:clientWidth={width} style="height:{heightForLayout + PADDING}px">
+          {#each clusters as c (c.index)}
+            <div class="col-label" style="left:{c.lx}px;">{c.suggested_name}</div>
+            <div class="col-meta" style="left:{c.lx}px;">
+              <span class="col-summary">⛁ {c.suggested_description || ''}</span>
+              {#if c.anchored_to}
+                <span class="anchor-pill">★ {c.anchored_to}</span>
               {/if}
-              {#if n.aim}<div class="c-aim">{n.aim}</div>{/if}
-              <div class="c-meta">
-                {#if n.language}<span class="c-lang">{n.language}</span>{/if}
-                {#if n.stars}<span>★ {n.stars}</span>{/if}
-                {#if n.cluster != null && clusters[n.cluster]}
-                  <span class="c-cluster">⛁ {clusters[n.cluster].suggested_name}</span>
+            </div>
+            {#each c.owned as m (m.repo)}
+              <div class="cell border-O"
+                style={rect(c, 'owned', c.owned.indexOf(m))}
+                on:mouseenter={() => (hoveredId = m.repo)}
+                on:mouseleave={() => (hoveredId = null)}
+                role="button" tabindex="0">
+                <div class="cell-title">{m.repo}</div>
+                <div class="cell-sub">
+                  <span class="src-tag">{SOURCE_GLYPH[m.source] || SOURCE_GLYPH.owned}</span>
+                  {#if m.language}<span class="lang">{m.language}</span>{/if}
+                  {#if m.stars}<span>★ {m.stars}</span>{/if}
+                </div>
+                {#if hoveredId === m.repo}
+                  <div class="cell-actions">
+                    <button disabled={busy} on:click={() => promoteToHub(m)}>★ Promote</button>
+                    <button disabled={busy} class="remove"
+                      on:click={() => removeFromCluster(m, c)}>✕ Remove</button>
+                  </div>
                 {/if}
               </div>
-              <button class="promote" disabled={busy} on:click|stopPropagation={() => form(n.repo)}>★ Promote as hub</button>
-              {#if n.cluster != null && clusters[n.cluster]}
-                <button class="forbid-btn" disabled={busy}
-                  on:click|stopPropagation={() => forbidFromCluster(n, clusters[n.cluster])}>
-                  🛇 Don't cluster back to {clusters[n.cluster].suggested_name}
-                </button>
-              {/if}
-              <button class="unassign-btn" disabled={busy}
-                on:click|stopPropagation={() => unassignOne(n)}>✕ Unassign to triage</button>
-            </div>
-          {:else}
-            <span class="ntitle">{n.repo}</span>
-          {/if}
+            {/each}
+            {#each c.forks as m (m.repo)}
+              <div class="cell border-F"
+                style={rect(c, 'fork', c.owned.length + c.forks.indexOf(m))}
+                on:mouseenter={() => (hoveredId = m.repo)}
+                on:mouseleave={() => (hoveredId = null)}
+                role="button" tabindex="0">
+                <div class="cell-title">{m.repo}</div>
+                <div class="cell-sub">
+                  <span class="src-tag">{SOURCE_GLYPH.fork}</span>
+                  {#if m.language}<span class="lang">{m.language}</span>{/if}
+                  {#if m.stars}<span>★ {m.stars}</span>{/if}
+                </div>
+                {#if hoveredId === m.repo}
+                  <div class="cell-actions">
+                    <button disabled={busy} on:click={() => promoteToHub(m)}>★ Promote</button>
+                    <button disabled={busy} class="remove"
+                      on:click={() => removeFromCluster(m, c)}>✕ Remove</button>
+                  </div>
+                {/if}
+              </div>
+            {/each}
+            {#each c.stars as m (m.repo)}
+              <div class="cell border-S"
+                style={rect(c, 'star', c.owned.length + c.forks.length + c.stars.indexOf(m))}
+                on:mouseenter={() => (hoveredId = m.repo)}
+                on:mouseleave={() => (hoveredId = null)}
+                role="button" tabindex="0">
+                <div class="cell-title">{m.repo}</div>
+                <div class="cell-sub">
+                  <span class="src-tag">{SOURCE_GLYPH.star}</span>
+                  {#if m.language}<span class="lang">{m.language}</span>{/if}
+                  {#if m.stars}<span>★ {m.stars}</span>{/if}
+                </div>
+                {#if hoveredId === m.repo}
+                  <div class="cell-actions">
+                    <button disabled={busy} on:click={() => promoteToHub(m)}>★ Promote</button>
+                    <button disabled={busy} class="remove"
+                      on:click={() => removeFromCluster(m, c)}>✕ Remove</button>
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          {/each}
         </div>
-      {/each}
+      {/if}
     </div>
-  {/if}
+  </div>
 {/if}
 
+<script context="module">
+  function borderKey(source) {
+    return source === 'fork' ? 'F' : source === 'star' ? 'S' : 'O';
+  }
+</script>
+
+<!-- The "borderKey" helper above isn't a context module — kept in the live
+     script so the template can call it directly. -->
+
 <style>
-  .bar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin: 0.75rem 0 0.5rem; font-size: 0.85rem; color: #6b7280; }
-  .thr { display: flex; align-items: center; gap: 0.4rem; }
-  .src { font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem; }
-  .src-pill { display: inline-block; font-family: monospace; font-size: 0.72rem; padding: 0.05em 0.45em; border-radius: 4px; font-weight: 600; }
-  .src-pill.src-O { background: #eff6ff; color: #1e40af; }
-  .src-pill.src-F { background: #fef3c7; color: #92400e; }
-  .src-pill.src-S { background: #f3e8ff; color: #6b21a8; }
-  .saved-pill { font-size: 0.7rem; background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; border-radius: 4px; padding: 0.05em 0.45em; }
+  .toolbar { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap;
+    padding: 0.6rem 0.8rem; background: #f8fafc; border: 1px solid #e5e7eb;
+    border-radius: 8px; margin-top: 1rem; }
+  .toolbar-stats { color: #4b5563; font-size: 0.88rem; margin-right: auto; }
+  .stat-orphans { color: #b45309; font-weight: 600; }
+  .k-in { display: flex; gap: 0.4rem; align-items: center; font-size: 0.84rem; color: #4b5563; }
+  .k-in input { width: 64px; padding: 0.28rem 0.4rem; border: 1px solid #d1d5db; border-radius: 5px; }
 
-  .selbar { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; min-height: 38px;
-    padding: 0.4rem 0.7rem; border-radius: 8px; background: #f8fafc; border: 1px solid #e5e7eb; margin-bottom: 0.5rem; font-size: 0.85rem; }
-  .selbar.active { background: #eef2ff; border-color: #c7d2fe; }
-  .selbar .muted { color: #9ca3af; }
-  .hub-in { font-family: monospace; min-width: 200px; }
-  .create { background: #4f46e5; color: #fff; border: none; border-radius: 6px; padding: 0.4rem 0.8rem; font-weight: 600; cursor: pointer; }
-  .create:disabled { opacity: 0.5; }
-  .seltip { font-size: 0.76rem; color: #6b7280; }
+  .primary { background: #4f46e5; color: #fff; border: none; border-radius: 6px;
+    padding: 0.4rem 0.85rem; font-size: 0.86rem; font-weight: 600; cursor: pointer; }
+  .primary.soft { background: #6366f1; }
+  .primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  .stage { position: relative; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden;
+  .saved-pill { font-size: 0.74rem; background: #ecfdf5; color: #047857;
+    border: 1px solid #a7f3d0; border-radius: 4px; padding: 0.1rem 0.55rem; }
+
+  .layout { display: grid; grid-template-columns: 280px 1fr; gap: 1rem;
+    margin-top: 0.7rem; }
+  .orphan-bar { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 0.65rem 0.75rem; height: fit-content; position: sticky; top: 0.5rem;
+    max-height: calc(100vh - 1rem); overflow-y: auto; }
+  .orphan-head { display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 0.5rem; padding-bottom: 0.4rem; border-bottom: 1px solid #e5e7eb; }
+  .orphan-head .hint { color: #6b7280; font-size: 0.84rem; }
+  .orphan-row { display: flex; align-items: center; gap: 0.35rem; padding: 0.32rem 0;
+    border-left: 3px solid transparent; padding-left: 0.35rem; }
+  .orphan-row.border-O { border-left-color: #111827; }
+  .orphan-row.border-F { border-left-color: #d1d5db; }
+  .orphan-row.border-S { border-left-color: #facc15; }
+  .orphan-name { font-family: monospace; font-size: 0.78rem; color: #111827;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .orphan-pick { font-size: 0.74rem; padding: 0.15rem 0.25rem; border: 1px solid #d1d5db;
+    border-radius: 4px; max-width: 110px; }
+
+  .stage { position: relative; border: 1px solid #e5e7eb; border-radius: 10px;
     background: radial-gradient(circle at 1px 1px, #f1f5f9 1px, transparent 0) 0 0 / 22px 22px;
-    touch-action: none; user-select: none; }
+    overflow-x: auto; }
+  .col-label { position: absolute; top: 4px; transform: translateX(-50%);
+    font-size: 0.92rem; font-weight: 800; color: #4338ca; text-transform: uppercase;
+    letter-spacing: 0.04em; white-space: nowrap; }
+  .col-meta { position: absolute; top: 26px; transform: translateX(-50%);
+    font-size: 0.74rem; color: #6b7280; max-width: 168px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; display: flex; gap: 0.35rem; }
+  .anchor-pill { background: #fef3c7; color: #92400e; font-weight: 700; padding: 0.05em 0.4em;
+    border-radius: 4px; font-size: 0.72rem; }
 
-  .clabel { position: absolute; transform: translate(-50%, -50%); pointer-events: none;
-    font-size: 0.95rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; z-index: 1; }
+  .cell { position: absolute; border-radius: 6px; padding: 0.4rem 0.5rem;
+    background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.08); cursor: default;
+    overflow: hidden; display: flex; flex-direction: column; gap: 0.18rem; }
+  .cell.border-O { border: 2px solid #111827; }
+  .cell.border-F { border: 2px solid #d1d5db; }
+  .cell.border-S { border: 2px solid #facc15; }
+  .cell-title { font-family: monospace; font-size: 0.78rem; font-weight: 600;
+    color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cell-sub { display: flex; gap: 0.35rem; align-items: center; font-size: 0.7rem;
+    color: #4b5563; }
+  .src-tag { font-family: monospace; }
+  .lang { background: #eff6ff; color: #1e40af; padding: 0 0.3em; border-radius: 3px; }
+  .cell-actions { position: absolute; inset: 0; background: rgba(255,255,255,0.92);
+    display: flex; gap: 0.4rem; align-items: center; justify-content: center; }
+  .cell-actions button { font-size: 0.74rem; padding: 0.3rem 0.6rem; border-radius: 5px;
+    border: 1px solid #4f46e5; color: #4f46e5; background: #fff; cursor: pointer;
+    font-weight: 600; }
+  .cell-actions button.remove { border-color: #d1d5db; color: #6b7280; }
+  .cell-actions button.remove:hover { border-color: #dc2626; color: #dc2626; }
+  .cell-actions button:disabled { opacity: 0.5; }
 
-  .node { position: absolute; transform: translate(-50%, -50%); cursor: grab; display: flex; align-items: center; gap: 4px; }
-  .node:active { cursor: grabbing; }
-  .dot { width: 12px; height: 12px; border-radius: 50%; background: #6366f1; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25); flex: none; }
-  .node.src-F .dot { background: #d97706; }
-  .node.src-S .dot { background: #9333ea; }
-  .node.sel .dot { background: #16a34a; box-shadow: 0 0 0 3px #bbf7d0; }
-  .ntitle { font-size: 0.66rem; color: #475569; background: rgba(255,255,255,0.75); padding: 0 3px; border-radius: 3px;
-    max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .node.sel .ntitle { color: #166534; font-weight: 700; }
-
-  .card { position: absolute; left: 14px; top: -6px; width: 230px; background: #fff;
-    border: 2px solid #818cf8; border-radius: 9px; box-shadow: 0 10px 28px rgba(0,0,0,0.22); padding: 0.55rem 0.65rem; cursor: default; }
-  .c-name { font-family: monospace; font-weight: 700; font-size: 0.82rem; word-break: break-word; }
-  .c-purpose { font-size: 0.78rem; color: #1e293b; font-weight: 600; margin: 0.2rem 0; }
-  .c-domain { font-size: 0.74rem; color: #4338ca; background: #eef2ff; border-radius: 4px; padding: 0.15em 0.4em; display: inline-block; margin: 0.15rem 0; }
-  .c-entities { font-size: 0.72rem; color: #6b7280; margin: 0.1rem 0 0.25rem; }
-  .c-aim { font-size: 0.76rem; color: #4b5563; margin: 0.25rem 0; max-height: 4.5em; overflow: hidden; }
-  .c-meta { display: flex; gap: 0.5rem; font-size: 0.7rem; color: #6b7280; margin-bottom: 0.4rem; }
-  .c-lang { background: #eff6ff; color: #1e40af; border-radius: 4px; padding: 0.03em 0.35em; }
-  .promote { width: 100%; font-size: 0.76rem; padding: 0.3rem; border: 1px solid #4f46e5; color: #4f46e5;
-    background: #fff; border-radius: 6px; cursor: pointer; font-weight: 700; }
-  .promote:hover { background: #4f46e5; color: #fff; }
-  .promote:disabled { opacity: 0.5; }
-
-  .forbid-btn { width: 100%; font-size: 0.74rem; padding: 0.28rem; margin-top: 0.3rem;
-    border: 1px solid #f59e0b; color: #b45309; background: #fffbeb; border-radius: 6px;
-    cursor: pointer; font-weight: 600; }
-  .forbid-btn:hover { background: #fde68a; }
-  .forbid-btn:disabled { opacity: 0.5; }
-
-  .unassign-btn { width: 100%; font-size: 0.74rem; padding: 0.28rem; margin-top: 0.3rem;
-    border: 1px solid #d1d5db; color: #6b7280; background: #fff; border-radius: 6px;
-    cursor: pointer; font-weight: 500; }
-  .unassign-btn:hover { border-color: #dc2626; color: #dc2626; }
-  .unassign-btn:disabled { opacity: 0.5; }
-
-  .c-cluster { background: #eef2ff; color: #4338ca; border-radius: 4px; padding: 0.03em 0.4em; font-weight: 600; }
-
-  .node.forbids .dot { box-shadow: 0 0 0 3px #fbbf24, 0 1px 3px rgba(0,0,0,0.25); }
-  .node.forbids .ntitle { background: rgba(254,243,199,0.9); color: #92400e; }
-
-  .primary.sm { background: #4f46e5; color: #fff; border: none; border-radius: 6px; padding: 0.32rem 0.7rem; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
-  .primary.sm:disabled { opacity: 0.5; }
-  .pill-soft { background: #fffbeb; border-color: #fde68a; color: #b45309; }
-
-  .forbid-panel { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
-    padding: 0.6rem 0.8rem; margin-bottom: 0.5rem; font-size: 0.84rem; }
-  .forbid-head { display: flex; gap: 0.5rem; align-items: baseline; margin-bottom: 0.4rem; }
-  .forbid-head .hint { color: #92400e; }
-  .forbid-row { display: flex; align-items: center; gap: 0.4rem; padding: 0.18rem 0; flex-wrap: wrap; }
-  .forbid-repo { font-family: monospace; font-weight: 600; }
-  .forbid-arrow { color: #b45309; }
-  .forbid-hub { background: #fde68a; color: #92400e; border-radius: 4px;
-    padding: 0.05em 0.45em; font-size: 0.78rem; font-weight: 600; }
-  .forbid-row .btn-remove { margin-left: auto; }
+  .muted { color: #9ca3af; }
+  .small { font-size: 0.78rem; }
 </style>

@@ -170,7 +170,7 @@ def test_propose_mixed_includes_counts_and_source(temp_db, isolated_plan, monkey
             await db.commit()
     asyncio.run(_seed_snapshots())
 
-    res = asyncio.run(propose("s1", source="mixed"))
+    res = asyncio.run(propose("s1", source="mixed", min_cluster_size=1))
     assert res["source"] == "mixed"
     assert res["counts"] == {"owned": 1, "forks": 1, "stars": 1}
     assert res["available"] is True
@@ -188,7 +188,7 @@ def test_propose_owned_legacy_path_still_works(temp_db, isolated_plan, monkeypat
 
     from tests.conftest import insert_scan
     insert_scan(temp_db, repos=[{"name": "a-repo", "aim": "a thing"}])
-    res = asyncio.run(propose("s1", source="owned"))
+    res = asyncio.run(propose("s1", source="owned", min_cluster_size=1))
     assert res["source"] == "owned"
     # owned now reports counts too — forks/stars are simply zero.
     assert res["counts"] == {"owned": 1, "forks": 0, "stars": 0}

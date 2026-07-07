@@ -126,7 +126,8 @@ async def propose(
     saved_only: bool = False,
     anchors: bool = False,
     anchor_threshold: float = 0.7,
-    min_cluster_size: int = 1,
+    min_cluster_size: int = 6,
+    orphan_threshold: int = 60,
 ):
     """Propose clusters.
 
@@ -145,8 +146,14 @@ async def propose(
                   centroid cosine to that hub is >= anchor_threshold. Off by
                   default — the user opts in to anchor-driven re-clustering.
     min_cluster_size
-                  drop clusters smaller than this into the unassigned pool
-                  instead of forcing tiny singletons into a "cluster".
+                  drop clusters smaller than this (default 6) into the
+                  unassigned pool instead of forcing tiny clusters. Single
+                  hardcoded rule — no slider, the primer never over-fits.
+    orphan_threshold
+                  during an anchored pass, if more than this many orphans
+                  remain after the snap, kick off one more full k-means pass
+                  over the residual so a fresh theme can crystallise. Default
+                  60 — feel free to lower once the portfolio actually shrinks.
 
     The result is persisted per session; without ?recompute=true a saved result
     is returned as-is (no re-embedding/re-distilling).
@@ -220,9 +227,23 @@ async def propose(
     # the unassigned pool via the orphan count.
     forb_dropped = _apply_forbids(groups, forbid_map)
     dropped_singletons.extend(forb_dropped)
+    # If the residual is still large after the anchored snap, allow one fresh
+    # theme to crystallise — the iterative loop uses this branch only when
+    # the user is running Cluster Orphans repeatedly against a large untidy
+    # set; default threshold is 60 so a near-finished portfolio doesn't churn.
+    if anchors and len(dropped_singletons) > orphan_threshold:
+        reborn = await cluster.build_clusters_mixed(
+            dropped_singletons, [], [], k,
+            min_cluster_size=max(1, min_cluster_size),
+        )
+        if reborn:
+            new_groups, _ = reborn
+            # New clusters are unanchored — none of them get `anchored_to`.
+            groups = groups + new_groups
+            dropped_singletons = []   # the residual got crystallised
     payload = {"available": True, "k": eff_k, "clusters": groups, "hubs": hubs,
                "orphan_count": len(orphans) + len(dropped_singletons),
-               "orphan_count_returned": len(dropped_singletons),
+               "orphans_returned": dropped_singletons,
                "source": source,
                "anchored": list(hub_to_members.keys()),
                "anchor_threshold": anchor_threshold if hub_to_members else None,

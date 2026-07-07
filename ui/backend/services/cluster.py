@@ -217,7 +217,12 @@ async def build_clusters_mixed(
         if min_cluster_size > 1 and len(members) < min_cluster_size:
             # Singletons (or below the user's `min`) go back to the unassigned
             # pool — don't force-merge the long tail into one starving cluster.
-            orphans_returned.extend(members)
+            # Tag each as 'owned' so `_own_member_dicts` can re-ingest if the
+            # caller asks for a second pass over the residual.
+            for m in members:
+                tag = dict(m)
+                tag["source"] = "owned"
+                orphans_returned.append(tag)
             continue
         # Name the cluster from its distilled substance (domain + entities),
         # not the raw tech topics — the name should read like the activity it
