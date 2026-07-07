@@ -123,9 +123,7 @@
     busy = true; errorMsg = '';
     try {
       data = null; await load(true, { anchors: !scratch });
-      msg = scratch
-        ? `Clustered from scratch — ${clusters.length} clusters, ${orphans.length} orphans (coherence ≥ ${coherence.toFixed(2)}).`
-        : 'Placed orphans into existing clusters.';
+      msg = `${clusters.length} clusters · ${orphans.length} orphans (tightness ${coherence.toFixed(2)})`;
     } catch (e) { errorMsg = e.message; }
     finally { busy = false; }
   }
@@ -270,8 +268,8 @@
         <input type="number" min="2" max="30" bind:value={k} />
       </label>
 
-      <label class="rail-in" title="Applied to the 'Cluster orphans' pass only — the prime Cluster pass uses a loose floor so columns can emerge. Higher = stricter (fewer clusters, more orphans).">
-        <span>Orphan tightness <code>{coherence.toFixed(2)}</code></span>
+      <label class="rail-in" title="Applied to both passes (prime + orphan). Per-member cosine to cluster centroid — below this, the member is evicted to orphans. Higher = stricter = more orphans.">
+        <span>Tightness <code>{coherence.toFixed(2)}</code></span>
         <input type="range" min="0.20" max="0.80" step="0.05" bind:value={coherence} />
       </label>
 

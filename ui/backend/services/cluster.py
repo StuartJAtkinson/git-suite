@@ -256,28 +256,44 @@ async def build_clusters_mixed(
                 tag["source"] = "owned"
                 orphans_returned.append(tag)
             continue
-        # Coherence check — average member cosine to the cluster centroid
-        # must clear the floor, otherwise drop the whole group to orphans.
-        # Unit-normalised so dot product == cosine. Default 0.40 keeps
-        # anything tighter than "barely related"; raise for stricter
-        # semantic comparison.
-        member_vecs = [_unit(vecs[i]) for i in idxs if vecs[i] is not None]
-        if not member_vecs:
+        # Per-member coherence check: keep only members whose cosine to the
+        # cluster centroid clears the floor. Members below it are evicted to
+        # orphans — they may belong to a theme that just hasn't surfaced yet.
+        # The cluster survives if it still meets `min_cluster_size`. This is
+        # what stops a 178-member "server-hub" from swallowing unrelated work;
+        # only the truly server-aligned repos stay, the rest go to the
+        # sidebar for the user to drag elsewhere.
+        member_pairs: list[tuple[int, list[float]]] = []
+        for i in idxs:
+            v = vecs[i]
+            if v is not None:
+                member_pairs.append((i, _unit(v)))
+        if not member_pairs:
             for m in members:
                 tag = dict(m); tag["source"] = "owned"
                 orphans_returned.append(tag)
             continue
-        dim = len(member_vecs[0])
-        cen = [sum(v[d] for v in member_vecs) / len(member_vecs) for d in range(dim)]
+        dim = len(member_pairs[0][1])
+        cen = [sum(v[d] for _, v in member_pairs) / len(member_pairs) for d in range(dim)]
         cen = _unit(cen)
-        avg_cos = sum(_dot(v, cen) for v in member_vecs) / len(member_vecs)
-        if avg_cos < coherence_floor:
-            for m in members:
+        kept_pairs = [(i, v) for i, v in member_pairs if _dot(v, cen) >= coherence_floor]
+        evicted = [(i, v) for i, v in member_pairs if _dot(v, cen) < coherence_floor]
+        if len(kept_pairs) < min_cluster_size:
+            # Cluster shrunk below the size floor — drop everything to orphans.
+            for i, _ in member_pairs:
+                m = pool[i]
                 tag = dict(m); tag["source"] = "owned"
                 orphans_returned.append(tag)
-            log.info("cluster dropped (coherence %.3f < %.2f, %d repos)",
-                     avg_cos, coherence_floor, len(members))
+            log.info("cluster dropped (kept %d < min %d, %d evicted)",
+                     len(kept_pairs), min_cluster_size, len(evicted))
             continue
+        # Replace idxs with the survivors; evicted members go to orphans.
+        idxs = [i for i, _ in kept_pairs]
+        members = [pool[i] for i in idxs]
+        for i, _ in evicted:
+            m = pool[i]
+            tag = dict(m); tag["source"] = "owned"
+            orphans_returned.append(tag)
         # Name the cluster from its distilled substance (domain + entities),
         # not the raw tech topics — the name should read like the activity it
         # serves, e.g. "tabletop role-playing", not "python" or "bot".
