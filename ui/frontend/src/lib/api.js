@@ -80,6 +80,7 @@ export const api = {
     anchors = false,
     anchorThreshold = null,
     minClusterSize = null,
+    coherenceFloor = null,
   } = {}) => {
     const q = new URLSearchParams({ source, recompute });
     if (savedOnly) q.set('saved_only', true);
@@ -87,12 +88,15 @@ export const api = {
     if (anchorThreshold != null) q.set('anchor_threshold', anchorThreshold);
     if (k != null) q.set('k', k);
     if (minClusterSize != null) q.set('min_cluster_size', minClusterSize);
+    if (coherenceFloor != null) q.set('coherence_floor', coherenceFloor);
     return req('GET', `/api/cluster/${session_id}?${q}`);
   },
   formHub: (session_id, body) =>
     req('POST', `/api/cluster/form/${session_id}`, body),
   refreshForks: (session_id) =>
     req('POST', `/api/cluster/refresh-forks/${session_id}`, {}),
+  resetClusters: (session_id) =>
+    req('DELETE', `/api/cluster/${session_id}`),
 
   // Forbids — sticky "don't cluster this repo back into hub X" preferences.
   forbidRepo: (repo, hub) =>

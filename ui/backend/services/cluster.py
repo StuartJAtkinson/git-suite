@@ -147,6 +147,7 @@ async def build_clusters_mixed(
     stars: list[dict],
     k: int | None = None,
     min_cluster_size: int = 1,
+    coherence_floor: float = 0.40,
 ) -> tuple[list[dict], list[dict]] | None:
     """Cluster owned + forks + stars in one embedding space.
 
@@ -194,15 +195,42 @@ async def build_clusters_mixed(
     pool.sort(key=lambda r: (r.get("name") or r.get("repo") or "").lower())
 
     # Distil each repo to a structured record (purpose/entities/domain), then
-    # embed domain + entities (the actual domain signal — not "what the repo
-    # does", which is in `purpose` and is what humans re-read on hover).
-    # Falls back to raw text per-repo if the LLM is unavailable.
+    # embed a tightly-weighted signal: purpose (what humans read on hover) +
+    # entities (the real-world nouns) repeated for emphasis, with the bare
+    # domain DROPPED when it's a generic over-broad category. Without this
+    # the model happily groups 100+ unrelated repos into "software
+    # development" / "data" / "computer" hubs — everything looks similar
+    # because the embedding sees the same generic noun everywhere.
     record_map, _ = await distill.records(pool, stop_on_error=False)
+    _BLOATED_DOMAINS = {
+        "software development", "software", "development", "programming",
+        "computer", "computing", "data", "data processing", "data science",
+        "automation", "tool", "tools", "library", "libraries", "framework",
+        "utilities", "utility", "system", "systems", "app", "apps",
+        "web development", "web", "machine learning", "ai", "open source",
+        "developer tools", "development tools", "general purpose",
+    }
+    def _is_broad(domain: str) -> bool:
+        d = (domain or "").strip().lower()
+        if not d:
+            return True
+        # Reject if any token (or the whole phrase) is in the bloated set.
+        tokens = {d, *(d.split())}
+        return bool(tokens & _BLOATED_DOMAINS)
     def _cluster_text(r: dict) -> str:
         rec = record_map.get(distill._key(r)) or {}
-        domain = rec.get("domain", "")
-        entities = " ".join(rec.get("entities") or [])
-        joined = " ".join(p for p in (domain, entities) if p)
+        purpose = (rec.get("purpose") or "").strip()
+        entities = rec.get("entities") or []
+        domain = (rec.get("domain") or "").strip()
+        # Compose: purpose first (sentence-level meaning), entities x3
+        # (nomic up-weights repeated tokens in cosine), then a domain token
+        # ONLY if it's not a generic category word.
+        parts = [purpose] if purpose else []
+        for _ in range(3):
+            parts.append(" ".join(str(e) for e in entities if e))
+        if domain and not _is_broad(domain):
+            parts.append(domain)
+        joined = " ".join(p for p in parts if p)
         return joined or _text_for(r)
     texts = [_EMBED_PREFIX + _cluster_text(r) for r in pool]
     vecs = await embeddings.embed(texts)
@@ -223,6 +251,28 @@ async def build_clusters_mixed(
                 tag = dict(m)
                 tag["source"] = "owned"
                 orphans_returned.append(tag)
+            continue
+        # Coherence check — average member cosine to the cluster centroid
+        # must clear the floor, otherwise drop the whole group to orphans.
+        # Unit-normalised so dot product == cosine. Default 0.40 keeps
+        # anything tighter than "barely related"; raise for stricter
+        # semantic comparison.
+        member_vecs = [_unit(vecs[i]) for i in idxs if vecs[i] is not None]
+        if not member_vecs:
+            for m in members:
+                tag = dict(m); tag["source"] = "owned"
+                orphans_returned.append(tag)
+            continue
+        dim = len(member_vecs[0])
+        cen = [sum(v[d] for v in member_vecs) / len(member_vecs) for d in range(dim)]
+        cen = _unit(cen)
+        avg_cos = sum(_dot(v, cen) for v in member_vecs) / len(member_vecs)
+        if avg_cos < coherence_floor:
+            for m in members:
+                tag = dict(m); tag["source"] = "owned"
+                orphans_returned.append(tag)
+            log.info("cluster dropped (coherence %.3f < %.2f, %d repos)",
+                     avg_cos, coherence_floor, len(members))
             continue
         # Name the cluster from its distilled substance (domain + entities),
         # not the raw tech topics — the name should read like the activity it

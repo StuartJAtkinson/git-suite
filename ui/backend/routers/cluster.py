@@ -157,6 +157,7 @@ async def propose(
     anchor_threshold: float = 0.7,
     min_cluster_size: int = 6,
     orphan_threshold: int = 60,
+    coherence_floor: float = 0.40,
 ):
     """Propose clusters.
 
@@ -237,7 +238,8 @@ async def propose(
     n = len(owned) + len(forks) + len(stars)
     eff_k = k if k is not None else cluster.default_k(n)
     built = await cluster.build_clusters_mixed(owned, forks, stars, eff_k,
-                                               min_cluster_size=max(1, min_cluster_size))
+                                               min_cluster_size=max(1, min_cluster_size),
+                                               coherence_floor=coherence_floor)
     if built is None:
         return {"available": False,
                 "reason": "Embeddings not configured/reachable — set Setup → "
@@ -287,6 +289,19 @@ async def propose(
                "counts": {"owned": len(owned), "forks": len(forks), "stars": len(stars)}}
     await _save_result(session_id, payload)
     return payload
+
+
+@router.delete("/cluster/{session_id}")
+async def reset(session_id: str):
+    """Forget the saved clustering for this session — every repo goes back to
+    the orphan pool. Hubs are NOT touched (their `absorbs` lists live in
+    plan_store, a different table). Re-clustering starts fresh."""
+    async for db in get_db():
+        await db.execute(
+            "DELETE FROM cluster_result WHERE session_id = ?", (session_id,)
+        )
+        await db.commit()
+    return {"reset": True}
 
 
 class FormRequest(BaseModel):

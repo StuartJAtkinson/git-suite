@@ -18,6 +18,7 @@
   let errorMsg = '';
   let msg = '';
   let k = 8;                // cluster count — fed to "Cluster" button only
+  let coherence = 0.40;     // avg member→centroid cosine floor; below this a group falls to orphans
   let busy = false;
   let hoveredId = null;
   let selected = new Set();   // hover-to-select cluster picker
@@ -40,6 +41,7 @@
       data = await api.getClusters($session.session_id, {
         k, recompute, savedOnly: !recompute,
         anchors: opts.anchors ?? false,
+        coherenceFloor: coherence,
       });
       if (data.k) k = data.k;
       build(data.clusters || [], opts.anchors ? data.clusters || [] : []);
@@ -121,7 +123,21 @@
     busy = true; errorMsg = '';
     try {
       data = null; await load(true, { anchors: !scratch });
-      msg = scratch ? 'Clustered from scratch.' : 'Placed orphans into existing clusters.';
+      msg = scratch
+        ? `Clustered from scratch — ${clusters.length} clusters, ${orphans.length} orphans (coherence ≥ ${coherence.toFixed(2)}).`
+        : 'Placed orphans into existing clusters.';
+    } catch (e) { errorMsg = e.message; }
+    finally { busy = false; }
+  }
+
+  async function resetClusters() {
+    if (!confirm('Forget the current clustering? Everything moves back to the orphan sidebar — hubs stay intact.')) return;
+    busy = true; errorMsg = '';
+    try {
+      await api.resetClusters($session.session_id);
+      data = null;
+      await load(false);
+      msg = 'Clustering reset — all repos are in the orphan sidebar.';
     } catch (e) { errorMsg = e.message; }
     finally { busy = false; }
   }
@@ -175,7 +191,7 @@
     finally { busy = false; }
   }
 
-  async async function assignOrphanToCluster(orphan, clusterLabel) {
+  async function assignOrphanToCluster(orphan, clusterLabel) {
     if (!clusterLabel) return;                     // "(keep orphan)" — no-op
     busy = true; errorMsg = '';
     try {
@@ -241,30 +257,42 @@
 {/if}
 
 {#if !loading && data && data.available}
-  <div class="toolbar">
-    <div class="toolbar-stats">
-      <b>{clusters.length}</b> clusters · <b>{totalCount}</b> repos
-      {#if data.orphans_returned?.length}
-        · <span class="stat-orphans">{orphans.length} orphans</span>
-      {/if}
-    </div>
-    <label class="k-in">
-      # clusters
-      <input type="number" min="2" max="30" bind:value={k} />
-    </label>
-    <button class="primary" disabled={busy} on:click={() => doCluster(true)} title="Fresh k-means pass over the whole free pool">
-      Cluster
-    </button>
-    <button class="primary soft" disabled={busy} on:click={() => doCluster(false)}
-      title="Snap the remaining orphans into the existing columns; one new theme can crystallise if 60+ remain">
-      Cluster orphans
-    </button>
-    {#if data.saved}<span class="saved-pill">saved</span>{/if}
-  </div>
-
   <div class="layout">
-    <aside class="orphan-bar">
-      <div class="orphan-head">
+    <aside class="rail">
+      <div class="rail-stats">
+        <b>{clusters.length}</b> clusters
+        <br><b>{totalCount}</b> repos
+        {#if orphans.length}<br><span class="stat-orphans">{orphans.length} orphans</span>{/if}
+      </div>
+
+      <label class="rail-in">
+        <span># clusters</span>
+        <input type="number" min="2" max="30" bind:value={k} />
+      </label>
+
+      <label class="rail-in" title="Stricter = fewer + tighter clusters, more orphans">
+        <span>Tightness <code>{coherence.toFixed(2)}</code></span>
+        <input type="range" min="0.20" max="0.80" step="0.05" bind:value={coherence} />
+      </label>
+
+      <button class="primary" disabled={busy} on:click={() => doCluster(true)}
+        title="Fresh k-means pass over the whole free pool">
+        🧩 Cluster
+      </button>
+
+      <button class="primary soft" disabled={busy} on:click={() => doCluster(false)}
+        title="Snap orphans into the existing columns">
+        ➕ Cluster orphans
+      </button>
+
+      <button class="ghost danger" disabled={busy} on:click={resetClusters}
+        title="Forget the current clustering; everything goes back to the orphan sidebar">
+        🗑 Reset clustering
+      </button>
+
+      {#if data.saved}<span class="saved-pill">saved</span>{/if}
+
+      <div class="rail-head">
         <b>Orphans</b>
         <span class="hint">{orphans.length}</span>
       </div>
@@ -293,9 +321,8 @@
       {:else}
         <div class="stage" bind:clientWidth={width} style="height:{heightForLayout + PADDING}px">
           {#each clusters as c (c.index)}
-            <div class="col-label" style="left:{c.lx}px;">{c.suggested_name}</div>
+            <div class="col-label" style="left:{c.lx}px;" title={c.suggested_name}>{c.suggested_name}</div>
             <div class="col-meta" style="left:{c.lx}px;">
-              <span class="col-summary">⛁ {c.suggested_description || ''}</span>
               {#if c.anchored_to}
                 <span class="anchor-pill">★ {c.anchored_to}</span>
               {/if}
@@ -373,51 +400,69 @@
 <!-- borderKey lives in the live script above so the template can call it. -->
 
 <style>
-  .toolbar { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap;
-    padding: 0.6rem 0.8rem; background: #f8fafc; border: 1px solid #e5e7eb;
-    border-radius: 8px; margin-top: 1rem; }
-  .toolbar-stats { color: #4b5563; font-size: 0.88rem; margin-right: auto; }
+  .layout { display: grid; grid-template-columns: 240px 1fr; gap: 1rem;
+    margin-top: 0.7rem; align-items: start; }
+
+  .rail { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 0.7rem 0.75rem; position: sticky; top: 0.5rem;
+    max-height: calc(100vh - 1rem); overflow-y: auto;
+    display: flex; flex-direction: column; gap: 0.55rem; }
+  .rail-stats { color: #374151; font-size: 0.86rem; line-height: 1.45;
+    padding-bottom: 0.45rem; border-bottom: 1px solid #e5e7eb; }
   .stat-orphans { color: #b45309; font-weight: 600; }
-  .k-in { display: flex; gap: 0.4rem; align-items: center; font-size: 0.84rem; color: #4b5563; }
-  .k-in input { width: 64px; padding: 0.28rem 0.4rem; border: 1px solid #d1d5db; border-radius: 5px; }
+
+  .rail-in { display: flex; flex-direction: column; gap: 0.25rem;
+    font-size: 0.78rem; color: #4b5563; font-weight: 500; }
+  .rail-in input[type=number] { width: 100%; padding: 0.32rem 0.4rem;
+    border: 1px solid #d1d5db; border-radius: 5px; font-size: 0.9rem; }
+  .rail-in input[type=range] { width: 100%; }
+  .rail-in code { font-size: 0.74rem; color: #4338ca; background: #eef2ff;
+    padding: 0.05em 0.35em; border-radius: 3px; font-weight: 600; }
 
   .primary { background: #4f46e5; color: #fff; border: none; border-radius: 6px;
-    padding: 0.4rem 0.85rem; font-size: 0.86rem; font-weight: 600; cursor: pointer; }
+    padding: 0.45rem 0.75rem; font-size: 0.84rem; font-weight: 600;
+    cursor: pointer; width: 100%; }
   .primary.soft { background: #6366f1; }
   .primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .ghost.danger { background: #fff; color: #b91c1c; border: 1px solid #fecaca;
+    padding: 0.4rem 0.75rem; border-radius: 6px; font-size: 0.82rem;
+    cursor: pointer; width: 100%; font-weight: 500; }
+  .ghost.danger:hover:not(:disabled) { background: #fef2f2; }
+  .ghost.danger:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  .saved-pill { font-size: 0.74rem; background: #ecfdf5; color: #047857;
-    border: 1px solid #a7f3d0; border-radius: 4px; padding: 0.1rem 0.55rem; }
+  .saved-pill { font-size: 0.72rem; background: #ecfdf5; color: #047857;
+    border: 1px solid #a7f3d0; border-radius: 4px; padding: 0.1rem 0.5rem;
+    align-self: flex-start; }
 
-  .layout { display: grid; grid-template-columns: 280px 1fr; gap: 1rem;
-    margin-top: 0.7rem; }
-  .orphan-bar { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
-    padding: 0.65rem 0.75rem; height: fit-content; position: sticky; top: 0.5rem;
-    max-height: calc(100vh - 1rem); overflow-y: auto; }
-  .orphan-head { display: flex; align-items: baseline; justify-content: space-between;
-    margin-bottom: 0.5rem; padding-bottom: 0.4rem; border-bottom: 1px solid #e5e7eb; }
-  .orphan-head .hint { color: #6b7280; font-size: 0.84rem; }
-  .orphan-row { display: flex; align-items: center; gap: 0.35rem; padding: 0.32rem 0;
+  .rail-head { display: flex; align-items: baseline; justify-content: space-between;
+    margin-top: 0.5rem; padding: 0.45rem 0 0.35rem;
+    border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; }
+  .rail-head .hint { color: #6b7280; font-size: 0.82rem; }
+
+  .orphan-row { display: flex; align-items: center; gap: 0.35rem; padding: 0.28rem 0;
     border-left: 3px solid transparent; padding-left: 0.35rem; }
   .orphan-row.border-O { border-left-color: #111827; }
   .orphan-row.border-F { border-left-color: #d1d5db; }
   .orphan-row.border-S { border-left-color: #facc15; }
-  .orphan-name { font-family: monospace; font-size: 0.78rem; color: #111827;
+  .orphan-name { font-family: monospace; font-size: 0.74rem; color: #111827;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-  .orphan-pick { font-size: 0.74rem; padding: 0.15rem 0.25rem; border: 1px solid #d1d5db;
-    border-radius: 4px; max-width: 110px; }
+  .orphan-pick { font-size: 0.72rem; padding: 0.15rem 0.25rem;
+    border: 1px solid #d1d5db; border-radius: 4px; max-width: 110px; }
 
   .stage { position: relative; border: 1px solid #e5e7eb; border-radius: 10px;
     background: radial-gradient(circle at 1px 1px, #f1f5f9 1px, transparent 0) 0 0 / 22px 22px;
     overflow-x: auto; }
-  .col-label { position: absolute; top: 4px; transform: translateX(-50%);
+  /* Shrink-to-fit: scale the label font until it fits inside CELL_W. The
+     tooltip still carries the full name. */
+  .col-label { position: absolute; top: 6px; transform: translateX(-50%);
     font-size: 0.92rem; font-weight: 800; color: #4338ca; text-transform: uppercase;
-    letter-spacing: 0.04em; white-space: nowrap; }
-  .col-meta { position: absolute; top: 26px; transform: translateX(-50%);
-    font-size: 0.74rem; color: #6b7280; max-width: 168px; overflow: hidden;
+    letter-spacing: 0.02em; max-width: 168px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; line-height: 1.1; }
+  .col-meta { position: absolute; top: 28px; transform: translateX(-50%);
+    font-size: 0.72rem; color: #6b7280; max-width: 168px; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; display: flex; gap: 0.35rem; }
-  .anchor-pill { background: #fef3c7; color: #92400e; font-weight: 700; padding: 0.05em 0.4em;
-    border-radius: 4px; font-size: 0.72rem; }
+  .anchor-pill { background: #fef3c7; color: #92400e; font-weight: 700;
+    padding: 0.05em 0.4em; border-radius: 4px; font-size: 0.7rem; }
 
   .cell { position: absolute; border-radius: 6px; padding: 0.4rem 0.5rem;
     background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.08); cursor: default;
