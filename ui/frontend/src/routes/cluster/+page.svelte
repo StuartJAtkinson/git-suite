@@ -18,7 +18,7 @@
   let errorMsg = '';
   let msg = '';
   let k = 8;                // cluster count — fed to "Cluster" button only
-  let coherence = 0.40;     // avg member→centroid cosine floor; below this a group falls to orphans
+  let coherence = 0.40;     // avg member→centroid cosine floor; below this a group falls to orphans. Prime pass uses 0.20 (let clusters emerge); orphan pass uses this value (snap to existing themes).
   let busy = false;
   let hoveredId = null;
   let selected = new Set();   // hover-to-select cluster picker
@@ -270,8 +270,8 @@
         <input type="number" min="2" max="30" bind:value={k} />
       </label>
 
-      <label class="rail-in" title="Stricter = fewer + tighter clusters, more orphans">
-        <span>Tightness <code>{coherence.toFixed(2)}</code></span>
+      <label class="rail-in" title="Applied to the 'Cluster orphans' pass only — the prime Cluster pass uses a loose floor so columns can emerge. Higher = stricter (fewer clusters, more orphans).">
+        <span>Orphan tightness <code>{coherence.toFixed(2)}</code></span>
         <input type="range" min="0.20" max="0.80" step="0.05" bind:value={coherence} />
       </label>
 
@@ -281,7 +281,7 @@
       </button>
 
       <button class="primary soft" disabled={busy} on:click={() => doCluster(false)}
-        title="Snap orphans into the existing columns">
+        title="Snap orphans into the existing columns; uses the Tightness slider">
         ➕ Cluster orphans
       </button>
 
