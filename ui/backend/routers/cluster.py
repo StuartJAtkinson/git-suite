@@ -227,20 +227,23 @@ async def propose(
     # the unassigned pool via the orphan count.
     forb_dropped = _apply_forbids(groups, forbid_map)
     dropped_singletons.extend(forb_dropped)
-    # If the residual is still large after the anchored snap, allow one fresh
-    # theme to crystallise — the iterative loop uses this branch only when
-    # the user is running Cluster Orphans repeatedly against a large untidy
-    # set; default threshold is 60 so a near-finished portfolio doesn't churn.
-    if anchors and len(dropped_singletons) > orphan_threshold:
-        reborn = await cluster.build_clusters_mixed(
-            dropped_singletons, [], [], k,
-            min_cluster_size=max(1, min_cluster_size),
-        )
-        if reborn:
-            new_groups, _ = reborn
-            # New clusters are unanchored — none of them get `anchored_to`.
-            groups = groups + new_groups
-            dropped_singletons = []   # the residual got crystallised
+    # Belt-and-braces: the UI keys per-member cells on `repo`, so a payload
+    # where the same repo appears in two clusters aborts the render. Shouldn't
+    # happen from a single k-means pass, but a stale saved result from an
+    # older propose() (before the residual branch was dropped) could land here
+    # on first load — first-seen wins, second occurrence is dropped.
+    seen: set[str] = set()
+    for g in groups:
+        kept = []
+        for m in g.get("members", []):
+            key = m.get("repo") or m.get("name") or ""
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            kept.append(m)
+        g["members"] = kept
+        g["size"] = len(kept)
+    groups = [g for g in groups if g["members"]]
     payload = {"available": True, "k": eff_k, "clusters": groups, "hubs": hubs,
                "orphan_count": len(orphans) + len(dropped_singletons),
                "orphans_returned": dropped_singletons,
