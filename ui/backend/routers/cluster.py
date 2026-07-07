@@ -112,9 +112,38 @@ async def _load_result(session_id: str) -> dict | None:
     if not rows:
         return None
     try:
-        return json.loads(rows[0]["result"])
+        result = json.loads(rows[0]["result"])
     except Exception:
         return None
+    # Stale payloads from before the dedupe guard may have the same repo in
+    # two clusters (or in a cluster AND in orphans_returned) — re-run the
+    # dedupe so the frontend doesn't choke on each_key_duplicate and leave
+    # the user staring at the page header.
+    if isinstance(result, dict) and result.get("clusters"):
+        seen: set[str] = set()
+        kept_clusters = []
+        for g in result["clusters"]:
+            kept = []
+            for m in g.get("members", []):
+                key = m.get("repo") or m.get("name") or ""
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                kept.append(m)
+            if kept:
+                g["members"] = kept
+                g["size"] = len(kept)
+                kept_clusters.append(g)
+        result["clusters"] = kept_clusters
+        # Orphans that conflict with a cluster member drop out — the cluster
+        # keeps the repo; the user can still drag the cluster's rep aside if
+        # they want it in the sidebar.
+        if result.get("orphans_returned"):
+            result["orphans_returned"] = [
+                o for o in result["orphans_returned"]
+                if (o.get("repo") or o.get("name") or "") not in seen
+            ]
+    return result
 
 
 @router.get("/cluster/{session_id}")
@@ -244,6 +273,11 @@ async def propose(
         g["members"] = kept
         g["size"] = len(kept)
     groups = [g for g in groups if g["members"]]
+    # Orphans must not collide with cluster members either — same key.
+    dropped_singletons = [
+        o for o in dropped_singletons
+        if (o.get("repo") or o.get("name") or "") not in seen
+    ]
     payload = {"available": True, "k": eff_k, "clusters": groups, "hubs": hubs,
                "orphan_count": len(orphans) + len(dropped_singletons),
                "orphans_returned": dropped_singletons,
