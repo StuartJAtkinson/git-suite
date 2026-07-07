@@ -175,20 +175,32 @@
     finally { busy = false; }
   }
 
-  async function assignOrphanToCluster(orphan, clusterLabel) {
-    if (!clusterLabel) return;                     // "(unassigned)" — leave orphan alone
+  async async function assignOrphanToCluster(orphan, clusterLabel) {
+    if (!clusterLabel) return;                     // "(keep orphan)" — no-op
     busy = true; errorMsg = '';
     try {
       const col = clusters.find((c) => c.suggested_name === clusterLabel);
       if (!col) return;
-      await api.clearForbids(orphan.repo);          // placement wipes forbids
-      const tag = clusterLabel.startsWith('★ ')
-        ? 'owned' : (col.stars.find((m) => m.repo === orphan.repo) ? 'star'
-                    : col.forks.find((m) => m.repo === orphan.repo) ? 'fork' : 'owned');
+      // Persist: clear forbids, then absorb into the target hub. Using form()
+      // means the placement survives a reload (plan_store is the source of
+      // truth); the local mirror just keeps the canvas responsive.
+      await api.clearForbids(orphan.repo);
+      const members = [
+        ...col.owned.map((m) => m.repo),
+        ...col.forks.map((m) => m.repo),
+        ...col.stars.map((m) => m.repo),
+        orphan.repo,
+      ];
+      await api.formHub($session.session_id, {
+        hub_name: col.suggested_name,
+        description: col.suggested_description || '',
+        boundary: col.suggested_description || '',
+        members,
+      });
       clusters = clusters.map((c) => {
         if (c.suggested_name !== clusterLabel) return c;
-        return { ...c, [tag === 'owned' ? 'owned' : tag]: [...c[tag], orphan], size: c.size + 1 };
-      }).filter((c) => c.size > 0);
+        return { ...c, owned: [...c.owned, orphan], size: c.size + 1 };
+      });
       orphans = orphans.filter((o) => o !== orphan);
       msg = `${orphan.repo} → ${clusterLabel}.`;
     } catch (e) { errorMsg = e.message; }
@@ -358,14 +370,7 @@
   </div>
 {/if}
 
-<script context="module">
-  function borderKey(source) {
-    return source === 'fork' ? 'F' : source === 'star' ? 'S' : 'O';
-  }
-</script>
-
-<!-- The "borderKey" helper above isn't a context module — kept in the live
-     script so the template can call it directly. -->
+<!-- borderKey lives in the live script above so the template can call it. -->
 
 <style>
   .toolbar { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap;
