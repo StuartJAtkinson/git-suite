@@ -245,17 +245,7 @@
 {#if msg}<div class="ok-msg" style="margin-top:0.6rem">{msg}</div>{/if}
 {#if loading}<p class="loading">Working…</p>{/if}
 
-{#if !loading && data && !data.available}
-  <div class="info-msg" style="margin-top:1rem">
-    {#if data.saved === false}
-      Not clustered yet. <button class="ghost sm" on:click={() => doCluster(true)}>🧩 Cluster now</button>
-    {:else}
-      {data.reason} <a href="/setup">Open Setup →</a>
-    {/if}
-  </div>
-{/if}
-
-{#if !loading && data && data.available}
+{#if !loading && data && (!data.available || data.clusters?.length || data.saved === false)}
   <div class="layout">
     <aside class="rail">
       <div class="rail-stats">
@@ -315,7 +305,15 @@
     </aside>
 
     <div class="canvas">
-      {#if clusters.length === 0}
+      {#if !data.available}
+        <div class="info-msg" style="margin:2rem auto;max-width:520px;text-align:center">
+          {#if data.saved === false}
+            Not clustered yet — press <b>🧩 Cluster</b> on the left to start.
+          {:else}
+            {data.reason} <a href="/setup">Open Setup →</a>
+          {/if}
+        </div>
+      {:else if clusters.length === 0}
         <p class="empty">No clusters remaining — every orphan is in the sidebar.</p>
       {:else}
         <div class="stage" bind:clientWidth={width} style="height:{heightForLayout + PADDING}px">
