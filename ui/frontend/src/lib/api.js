@@ -81,6 +81,7 @@ export const api = {
     anchorThreshold = null,
     minClusterSize = null,
     coherenceFloor = null,
+    mode = null,
   } = {}) => {
     const q = new URLSearchParams({ source, recompute });
     if (savedOnly) q.set('saved_only', true);
@@ -89,6 +90,7 @@ export const api = {
     if (k != null) q.set('k', k);
     if (minClusterSize != null) q.set('min_cluster_size', minClusterSize);
     if (coherenceFloor != null) q.set('coherence_floor', coherenceFloor);
+    if (mode) q.set('mode', mode);
     return req('GET', `/api/cluster/${session_id}?${q}`);
   },
   formHub: (session_id, body) =>

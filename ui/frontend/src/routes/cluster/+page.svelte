@@ -129,6 +129,19 @@
     finally { busy = false; }
   }
 
+  async function doThemes() {
+    busy = true; errorMsg = '';
+    try {
+      data = null;
+      data = await api.getClusters($session.session_id, {
+        recompute: true, savedOnly: false, mode: 'themes',
+      });
+      build(data.clusters || [], []);
+      msg = `${clusters.length} themes (LLM) · ${orphans.length} orphans`;
+    } catch (e) { errorMsg = e.message; }
+    finally { busy = false; }
+  }
+
   async function resetClusters() {
     if (!confirm('Forget the current clustering? Everything moves back to the orphan sidebar — hubs stay intact.')) return;
     busy = true; errorMsg = '';
@@ -269,7 +282,12 @@
         🧩 Cluster
       </button>
 
-      <button class="primary soft" disabled={busy} on:click={() => doCluster(false)}
+      <button class="primary soft" disabled={busy} on:click={() => doThemes()}
+        title="Single LLM call across the whole portfolio — unique theme names, overlap allowed">
+        ✨ Themes (LLM)
+      </button>
+
+      <button class="primary ghost" disabled={busy} on:click={() => doCluster(false)}
         title="Snap orphans into the existing columns; uses the Tightness slider">
         ➕ Cluster orphans
       </button>

@@ -126,8 +126,12 @@ async def _call_anthropic(base_url, key, model, prompt, system, max_tokens) -> s
     # may chain a mandatory thinking block before the text answer. If the
     # caller passed a tight max_tokens (e.g. 200 for a distill JSON parse),
     # the thinking block eats the entire budget and produces no text. Floor
-    # to 4096 so the final text block has room regardless of provider quirks.
+    # to 4096 (light calls) or 16384 (the topic-discovery prompt that asks
+    # for a 30-theme JSON — without that headroom MiniMax truncates mid-
+    # array and the response won't parse).
     body["max_tokens"] = max(body["max_tokens"], 4096)
+    if max_tokens >= 8000:
+        body["max_tokens"] = max(body["max_tokens"], 16384)
     # Anthropic-compat providers (e.g. MiniMax at api.minimax.io/anthropic)
     # already include the /v1 segment in their base_url; doubling up
     # (base/v1/v1/messages) returns 404. Strip a trailing /v1 if present so

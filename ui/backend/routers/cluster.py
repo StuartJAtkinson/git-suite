@@ -104,6 +104,91 @@ async def _save_result(session_id: str, payload: dict) -> None:
         await db.commit()
 
 
+async def _propose_themes(
+    session_id: str,
+    orphans: list[dict],
+    hubs: list[str],
+    source: str,
+    forbid_map: dict[str, list[str]],
+) -> dict:
+    """One-shot LLM topic discovery. Returns the same payload shape as the
+    k-means path so the frontend can render it unchanged. Embeddings are
+    bypassed entirely — the LLM sees every distilled record at once and
+    decides the themes + which repo belongs to which (overlap allowed).
+    """
+    from services import distill, topic_llm
+
+    # Distil every orphan (cached where possible).
+    pool = _own_member_dicts(orphans)
+    records_in: list[dict] = []
+    pool_by_name: dict[str, dict] = {}
+    for p in pool:
+        nm = p.get("name", "")
+        pool_by_name[nm] = p
+        # Pass the same shape the LLM expects; entities/domain may be empty
+        # until records() fills them in.
+        records_in.append({
+            "name": nm,
+            "purpose": "",
+            "entities": [],
+            "domain": "",
+        })
+    record_map, stop_reason = await distill.records(pool, stop_on_error=False)
+    for r in records_in:
+        rec = record_map.get(r["name"]) or {}
+        r["purpose"] = rec.get("purpose", "")
+        r["entities"] = rec.get("entities", [])
+        r["domain"] = rec.get("domain", "")
+
+    themes = await topic_llm.discover_themes(records_in)
+    if not themes:
+        # LLM failed or returned nothing — surface a clear reason rather than
+        # silently falling back to k-means (the user explicitly chose themes).
+        return {
+            "available": False,
+            "saved": False,
+            "reason": ("LLM topic discovery returned no themes — check Setup → "
+                       "LLM Providers and ensure at least one model is reachable."),
+            "clusters": [], "hubs": hubs, "orphans_returned": [],
+            "source": source, "mode": "themes",
+            "counts": {"owned": len(pool), "forks": 0, "stars": 0},
+        }
+    clusters, orphans_returned = topic_llm.themes_to_clusters(themes, pool_by_name)
+    # Forbids still apply: a repo with a forbid list that matches one of its
+    # themes gets pulled out of THAT theme (rejoin the orphan pool). Cheap
+    # because the forbid map is small.
+    if forbid_map:
+        kept_clusters: list[dict] = []
+        for c in clusters:
+            kept = [m for m in c["members"]
+                    if not any(f in (c.get("suggested_name") or "")
+                               for f in forbid_map.get(m.get("repo") or "", []))]
+            if kept:
+                c["members"] = kept
+                c["size"] = len(kept)
+                kept_clusters.append(c)
+            else:
+                orphans_returned.extend(c["members"])
+        clusters = kept_clusters
+
+    payload = {
+        "available": True,
+        "mode": "themes",
+        "k": len(clusters),
+        "clusters": clusters,
+        "hubs": hubs,
+        "orphan_count": len(orphans_returned),
+        "orphans_returned": orphans_returned,
+        "source": source,
+        "anchored": [],
+        "anchor_threshold": None,
+        "counts": {"owned": len(pool), "forks": 0, "stars": 0},
+        "stop_reason": stop_reason,
+    }
+    await _save_result(session_id, payload)
+    return payload
+
+
 async def _load_result(session_id: str) -> dict | None:
     async for db in get_db():
         rows = await db.execute_fetchall(
@@ -156,6 +241,7 @@ async def propose(
     min_cluster_size: int = 6,
     orphan_threshold: int = 60,
     coherence_floor: float = 0.40,
+    mode: str = "kmeans",
 ):
     """Propose clusters.
 
@@ -202,6 +288,15 @@ async def propose(
     hubs = list(plan.get("hubs", {}).keys())
     placement = plan_store.repo_placement(plan)
     forbid_map = plan_store.forbids_map(plan)
+
+    # ── topic_llm mode: hand the LLM the whole orphan set in one prompt ─
+    # Skips embeddings + k-means entirely. Returns themes with UNIQUE names
+    # and explicit overlap (a repo can be in multiple themes). Falls through
+    # to k-means if the LLM call fails or returns nothing.
+    if mode == "themes" and orphans:
+        return await _propose_themes(
+            session_id, orphans, hubs=hubs, source=source,
+            forbid_map=forbid_map)
 
     # ── anchor-driven mode: drop hub members from the free pool, then snap ─
     if anchors and hubs:
