@@ -54,6 +54,7 @@
   function normalise(m) {
     return {
       repo: m.repo || m.name || m.full_name,
+      full_name: m.full_name || m.repo || m.name || '',
       source: m.source || 'owned',
       language: m.language || '',
       stars: m.stars || 0,
@@ -297,8 +298,8 @@
       {#if orphans.length === 0}
         <p class="muted small">None left — every repo is in a column.</p>
       {:else}
-        {#each orphans as o (o.repo)}
-          <div class="orphan-row border-{borderKey(o.source)}" on:mouseenter={() => (hoveredId = o.repo)} on:mouseleave={() => (hoveredId = null)}>
+        {#each orphans as o (o.full_name || o.repo)}
+          <div class="orphan-row border-{borderKey(o.source)}" on:mouseenter={() => (hoveredId = o.full_name || o.repo)} on:mouseleave={() => (hoveredId = null)}>
             <span class="orphan-name">{o.repo}</span>
             <select class="orphan-pick"
               on:change={(e) => assignOrphanToCluster(o, e.target.value)}
@@ -325,10 +326,10 @@
                 <span class="anchor-pill">★ {c.anchored_to}</span>
               {/if}
             </div>
-            {#each c.owned as m (m.repo)}
+            {#each c.owned as m (m.full_name || m.repo)}
               <div class="cell border-O"
                 style={rect(c, 'owned', c.owned.indexOf(m))}
-                on:mouseenter={() => (hoveredId = m.repo)}
+                on:mouseenter={() => (hoveredId = m.full_name || m.repo)}
                 on:mouseleave={() => (hoveredId = null)}
                 role="button" tabindex="0">
                 <div class="cell-title">{m.repo}</div>
@@ -337,7 +338,7 @@
                   {#if m.language}<span class="lang">{m.language}</span>{/if}
                   {#if m.stars}<span>★ {m.stars}</span>{/if}
                 </div>
-                {#if hoveredId === m.repo}
+                {#if hoveredId === (m.full_name || m.repo)}
                   <div class="cell-actions">
                     <button disabled={busy} on:click={() => promoteToHub(m)}>★ Promote</button>
                     <button disabled={busy} class="remove"
@@ -346,10 +347,10 @@
                 {/if}
               </div>
             {/each}
-            {#each c.forks as m (m.repo)}
+            {#each c.forks as m (m.full_name || m.repo)}
               <div class="cell border-F"
                 style={rect(c, 'fork', c.owned.length + c.forks.indexOf(m))}
-                on:mouseenter={() => (hoveredId = m.repo)}
+                on:mouseenter={() => (hoveredId = m.full_name || m.repo)}
                 on:mouseleave={() => (hoveredId = null)}
                 role="button" tabindex="0">
                 <div class="cell-title">{m.repo}</div>
@@ -358,7 +359,7 @@
                   {#if m.language}<span class="lang">{m.language}</span>{/if}
                   {#if m.stars}<span>★ {m.stars}</span>{/if}
                 </div>
-                {#if hoveredId === m.repo}
+                {#if hoveredId === (m.full_name || m.repo)}
                   <div class="cell-actions">
                     <button disabled={busy} on:click={() => promoteToHub(m)}>★ Promote</button>
                     <button disabled={busy} class="remove"
@@ -367,10 +368,10 @@
                 {/if}
               </div>
             {/each}
-            {#each c.stars as m (m.repo)}
+            {#each c.stars as m (m.full_name || m.repo)}
               <div class="cell border-S"
                 style={rect(c, 'star', c.owned.length + c.forks.length + c.stars.indexOf(m))}
-                on:mouseenter={() => (hoveredId = m.repo)}
+                on:mouseenter={() => (hoveredId = m.full_name || m.repo)}
                 on:mouseleave={() => (hoveredId = null)}
                 role="button" tabindex="0">
                 <div class="cell-title">{m.repo}</div>
@@ -379,7 +380,7 @@
                   {#if m.language}<span class="lang">{m.language}</span>{/if}
                   {#if m.stars}<span>★ {m.stars}</span>{/if}
                 </div>
-                {#if hoveredId === m.repo}
+                {#if hoveredId === (m.full_name || m.repo)}
                   <div class="cell-actions">
                     <button disabled={busy} on:click={() => promoteToHub(m)}>★ Promote</button>
                     <button disabled={busy} class="remove"

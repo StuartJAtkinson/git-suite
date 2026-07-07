@@ -120,28 +120,26 @@ async def _load_result(session_id: str) -> dict | None:
     # dedupe so the frontend doesn't choke on each_key_duplicate and leave
     # the user staring at the page header.
     if isinstance(result, dict) and result.get("clusters"):
+        def _key(m: dict) -> str:
+            return m.get("full_name") or m.get("repo") or m.get("name") or ""
         seen: set[str] = set()
         kept_clusters = []
         for g in result["clusters"]:
             kept = []
             for m in g.get("members", []):
-                key = m.get("repo") or m.get("name") or ""
-                if not key or key in seen:
+                k = _key(m)
+                if not k or k in seen:
                     continue
-                seen.add(key)
+                seen.add(k)
                 kept.append(m)
             if kept:
                 g["members"] = kept
                 g["size"] = len(kept)
                 kept_clusters.append(g)
         result["clusters"] = kept_clusters
-        # Orphans that conflict with a cluster member drop out — the cluster
-        # keeps the repo; the user can still drag the cluster's rep aside if
-        # they want it in the sidebar.
         if result.get("orphans_returned"):
             result["orphans_returned"] = [
-                o for o in result["orphans_returned"]
-                if (o.get("repo") or o.get("name") or "") not in seen
+                o for o in result["orphans_returned"] if _key(o) not in seen
             ]
     return result
 
@@ -258,28 +256,25 @@ async def propose(
     # the unassigned pool via the orphan count.
     forb_dropped = _apply_forbids(groups, forbid_map)
     dropped_singletons.extend(forb_dropped)
-    # Belt-and-braces: the UI keys per-member cells on `repo`, so a payload
-    # where the same repo appears in two clusters aborts the render. Shouldn't
-    # happen from a single k-means pass, but a stale saved result from an
-    # older propose() (before the residual branch was dropped) could land here
-    # on first load — first-seen wins, second occurrence is dropped.
+    # Belt-and-braces: the UI keys per-member cells on a unique repo id, so
+    # a payload where the same repo appears in two clusters aborts the
+    # render. Stars often share a `name` across `full_name`s
+    # (forks/duplicates) — key on `full_name` first, fall back to `name`.
+    def _key(m: dict) -> str:
+        return m.get("full_name") or m.get("repo") or m.get("name") or ""
     seen: set[str] = set()
     for g in groups:
         kept = []
         for m in g.get("members", []):
-            key = m.get("repo") or m.get("name") or ""
-            if not key or key in seen:
+            k = _key(m)
+            if not k or k in seen:
                 continue
-            seen.add(key)
+            seen.add(k)
             kept.append(m)
         g["members"] = kept
         g["size"] = len(kept)
     groups = [g for g in groups if g["members"]]
-    # Orphans must not collide with cluster members either — same key.
-    dropped_singletons = [
-        o for o in dropped_singletons
-        if (o.get("repo") or o.get("name") or "") not in seen
-    ]
+    dropped_singletons = [o for o in dropped_singletons if _key(o) not in seen]
     payload = {"available": True, "k": eff_k, "clusters": groups, "hubs": hubs,
                "orphan_count": len(orphans) + len(dropped_singletons),
                "orphans_returned": dropped_singletons,
