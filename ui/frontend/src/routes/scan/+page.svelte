@@ -12,9 +12,7 @@
 
   let owned = [];          // owned repos (own forks via is_fork)
   let stars = [];          // starred repos
-  let headsMap = {};       // full_name -> head row
   let records = {};        // full_name/name -> {purpose, entities, domain}
-  let warnings = [];       // repos needing attention (404/403/etc)
   let hubMap = {};         // name -> hub (backfilled from the live plan)
 
   let status = 'idle';     // idle | pulling | done | error  (pulling = repos streaming)
@@ -29,7 +27,6 @@
   let enrichTotal = 0;
   let enrichLog = [];      // [{repo, domain}] most-recent-first (live ticker)
   const ENRICH_BATCH = 2;  // tiny batches → ticks every few seconds (LLM ~slow)
-  let accessStatus = '';   // '' | 'checking' | 'done'  (opt-in heads check)
   let errorMsg = '';
   let ws;
 
@@ -61,27 +58,10 @@
   }
 
   async function refreshMeta() {
-    // Cheap, DB-only. NO per-repo GitHub calls here — `heads` is opt-in below.
+    // Cheap, DB-only. NO per-repo GitHub calls here.
     try {
       records = (await api.distillRecords($session.session_id).catch(() => ({}))) || {};
     } catch (e) { /* non-fatal */ }
-  }
-
-  // Opt-in: one live GitHub GET per repo AND per star (parent/upstream status,
-  // README URL, 403/404 flags). Heavy — kept off the automatic pull so a pull
-  // costs ~10 API calls, not ~700. Run it explicitly when you want the
-  // "Need attention" panel + README links.
-  async function checkAccess() {
-    accessStatus = 'checking';
-    try {
-      const h = await api.heads($session.session_id);
-      headsMap = {}; warnings = [];
-      for (const row of h.heads || []) {
-        headsMap[row.full_name] = row;
-        if (row.issue || (row.status && row.status >= 400)) warnings = [...warnings, row];
-      }
-    } catch (e) { errorMsg = e.message; }
-    finally { accessStatus = 'done'; }
   }
 
   // The GitHub pull: repos stream over the WS; forks come free (the scan writes
@@ -89,7 +69,7 @@
   function startPull() {
     status = 'pulling';
     owned = []; stars = []; hubMap = {};
-    headsMap = {}; warnings = []; records = {};
+    records = {};
     forkCount = 0; starCount = 0; starsLoading = false;
     pullErrors = []; enrichMsg = ''; errorMsg = '';
     api.startScan($session.session_id).then(({ scan_id }) => {
@@ -164,27 +144,25 @@
 
   $: records_view = [
     ...owned.map((r) => {
-      const fn = r.full_name || r.name;   // distill + heads are keyed by full_name
-      const head = headsMap[fn] || {};
+      const fn = r.full_name || r.name;
       return {
         key: fn, name: r.name, source: r.is_fork ? 'fork' : 'owned',
         hub: hubMap[r.name] || r.mid_cat || '', language: r.language, stars: r.stars,
-        readme_url: head.readme_url || r.url,
-        repo_url: head.url || r.url,
+        readme_url: r.url ? `https://github.com/${fn}/blob/main/README.md` : '',
+        repo_url: r.url,
         rec: records[fn] || records[r.name] || null,
-        issue: head.issue || null,
+        issue: null,
       };
     }),
     ...stars.map((r) => {
       const fn = r.full_name;
-      const head = headsMap[fn] || {};
       return {
         key: fn, name: r.name, source: 'star',
         hub: '', language: r.language, stars: r.stars,
-        readme_url: head.readme_url || (fn ? `https://github.com/${fn}/blob/main/README.md` : ''),
-        repo_url: head.url || (fn ? `https://github.com/${fn}` : ''),
+        readme_url: fn ? `https://github.com/${fn}/blob/main/README.md` : '',
+        repo_url: fn ? `https://github.com/${fn}` : '',
         rec: records[fn] || null,
-        issue: head.issue || (head.status && head.status >= 400 ? 'http_error' : null),
+        issue: null,
       };
     }),
   ];
@@ -218,12 +196,7 @@
     {:else}
       <button on:click={enrich} class="primary">✨ Enrich</button>
     {/if}
-    <button on:click={checkAccess} class="secondary" disabled={accessStatus === 'checking'}
-            title="One GitHub request per repo + star — heavier, use sparingly">
-      {accessStatus === 'checking' ? 'Checking…' : '🔎 Check access'}
-    </button>
-    <a href="/cluster"><button class="success">Next: Cluster →</button></a>
-  </div>
+    </div>
   {#if enrichMsg || enrichLog.length}
     <div class="enrich-panel">
       <div class="enrich-head">
@@ -245,23 +218,6 @@
 {:else}
   <div class="error-msg">{errorMsg}</div>
   <button on:click={startPull} class="secondary" style="margin-top: 0.5rem">Retry</button>
-{/if}
-
-{#if warnings.length > 0}
-  <div class="section">
-    <div class="section-head"><h2>⚠ Need attention ({warnings.length})</h2></div>
-    <p class="sub">Repos GitHub couldn't serve a README for — private-upstream forks, archived stars, 403s. Click through to investigate or unstar.</p>
-    <ul class="warnlist">
-      {#each warnings as w}
-        <li>
-          <a href={w.url || (w.full_name ? `https://github.com/${w.full_name}` : '#')} target="_blank" rel="noopener">
-            {w.full_name}
-          </a>
-          <span class="warn-reason">{w.message || w.issue || `HTTP ${w.status}`}</span>
-        </li>
-      {/each}
-    </ul>
-  </div>
 {/if}
 
 {#if records_view.length > 0}

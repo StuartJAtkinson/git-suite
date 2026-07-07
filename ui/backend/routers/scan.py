@@ -189,15 +189,17 @@ async def latest_scan(session_id: str):
     }
 
 
-# ── heads: per-repo accessibility check + README URL builder ────────────────
-# We don't fetch the README contents — we build the URL (and read the
-# /repos/{owner}/{repo} head: 200 / 404 / 403 / private) so the LLM can name
-# the README in its prompt and the user can click through to it. Archived or
-# private-upstream repos show up in the "Need attention" panel on Scan.
+# ── distill loop ───────────────────────────────────────────────────────────────
 
 
 async def _head_one(token: str, full_name: str) -> dict:
-    """Cheap GET /repos/{owner}/{repo} → accessibility + readme URL."""
+    """Cheap GET /repos/{owner}/{repo} → accessibility + readme URL.
+
+    Kept as a module-level helper because Promote's checklist LLM prompt needs
+    the same shape (default_branch, parent visibility, archive flag). The
+    standalone /scan/heads/{sid} endpoint that wrapped this for the Scan page
+    was removed — that page now composes README URLs from full_name directly.
+    """
     try:
         owner, repo = full_name.split("/", 1)
     except ValueError:
@@ -246,49 +248,12 @@ async def _head_one(token: str, full_name: str) -> dict:
                        f"{default_branch}/README.md"),
         "parent_full_name": parent.get("full_name") if parent else None,
         "parent_private": parent_priv,
-        # The "this needs attention" flag
         "issue": ("private_parent_fork" if (j.get("fork") and parent_priv)
                   else None),
         "message": ("Fork whose upstream is private — the fork is yours, "
                     "but the parent is now hidden. README fetch may 404."
                     if (j.get("fork") and parent_priv) else ""),
     }
-
-
-@router.get("/scan/heads/{session_id}")
-async def heads(session_id: str):
-    """Per-repo heads for the latest scan + the stars snapshot, in parallel.
-
-    Each row carries accessibility (200/404/403), archived/private/fork flags,
-    the default README URL, and a `message` for any issue that needs your
-    attention (private-upstream forks, archived stars, 403s, etc)."""
-    sess = await require_session(session_id)
-    latest = await latest_scan(session_id)
-    rows = latest["repos"]
-    # full_name is what GitHub URLs want; the scan rows only have `name`, but
-    # the stars snapshot has `full_name` on its own. Build one set of full_names
-    # by joining the names against the github_user from the session.
-    user = sess["github_user"]
-    full_names = sorted({f"{user}/{r['name']}" for r in rows})
-    # Stars live in starred_repo with their own full_name; include them too
-    # (the user explicitly asked to flag 403 stars so they can unstar).
-    async for db in get_db():
-        star_rows = await db.execute_fetchall("SELECT full_name FROM starred_repo")
-    for s in star_rows:
-        if s["full_name"] and s["full_name"] not in full_names:
-            full_names.append(s["full_name"])
-
-    sem = asyncio.Semaphore(4)   # gentle — bursts trip GitHub's secondary limit
-
-    async def go(n: str) -> dict:
-        async with sem:
-            return await _head_one(sess["github_token"], n)
-
-    results = await asyncio.gather(*[go(n) for n in full_names])
-    return {"total": len(results), "heads": results}
-
-
-# ── distill loop (uses the heads URLs as the LLM's variable) ────────────────
 
 async def _repos_for_distill(session_id: str) -> list[dict]:
     """Owned repos + stars, each enriched with readme_url + url + topics."""
