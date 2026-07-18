@@ -11,9 +11,21 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 import plan_store
+from database import get_db
 
 log = logging.getLogger(__name__)
 router = APIRouter()
+
+
+async def _invalidate_all_clusters() -> None:
+    """Drop every saved cluster_result row. Plan mutations (verdict changes,
+    forbid/clear-forbid, hub create/remove) change which repos belong to a
+    cluster; the cached column layout is stale until the user re-clusters.
+    Cheap: embeddings stay cached on disk — only k-means re-runs on next visit.
+    Coarse (invalidates all sessions) but correct for single-user local use."""
+    async for db in get_db():
+        await db.execute("DELETE FROM cluster_result")
+        await db.commit()
 
 
 @router.get("/plan")
@@ -24,18 +36,21 @@ async def get_plan():
 @router.post("/plan/reset")
 async def reset_plan():
     """Discard all edits and return to the empty default (no assumed hubs)."""
+    await _invalidate_all_clusters()
     return plan_store.reset()
 
 
 @router.post("/plan/blank")
 async def blank_plan():
     """Start from scratch — hub shells kept, all repo assignments cleared."""
+    await _invalidate_all_clusters()
     return plan_store.blank()
 
 
 @router.post("/plan/clear")
 async def clear_plan():
     """Truly empty plan — hubs removed too. Nothing assumed to be a hub."""
+    await _invalidate_all_clusters()
     return plan_store.clear()
 
 
@@ -57,6 +72,7 @@ async def upsert_hub(body: HubUpsert):
 
 @router.delete("/plan/hub/{name}")
 async def remove_hub(name: str):
+    await _invalidate_all_clusters()
     return plan_store.remove_hub(name)
 
 
@@ -82,9 +98,11 @@ async def set_hub_boundary(body: BoundaryRequest):
 @router.post("/plan/verdict")
 async def set_verdict(body: VerdictRequest):
     try:
-        return plan_store.set_verdict(body.repo, body.verdict, body.hub)
+        result = plan_store.set_verdict(body.repo, body.verdict, body.hub)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    await _invalidate_all_clusters()
+    return result
 
 
 class ForbidRequest(BaseModel):
@@ -100,12 +118,16 @@ class ForbidClearRequest(BaseModel):
 async def forbid(body: ForbidRequest):
     """Sticky 'never re-cluster this repo into hub <hub>'. Cleared automatically
     once the repo is placed (absorb / archive / keep)."""
-    return plan_store.set_forbid(body.repo, body.hub)
+    result = plan_store.set_forbid(body.repo, body.hub)
+    await _invalidate_all_clusters()
+    return result
 
 
 @router.delete("/plan/forbid")
 async def clear_forbid(body: ForbidClearRequest):
-    return plan_store.clear_forbids(body.repo)
+    result = plan_store.clear_forbids(body.repo)
+    await _invalidate_all_clusters()
+    return result
 
 
 @router.get("/plan/forbids")

@@ -104,6 +104,17 @@ async def _save_result(session_id: str, payload: dict) -> None:
         await db.commit()
 
 
+async def _invalidate(session_id: str) -> None:
+    """Drop the cached cluster_result for this session — the next GET re-derives
+    it from plan_store + reconcile so the column layout reflects the latest
+    verdicts. Cheap: embeddings stay cached on disk, only k-means re-runs."""
+    async for db in get_db():
+        await db.execute(
+            "DELETE FROM cluster_result WHERE session_id = ?", (session_id,)
+        )
+        await db.commit()
+
+
 async def _propose_themes(
     session_id: str,
     orphans: list[dict],
@@ -424,6 +435,9 @@ async def form(session_id: str, body: FormRequest):
         plan_store.set_verdict(m, "absorb", name)
         absorbed.append(m)
     log.info("formed hub %s from cluster (%d absorbed)", name, len(absorbed))
+    # Dirty the cluster cache: absorbed repos no longer belong in any column,
+    # so the saved layout is now stale. Next GET re-derives from plan_store.
+    await _invalidate(session_id)
     return {"hub": name, "absorbed": absorbed, "promoted": body.promote}
 
 
