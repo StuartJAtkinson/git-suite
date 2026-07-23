@@ -350,6 +350,97 @@ Reply with JSON only — no prose, no fences.
     return out
 
 
+async def _distilled_record(repo: str) -> dict:
+    """purpose/entities/domain for one repo from the distill cache, or empty
+    strings/list if it's never been distilled."""
+    async for db in get_db():
+        rows = await db.execute_fetchall(
+            "SELECT record FROM repo_domain WHERE repo = ?", (repo,))
+    if not rows or not rows[0]["record"]:
+        return {"purpose": "", "entities": [], "domain": ""}
+    try:
+        return json.loads(rows[0]["record"])
+    except Exception:
+        return {"purpose": "", "entities": [], "domain": ""}
+
+
+class SuggestFeaturesRequest(BaseModel):
+    repo: str
+
+
+@router.post("/order/{session_id}/{hub}/suggest-features")
+async def suggest_features(session_id: str, hub: str, body: SuggestFeaturesRequest):
+    """Step 5 of the architecture model — feed the ordered+typed context to an
+    LLM to identify one repo's concrete FEATURES (not a re-statement of its
+    purpose, not its tech stack — the actual capabilities: 'OAuth2 login',
+    'CSV export', 'rate-limited API client'). Persists straight into
+    hub_order.feature_annotations, same column the manual /annotate endpoint
+    writes, so the README compose_section picks them up either way.
+
+    Returns: {repo, features: [str, ...], rationale}
+    """
+    await require_session(session_id)
+    meta = await _hub_meta(hub)
+    plan = plan_store.get_plan()
+    if body.repo != hub and body.repo not in plan["hubs"][hub].get("absorbs", []):
+        raise HTTPException(
+            status_code=400,
+            detail=f"repo {body.repo!r} is not an absorb of hub {hub!r}",
+        )
+
+    current = await get_order(session_id, hub)
+    row = next((r for r in current["rows"] if r["repo"] == body.repo), None)
+    cols = [c for c in COLUMNS if row and row[COL_FLAGS[c]]] if row else []
+    col_str = ", ".join(cols) or "unclassified"
+    d = row or {}
+    rec = await _distilled_record(body.repo)
+
+    system = (
+        "You identify the concrete FEATURES a software repo provides — "
+        "specific, checkable capabilities a user or another developer could "
+        "point to, not a restatement of its purpose and not its tech stack. "
+        "Bad: 'is a Python tool', 'processes data'. Good: 'OAuth2 login', "
+        "'CSV export', 'rate-limited API client', 'drag-and-drop reordering'. "
+        "3-8 features, each 2-6 words. Return JSON only."
+    )
+    prompt = f"""Hub: {hub}
+Hub description: {meta.get('description', '') or '(none)'}
+Hub boundary: {meta.get('boundary', '') or '(none)'}
+
+Repo: {body.repo}
+Tree-of-Knowledge column(s): {col_str}
+Language: {d.get('language', '') or '(unknown)'}
+Topics: {', '.join(d.get('topics') or []) or '(none)'}
+Description: {d.get('aim', '') or '(none)'}
+Distilled purpose: {rec.get('purpose', '') or '(none)'}
+Distilled entities: {', '.join(rec.get('entities') or []) or '(none)'}
+Distilled domain: {rec.get('domain', '') or '(none)'}
+
+List this repo's concrete features. Reply with JSON in EXACTLY this shape:
+{{
+  "features": ["<feature>", ...],
+  "rationale": "<one sentence on how these features fit the hub's {col_str} role>"
+}}
+Reply with JSON only — no prose, no fences.
+"""
+    out = await llm.complete_json(prompt, system=system, max_tokens=512)
+    features = [str(f).strip() for f in (out.get("features") or []) if str(f).strip()][:8]
+    out["repo"] = body.repo
+    out["features"] = features
+
+    async for db in get_db():
+        await db.execute(
+            """INSERT INTO hub_order (hub, repo, position, feature_annotations, updated_at)
+               VALUES (?, ?, -1, ?, datetime('now'))
+               ON CONFLICT(hub, repo) DO UPDATE SET
+                 feature_annotations=excluded.feature_annotations,
+                 updated_at=datetime('now')""",
+            (hub, body.repo, json.dumps(features)),
+        )
+        await db.commit()
+    return out
+
+
 # --- compat tags + annotations --------------------------------------------
 
 class CompatTagsRequest(BaseModel):

@@ -33,7 +33,7 @@ npm run dev          # http://localhost:2173
 ### Tests
 
 ```bash
-cd ui/backend && python -m pytest        # 108 tests
+cd ui/backend && python -m pytest        # 111 tests
 ```
 
 Health: `http://localhost:2801/health`. API docs: `/docs`.
@@ -88,8 +88,8 @@ The full pipeline (✅ built · ◻ not yet):
    de-fork API, so the actual move is the user's to run).
 4. ✅ **Order & type** — within a hub, order + type repos by **read / analyse /
    visualise** *(the Order page's Gather/Analyse/Display ToK layout)*.
-5. ◻ **Feature-identify** — feed the ordered+typed context to an LLM to identify each
-   repo's features.
+5. ✅ **Feature-identify** — feed the ordered+typed context to an LLM to identify each
+   repo's concrete features. *(the Order page's ✨ Features button)*
 6. ◻ **Recommend absorbs** — recommend which *features* (from stars/forks) to absorb
    into the owned repos; own-the-fork-and-delete; **unstar** stars whose features are
    unwanted or already covered more fully by an owned repo.
@@ -98,7 +98,7 @@ The full pipeline (✅ built · ◻ not yet):
    modular hub apps/info. git-suite is the planning/analysis/recommendation/install
    brain — it does **not** build the hub apps themselves (that's the portfolio's shape).
 
-Steps 5–8 are the unbuilt half; they're tracked as Open items in
+Steps 6–8 are the unbuilt half; they're tracked as Open items in
 [`../ISSUES.md`](../ISSUES.md).
 
 ---
@@ -122,7 +122,7 @@ Steps 5–8 are the unbuilt half; they're tracked as Open items in
 | **Scan** | Streams the live portfolio (incl. private repos) over a same-origin WebSocket; enriched fields (topics, stars, fork, pushed_at, archived, size) |
 | **Cluster** ("Themes") | Read-only, one-shot LLM group formation — no k-means, no per-cell promote/remove, no orphan sidebar. **✨ Group by themes** bundles the whole enriched scan (every repo's distilled purpose/entities/domain + the full README, iteratively summarised to fit the active model's context budget) and asks the configured LLM chain to name each theme after the *human activity* the repos serve, never a tech-stack bucket (no "python", "data", "tools"). **⬇ Download prompt (.txt)** exports the identical system+user prompt as a file for pasting into any external chat LLM (clipboard can't reliably hold 300KB+); **↥ Import result** parses that LLM's JSON reply back into the same theme cards. Themes are cached per-session (`cluster_result`); promoting a theme into a real hub happens on **Promote**/**Hubs**, not here |
 | **Own** | Step 3 — owned forks with upstream status (parent, private-upstream flag), current verdict + cluster; per-fork decide promote (→ keep / absorb into a hub) or drop (→ archive), and generate a git detach checklist (GitHub has no de-fork API, so the move is yours to run) |
-| **Order** | Per-hub Tree-of-Knowledge layout — one ordered list of a hub's members (foundational first, presentation last); three classification checkboxes (Gather / Analyse / Display) act as filters; per-row arrow reordering + per-row and per-hub LLM Suggest; per-hub compat-tag vocabulary override |
+| **Order** | Per-hub Tree-of-Knowledge layout — one ordered list of a hub's members (foundational first, presentation last); three classification checkboxes (Gather / Analyse / Display) act as filters; per-row arrow reordering + per-row and per-hub LLM Suggest; **✨ Features** per row asks the LLM to identify the repo's concrete features (architecture Step 5), saved immediately into `feature_annotations`; per-hub compat-tag vocabulary override |
 | **Triage** | Keyboard-fast verdict queue (1–N absorb, a/k/o/s); stub badges |
 | **Execute** | Dry-run preview diffed against live GitHub, then idempotent batch actions: archive repos, create missing hubs, push composed hub READMEs (which include the ToK ordering subsection) + per-absorb migration checklists / MIGRATION.md; hub lifecycle (archive / return / delete) |
 | **Summary** | Reconciliation dashboard: live / absorbed / archived / undecided / ghost / stub counts, per-hub progress, **hub members + orphan repos** (the former Hub Audit, merged in), next-action list |
@@ -187,7 +187,8 @@ routers/
   promote         list forks / decide promote|drop / detach checklist
   stars           refresh starred snapshot / list
   order           per-hub ToK layout: get/save/suggest-order/suggest-column/
-                  compat-tags/annotate
+                  suggest-features (Step 5 — LLM feature-identify, persists
+                  to feature_annotations)/compat-tags/annotate
   hubs            list hubs / mark absorbed
   readme          compose + push hub README helpers (no routes; used by execute)
   config          get/post config + provider registry + llm-status + live
@@ -211,5 +212,6 @@ single-per-user — login purges any other session for the same `github_user`.
 grouping (dropped k-means/anchor/orphan-snap/per-cell promote entirely);
 `language` removed from the scan schema; added .txt prompt export + JSON
 re-import for external LLMs; session rows now purge on login (one per user);
-Docker deployment removed (local dev is the only supported path). 108 tests
-green.*
+Docker deployment removed (local dev is the only supported path); dead
+k-means `services/cluster.py` deleted; architecture Step 5 (Feature-identify)
+built — Order page's ✨ Features button. 111 tests green.*

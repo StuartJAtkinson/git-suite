@@ -95,6 +95,8 @@ export const api = {
     req('POST', `/api/order/${session_id}/${hub}/suggest-order`, {}),
   suggestColumn: (session_id, hub, repo) =>
     req('POST', `/api/order/${session_id}/${hub}/suggest-column`, { repo }),
+  suggestFeatures: (session_id, hub, repo) =>
+    req('POST', `/api/order/${session_id}/${hub}/suggest-features`, { repo }),
   setCompatTags: (session_id, hub, tags) =>
     req('POST', `/api/order/${session_id}/${hub}/compat-tags`, { tags }),
   annotate: (session_id, hub, repo, annotations) =>

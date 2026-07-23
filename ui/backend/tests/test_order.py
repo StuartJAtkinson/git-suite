@@ -4,10 +4,10 @@ import json
 
 from services import llm
 from routers.order import (
-    get_order, save_order, suggest_order, suggest_column,
+    get_order, save_order, suggest_order, suggest_column, suggest_features,
     set_compat_tags, annotate,
     OrderSaveRequest, OrderRow,
-    SuggestColumnRequest, CompatTagsRequest, AnnotateRequest,
+    SuggestColumnRequest, SuggestFeaturesRequest, CompatTagsRequest, AnnotateRequest,
 )
 
 
@@ -274,3 +274,74 @@ def test_suggest_column_supports_multi_column(temp_db, isolated_plan, monkeypatc
     assert res["is_gather"] is True
     assert res["is_display"] is True
     assert res["is_analyse"] is False
+
+
+def test_suggest_features_parses_llm_json_and_persists(temp_db, isolated_plan, monkeypatch):
+    """Step 5 — suggest-features asks the LLM for a repo's concrete feature
+    list, then persists it into hub_order.feature_annotations (same column
+    the manual /annotate endpoint writes)."""
+    from tests.conftest import insert_scan
+    insert_scan(temp_db, session_id="s1", scan_id="sc1", repos=[
+        {"name": "h", "language": "Python"},
+        {"name": "scraper", "language": "Python", "aim": "scrapes data"},
+    ])
+    isolated_plan.upsert_hub("h", description="data tools")
+    isolated_plan.set_verdict("scraper", "absorb", "h")
+    # Mark scraper as Gather so the prompt's column context is non-empty.
+    asyncio.run(save_order("s1", "h", OrderSaveRequest(rows=[
+        OrderRow(repo="h", position=0),
+        OrderRow(repo="scraper", position=1, is_gather=True),
+    ])))
+
+    fake = {
+        "features": ["rate-limited HTTP client", "CSV export", "retry with backoff"],
+        "rationale": "gathers and exports data, fits the Gather role",
+    }
+
+    async def fake_complete(prompt, system="", max_tokens=1024):
+        return json.dumps(fake)
+    monkeypatch.setattr(llm, "complete", fake_complete)
+
+    res = asyncio.run(suggest_features("s1", "h", SuggestFeaturesRequest(repo="scraper")))
+    assert res["repo"] == "scraper"
+    assert res["features"] == ["rate-limited HTTP client", "CSV export", "retry with backoff"]
+    assert "Gather" in res["rationale"]
+
+    # Persisted: a fresh GET reflects the same features.
+    out = asyncio.run(get_order("s1", "h"))
+    by_repo = {r["repo"]: r for r in out["rows"]}
+    assert by_repo["scraper"]["feature_annotations"] == res["features"]
+
+
+def test_suggest_features_caps_at_eight_and_strips_blanks(temp_db, isolated_plan, monkeypatch):
+    from tests.conftest import insert_scan
+    insert_scan(temp_db, session_id="s1", scan_id="sc1", repos=[
+        {"name": "h", "language": "Python"},
+        {"name": "x", "language": "Python"},
+    ])
+    isolated_plan.upsert_hub("h")
+    isolated_plan.set_verdict("x", "absorb", "h")
+
+    fake = {"features": [f"feature {i}" for i in range(12)] + ["", "  "],
+            "rationale": "lots of features"}
+
+    async def fake_complete(prompt, system="", max_tokens=1024):
+        return json.dumps(fake)
+    monkeypatch.setattr(llm, "complete", fake_complete)
+
+    res = asyncio.run(suggest_features("s1", "h", SuggestFeaturesRequest(repo="x")))
+    assert len(res["features"]) == 8
+    assert all(f.strip() for f in res["features"])
+
+
+def test_suggest_features_rejects_non_absorb_repo(temp_db, isolated_plan):
+    from tests.conftest import insert_scan
+    import pytest
+    insert_scan(temp_db, session_id="s1", scan_id="sc1", repos=[
+        {"name": "h", "language": "Python"},
+        {"name": "outsider", "language": "Python"},
+    ])
+    isolated_plan.upsert_hub("h")
+    with pytest.raises(Exception) as ei:
+        asyncio.run(suggest_features("s1", "h", SuggestFeaturesRequest(repo="outsider")))
+    assert "outsider" in str(ei.value)

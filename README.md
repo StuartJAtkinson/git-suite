@@ -112,7 +112,7 @@ Open `http://localhost:2173` and configure everything from the **Setup** page.
 ### Tests
 
 ```bash
-cd ui/backend && python -m pytest        # 108 tests
+cd ui/backend && python -m pytest        # 111 tests
 ```
 
 ---

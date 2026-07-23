@@ -34,6 +34,10 @@
   let suggestRationale = '';
   let suggestPropose = null; // {is_gather, is_analyse, is_display, rationale}
 
+  // Per-row Suggest-features state (Step 5 — feature identify)
+  let suggestingFeatures = null;   // repo name currently being asked
+  let featureRationale = {};       // repo -> last rationale, shown briefly
+
   // Hub-order Suggest state
   let suggestingOrder = false;
   let proposedOrder = null;  // {proposed: [{repo, position}], moves: [...], rationale_overall}
@@ -142,6 +146,22 @@
     setFlag(row, 'Analyse', suggestPropose.is_analyse);
     setFlag(row, 'Display', suggestPropose.is_display);
     suggestPropose = null;
+  }
+
+  // --- per-row Suggest features (Step 5) ------------------------------------
+  // The endpoint persists straight into hub_order.feature_annotations, so
+  // there's nothing to "accept" — just merge the result into local state so
+  // it's visible without a full reload.
+
+  async function suggestFeaturesForRow(row) {
+    suggestingFeatures = row.repo; error = '';
+    try {
+      const r = await api.suggestFeatures($session.session_id, hub, row.repo);
+      row.feature_annotations = r.features || [];
+      featureRationale = { ...featureRationale, [row.repo]: r.rationale || '' };
+      rows = rows;
+    } catch (e) { error = e.message; }
+    finally { suggestingFeatures = null; }
   }
 
   // --- hub-order Suggest ---------------------------------------------------
@@ -319,6 +339,11 @@
               title="Ask the LLM which column(s) this repo belongs in">
               {suggesting === r.repo ? '…' : '✨ Suggest'}
             </button>
+            <button class="ghost xs" on:click={() => suggestFeaturesForRow(r)}
+              disabled={suggestingFeatures === r.repo}
+              title="Ask the LLM to identify this repo's concrete features (saved immediately)">
+              {suggestingFeatures === r.repo ? '…' : '✨ Features'}
+            </button>
           </div>
 
           {#if r.aim}<p class="aim">{r.aim}</p>{/if}
@@ -331,6 +356,15 @@
               </label>
             {/each}
           </div>
+
+          {#if (r.feature_annotations || []).length}
+            <div class="features">
+              {#each r.feature_annotations as f}<span class="feature">{f}</span>{/each}
+            </div>
+            {#if featureRationale[r.repo]}
+              <p class="feature-rationale">{featureRationale[r.repo]}</p>
+            {/if}
+          {/if}
 
           {#if compatTags.length}
             <div class="tags">
@@ -408,6 +442,10 @@
   .tags { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.4rem; }
   .tag { font-size: 0.72rem; padding: 0.1rem 0.45rem; border-radius: 12px; background: #f3f4f6; color: #4b5563; border: 1px solid transparent; cursor: pointer; }
   .tag.on { background: #ecfdf5; color: #065f46; border-color: #6ee7b7; }
+
+  .features { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.4rem; }
+  .feature { font-size: 0.72rem; padding: 0.1rem 0.5rem; border-radius: 4px; background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+  .feature-rationale { font-size: 0.74rem; color: #78716c; font-style: italic; margin: 0.3rem 0 0; }
 
   .suggest-card { flex-basis: 100%; margin-top: 0.4rem; background: #f5f3ff; border: 1px solid #c4b5fd; border-radius: 6px; padding: 0.5rem 0.7rem; }
 </style>
