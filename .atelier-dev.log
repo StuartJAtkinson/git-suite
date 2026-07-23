@@ -1,7 +1,19 @@
-At line:1 char:205
-+ ... 0.1 --port 2800' -WindowStyle Minimized; for (=0;  -lt 30; ++) { if ( ...
-+                                                                  ~
-Missing expression after unary operator '++'.
-    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
-    + FullyQualifiedErrorId : MissingExpressionAfterOperator
- 
+
+> git-suite-ui@0.1.0 dev
+> vite dev
+
+[2m19:54:48[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m Re-optimizing dependencies because vite config has changed
+[2m19:54:48[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because vite config has changed
+
+  [32m[1mVITE[22m v8.0.14[39m  [2mready in [0m[1m1556[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m2173[22m/[39m
+[2m  [32m➜[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
+19:54:57 [vite-plugin-svelte] src/routes/cluster/+page.svelte:337:10 `<div>` with a mouseenter or mouseleave handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+19:56:13 [vite-plugin-svelte] src/routes/scan/+page.svelte:287:2 Unused CSS selector "ul.warnlist"
+https://svelte.dev/e/css_unused_selector
+19:56:13 [vite-plugin-svelte] src/routes/scan/+page.svelte:288:2 Unused CSS selector "ul.warnlist li"
+https://svelte.dev/e/css_unused_selector
+19:56:13 [vite-plugin-svelte] src/routes/scan/+page.svelte:289:2 Unused CSS selector ".warn-reason"
+https://svelte.dev/e/css_unused_selector
