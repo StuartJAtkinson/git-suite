@@ -104,6 +104,10 @@ PROVIDERS: dict[str, ProviderMeta] = {
         "default_model": "MiniMax-M2",
         "needs_key": True,
         "exhaust_patterns": ["insufficient balance", "account has been limited", "quota exceeded"],
+        # Default window for both MiniMax-M2 and the M2.7 family. Specific
+        # models override via MODEL_CONTEXT_WINDOWS below. MiniMax-M3 is the
+        # outlier (1M context) — that's the whole reason for the override map.
+        "context_window": 200000,
     },
     "ollama": {
         "display_name": "Ollama (local)",
@@ -129,3 +133,35 @@ if _os.environ.get("LLM_OLLAMA_BASE_URL"):
 DEFAULT_PRIORITY: list[str] = [
     "anthropic", "openai", "deepseek", "openrouter", "xai", "minimax", "ollama",
 ]
+
+# Per-model context-window overrides. The themes bundler (and any other
+# caller that needs to budget a prompt) pulls from here so we don't bake
+# provider-specific knowledge into the bundle code. Exact match first,
+# substring fallback, then provider default, then 200k global default.
+#
+# Sources: provider docs as of 2026.
+MODEL_CONTEXT_WINDOWS: dict[str, int] = {
+    "claude-opus-4-8": 200000,
+    "claude-opus-4-7": 200000,
+    "claude-sonnet-4-6": 200000,
+    "claude-haiku-4-5": 200000,
+    "MiniMax-M3": 1000000,
+    "MiniMax-M2.7": 200000,
+    "MiniMax-M2": 200000,
+}
+DEFAULT_CONTEXT_WINDOW = 200000
+
+
+def context_window_for(model: str, provider: str = "") -> int:
+    """Best-effort window for (model, provider). Pure function — cheap to
+    call before each prompt."""
+    if not model:
+        return DEFAULT_CONTEXT_WINDOW
+    if model in MODEL_CONTEXT_WINDOWS:
+        return MODEL_CONTEXT_WINDOWS[model]
+    m = model.lower()
+    for needle, win in MODEL_CONTEXT_WINDOWS.items():
+        if needle.lower() in m:
+            return win
+    prov = PROVIDERS.get(provider) or {}
+    return int(prov.get("context_window") or DEFAULT_CONTEXT_WINDOW)

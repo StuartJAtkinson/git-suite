@@ -126,30 +126,45 @@ async def _propose_themes(
     k-means path so the frontend can render it unchanged. Embeddings are
     bypassed entirely — the LLM sees every distilled record at once and
     decides the themes + which repo belongs to which (overlap allowed).
-    """
-    from services import distill, topic_llm
 
-    # Distil every orphan (cached where possible).
+    Bundler flow: build the full scan+README bundle, trim iteratively to the
+    70% MiniMax-M3 token budget (summarising top-25% largest READMEs each
+    pass), then ask the LLM to organise the trimmed bundle into themes.
+    Falls back to the light `records()` path if the bundler raises.
+    """
+    from services import distill, topic_llm, themes_bundle
+
+    # ── Light path metadata (used for counts + the no-bundle fallback) ──
     pool = _own_member_dicts(orphans)
-    records_in: list[dict] = []
     pool_by_name: dict[str, dict] = {}
     for p in pool:
         nm = p.get("name", "")
-        pool_by_name[nm] = p
-        # Pass the same shape the LLM expects; entities/domain may be empty
-        # until records() fills them in.
-        records_in.append({
-            "name": nm,
-            "purpose": "",
-            "entities": [],
-            "domain": "",
-        })
-    record_map, stop_reason = await distill.records(pool, stop_on_error=False)
-    for r in records_in:
-        rec = record_map.get(r["name"]) or {}
-        r["purpose"] = rec.get("purpose", "")
-        r["entities"] = rec.get("entities", [])
-        r["domain"] = rec.get("domain", "")
+        pool_by_name[nm] = {
+            "name": nm, "full_name": nm, "source": "owned",
+            "language": p.get("language", ""), "stars": p.get("stars", 0),
+            "aim": p.get("aim", ""),
+        }
+
+    bundle_meta = None
+    try:
+        bundle_meta = await themes_bundle.build_and_persist(session_id)
+        records_in = themes_bundle.to_prompt_records(json.loads(
+            themes_bundle._BUNDLE_PATH.read_text(encoding="utf-8")))
+        stop_reason = ""      # bundler reports its own stop reason; not surfaced here
+    except Exception as exc:
+        # Bundler can fail (token not loaded, readmes 404, etc.) — fall back
+        # to the lightweight records-only path so the user still gets themes.
+        log.warning("themes bundler failed, falling back: %s", str(exc)[:200])
+        records_in: list[dict] = []
+        for nm in pool_by_name:
+            records_in.append({"name": nm, "purpose": "",
+                                "entities": [], "domain": ""})
+        record_map, stop_reason = await distill.records(pool, stop_on_error=False)
+        for r in records_in:
+            rec = record_map.get(r["name"]) or {}
+            r["purpose"] = rec.get("purpose", "")
+            r["entities"] = rec.get("entities", [])
+            r["domain"] = rec.get("domain", "")
 
     themes = await topic_llm.discover_themes(records_in)
     if not themes:
@@ -163,6 +178,7 @@ async def _propose_themes(
             "clusters": [], "hubs": hubs, "orphans_returned": [],
             "source": source, "mode": "themes",
             "counts": {"owned": len(pool), "forks": 0, "stars": 0},
+            "bundle": bundle_meta,
         }
     clusters, orphans_returned = topic_llm.themes_to_clusters(themes, pool_by_name)
     # Forbids still apply: a repo with a forbid list that matches one of its
@@ -194,7 +210,8 @@ async def _propose_themes(
         "anchored": [],
         "anchor_threshold": None,
         "counts": {"owned": len(pool), "forks": 0, "stars": 0},
-        "stop_reason": stop_reason,
+        "stop_reason": "",
+        "bundle": bundle_meta,
     }
     await _save_result(session_id, payload)
     return payload
