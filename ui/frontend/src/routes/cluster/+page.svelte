@@ -166,7 +166,7 @@
       {#if showImport}
         <div class="import-box">
           <textarea bind:value={importText} rows="6"
-            placeholder='Paste the {"themes": [...]} JSON the external LLM returned…'></textarea>
+            placeholder="Paste the themes JSON the external LLM returned…"></textarea>
           <button class="primary" disabled={importing || !importText.trim()} on:click={importThemes}>
             {importing ? 'Importing…' : 'Import'}
           </button>
