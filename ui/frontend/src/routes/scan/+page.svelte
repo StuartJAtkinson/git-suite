@@ -147,7 +147,7 @@
       const fn = r.full_name || r.name;
       return {
         key: fn, name: r.name, source: r.is_fork ? 'fork' : 'owned',
-        hub: hubMap[r.name] || r.mid_cat || '', language: r.language, stars: r.stars,
+        hub: hubMap[r.name] || r.mid_cat || '', stars: r.stars,
         readme_url: r.url ? `https://github.com/${fn}/blob/main/README.md` : '',
         repo_url: r.url,
         rec: records[fn] || records[r.name] || null,
@@ -158,7 +158,7 @@
       const fn = r.full_name;
       return {
         key: fn, name: r.name, source: 'star',
-        hub: '', language: r.language, stars: r.stars,
+        hub: '', stars: r.stars,
         readme_url: fn ? `https://github.com/${fn}/blob/main/README.md` : '',
         repo_url: fn ? `https://github.com/${fn}` : '',
         rec: records[fn] || null,
@@ -239,7 +239,6 @@
           <th>Domain</th>
           <th>Entities</th>
           <th>Hub</th>
-          <th>Lang</th>
           <th>★</th>
         </tr>
       </thead>
@@ -259,7 +258,6 @@
             <td class="domain">{#if r.rec?.domain}<span class="domain-pill">{r.rec.domain}</span>{:else}—{/if}</td>
             <td class="entities">{r.rec?.entities?.join(' · ') || '—'}</td>
             <td class="hub">{r.hub || ''}</td>
-            <td class="lang">{r.language || ''}</td>
             <td class="stars">{r.stars || ''}</td>
           </tr>
         {/each}
@@ -282,7 +280,6 @@
   td.domain .domain-pill { background: #eef2ff; color: #4338ca; border-radius: 4px; padding: 0.1em 0.45em; font-size: 0.72rem; }
   td.entities { color: #6b7280; max-width: 220px; }
   td.hub { color: #6b7280; }
-  td.lang { color: #9ca3af; }
   td.stars { color: #9ca3af; text-align: right; }
   ul.warnlist { list-style: none; padding: 0; margin: 0; }
   ul.warnlist li { padding: 0.35rem 0.5rem; border-bottom: 1px solid #f1f5f9; display: flex; gap: 0.6rem; align-items: baseline; }

@@ -1,14 +1,15 @@
 """
-cluster.py (router) — assisted hub formation from the scan.
+cluster.py (router) — one-shot LLM topic grouping across the whole scan.
 
-  GET  /api/cluster/{session_id}        propose clusters of unassigned repos
-                                         (source=owned legacy behaviour, or
-                                         source=mixed default which mixes
-                                         owned + forks + stars in one space)
-  POST /api/cluster/form/{session_id}   form a hub from a cluster (create/promote/
-                                         add-to-existing) and absorb its members
-  POST /api/cluster/refresh-forks/{sid} snapshot the user's owned forks so the
-                                         mixed-source cluster can include them
+  GET  /api/cluster/{session_id}?recompute=true    group every orphan into
+                                                    themes via a single LLM
+                                                    call (bundle → fit →
+                                                    discover_themes). Returns
+                                                    the same cluster-card
+                                                    shape the page renders.
+
+The page does one thing: build the themes bundle, fire one LLM call, render
+the result. K-means / anchor / orphan-snap / refresh-forks are gone.
 """
 import json
 import logging
@@ -18,33 +19,15 @@ from pydantic import BaseModel
 
 import plan_store
 from database import get_db
-from routers.auth import require_session
 from routers.reconcile import reconcile
-from services import cluster
-from services.github import list_repos
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 
 
-async def _load_with_topics(sql: str) -> list[dict]:
-    """Fetch rows and JSON-decode the `topics` column to a list."""
-    async for db in get_db():
-        rows = await db.execute_fetchall(sql)
-    out = []
-    for r in rows:
-        d = dict(r)
-        try:
-            d["topics"] = json.loads(d.get("topics") or "[]")
-        except Exception:
-            d["topics"] = []
-        out.append(d)
-    return out
-
-
 def _own_member_dicts(orphans: list[dict]) -> list[dict]:
-    """Normalise the reconcile `orphans` rows into the shape the cluster
-    service expects (name, aim, topics, language, stars)."""
+    """Normalise the reconcile `orphans` rows into the bundle's per-repo shape
+    (name, aim, topics, stars)."""
     out = []
     for r in orphans:
         topics = r.get("topics")
@@ -57,39 +40,9 @@ def _own_member_dicts(orphans: list[dict]) -> list[dict]:
             "name": r.get("name", ""),
             "aim": r.get("aim") or "",
             "topics": topics or [],
-            "language": r.get("language") or "",
             "stars": r.get("stars") or 0,
         })
     return out
-
-
-def _apply_forbids(clusters: list[dict], forbid_map: dict[str, list[str]]) -> list[dict]:
-    """Drop any cluster member whose stuck `forbid` list mentions either the
-    cluster's anchored hub or its suggested name. Returns the dropped members
-    so the caller can roll them back into the orphan count.
-
-    In-place: clusters are mutated; empties are removed.
-    """
-    if not forbid_map:
-        return []
-    dropped: list[dict] = []
-    keep: list[dict] = []
-    for c in clusters:
-        labels = {c.get("suggested_name") or "", c.get("anchored_to") or ""}
-        labels.discard("")
-        kept_members = []
-        for m in c.get("members", []):
-            forbids = forbid_map.get(m.get("repo") or m.get("name") or "", [])
-            if any(f in labels for f in forbids):
-                dropped.append(m)
-            else:
-                kept_members.append(m)
-        if kept_members:
-            c["members"] = kept_members
-            c["size"] = len(kept_members)
-            keep.append(c)
-    clusters[:] = keep
-    return dropped
 
 
 async def _save_result(session_id: str, payload: dict) -> None:
@@ -105,9 +58,8 @@ async def _save_result(session_id: str, payload: dict) -> None:
 
 
 async def _invalidate(session_id: str) -> None:
-    """Drop the cached cluster_result for this session — the next GET re-derives
-    it from plan_store + reconcile so the column layout reflects the latest
-    verdicts. Cheap: embeddings stay cached on disk, only k-means re-runs."""
+    """Drop the cached cluster_result for this session — the next GET re-runs
+    the LLM one-shot."""
     async for db in get_db():
         await db.execute(
             "DELETE FROM cluster_result WHERE session_id = ?", (session_id,)
@@ -115,33 +67,24 @@ async def _invalidate(session_id: str) -> None:
         await db.commit()
 
 
-async def _propose_themes(
-    session_id: str,
-    orphans: list[dict],
-    hubs: list[str],
-    source: str,
-    forbid_map: dict[str, list[str]],
-) -> dict:
-    """One-shot LLM topic discovery. Returns the same payload shape as the
-    k-means path so the frontend can render it unchanged. Embeddings are
-    bypassed entirely — the LLM sees every distilled record at once and
-    decides the themes + which repo belongs to which (overlap allowed).
+async def _propose_themes(session_id: str, orphans: list[dict],
+                          hubs: list[str]) -> dict:
+    """One-shot LLM topic discovery.
 
     Bundler flow: build the full scan+README bundle, trim iteratively to the
-    70% MiniMax-M3 token budget (summarising top-25% largest READMEs each
+    active model's 70% token budget (summarising top-25% largest READMEs each
     pass), then ask the LLM to organise the trimmed bundle into themes.
     Falls back to the light `records()` path if the bundler raises.
     """
     from services import distill, topic_llm, themes_bundle
 
-    # ── Light path metadata (used for counts + the no-bundle fallback) ──
     pool = _own_member_dicts(orphans)
     pool_by_name: dict[str, dict] = {}
     for p in pool:
         nm = p.get("name", "")
         pool_by_name[nm] = {
             "name": nm, "full_name": nm, "source": "owned",
-            "language": p.get("language", ""), "stars": p.get("stars", 0),
+            "stars": p.get("stars", 0),
             "aim": p.get("aim", ""),
         }
 
@@ -150,7 +93,6 @@ async def _propose_themes(
         bundle_meta = await themes_bundle.build_and_persist(session_id)
         records_in = themes_bundle.to_prompt_records(json.loads(
             themes_bundle._BUNDLE_PATH.read_text(encoding="utf-8")))
-        stop_reason = ""      # bundler reports its own stop reason; not surfaced here
     except Exception as exc:
         # Bundler can fail (token not loaded, readmes 404, etc.) — fall back
         # to the lightweight records-only path so the user still gets themes.
@@ -159,7 +101,7 @@ async def _propose_themes(
         for nm in pool_by_name:
             records_in.append({"name": nm, "purpose": "",
                                 "entities": [], "domain": ""})
-        record_map, stop_reason = await distill.records(pool, stop_on_error=False)
+        record_map, _ = await distill.records(pool, stop_on_error=False)
         for r in records_in:
             rec = record_map.get(r["name"]) or {}
             r["purpose"] = rec.get("purpose", "")
@@ -168,35 +110,17 @@ async def _propose_themes(
 
     themes = await topic_llm.discover_themes(records_in)
     if not themes:
-        # LLM failed or returned nothing — surface a clear reason rather than
-        # silently falling back to k-means (the user explicitly chose themes).
         return {
             "available": False,
             "saved": False,
             "reason": ("LLM topic discovery returned no themes — check Setup → "
                        "LLM Providers and ensure at least one model is reachable."),
             "clusters": [], "hubs": hubs, "orphans_returned": [],
-            "source": source, "mode": "themes",
-            "counts": {"owned": len(pool), "forks": 0, "stars": 0},
+            "mode": "themes",
+            "counts": {"owned": len(pool)},
             "bundle": bundle_meta,
         }
     clusters, orphans_returned = topic_llm.themes_to_clusters(themes, pool_by_name)
-    # Forbids still apply: a repo with a forbid list that matches one of its
-    # themes gets pulled out of THAT theme (rejoin the orphan pool). Cheap
-    # because the forbid map is small.
-    if forbid_map:
-        kept_clusters: list[dict] = []
-        for c in clusters:
-            kept = [m for m in c["members"]
-                    if not any(f in (c.get("suggested_name") or "")
-                               for f in forbid_map.get(m.get("repo") or "", []))]
-            if kept:
-                c["members"] = kept
-                c["size"] = len(kept)
-                kept_clusters.append(c)
-            else:
-                orphans_returned.extend(c["members"])
-        clusters = kept_clusters
 
     payload = {
         "available": True,
@@ -206,11 +130,7 @@ async def _propose_themes(
         "hubs": hubs,
         "orphan_count": len(orphans_returned),
         "orphans_returned": orphans_returned,
-        "source": source,
-        "anchored": [],
-        "anchor_threshold": None,
-        "counts": {"owned": len(pool), "forks": 0, "stars": 0},
-        "stop_reason": "",
+        "counts": {"owned": len(pool)},
         "bundle": bundle_meta,
     }
     await _save_result(session_id, payload)
@@ -230,8 +150,7 @@ async def _load_result(session_id: str) -> dict | None:
         return None
     # Stale payloads from before the dedupe guard may have the same repo in
     # two clusters (or in a cluster AND in orphans_returned) — re-run the
-    # dedupe so the frontend doesn't choke on each_key_duplicate and leave
-    # the user staring at the page header.
+    # dedupe so the frontend doesn't choke on each_key_duplicate.
     if isinstance(result, dict) and result.get("clusters"):
         def _key(m: dict) -> str:
             return m.get("full_name") or m.get("repo") or m.get("name") or ""
@@ -260,45 +179,14 @@ async def _load_result(session_id: str) -> dict | None:
 @router.get("/cluster/{session_id}")
 async def propose(
     session_id: str,
-    k: int | None = None,
-    source: str = "mixed",
     recompute: bool = False,
     saved_only: bool = False,
-    anchors: bool = False,
-    anchor_threshold: float = 0.7,
-    min_cluster_size: int = 6,
-    orphan_threshold: int = 60,
-    coherence_floor: float = 0.40,
-    mode: str = "kmeans",
 ):
-    """Propose clusters.
+    """One-shot LLM topic grouping.
 
-    k             target number of clusters (spherical k-means). Omit to let the
-                  server pick ~√(n/2).
-    source=owned  legacy behaviour: only owned orphans.
-    source=mixed  default: owned + forks + stars in one embedding space, each
-                  member tagged with `source` so the UI can render its glyph.
-    saved_only    return the saved result or {available:false} WITHOUT computing.
-                  Clustering spends embedding tokens, so backfill callers (the
-                  Scan page) pass this — only the explicit Cluster action
-                  (recompute=true) ever triggers a fresh pass.
-    anchors       when true, treat every promoted hub as a pinned centroid and
-                  re-cluster only the FREE pool (orphans minus hub members).
-                  Each resulting cluster is labelled anchored_to=<hub> if its
-                  centroid cosine to that hub is >= anchor_threshold. Off by
-                  default — the user opts in to anchor-driven re-clustering.
-    min_cluster_size
-                  drop clusters smaller than this (default 6) into the
-                  unassigned pool instead of forcing tiny clusters. Single
-                  hardcoded rule — no slider, the primer never over-fits.
-    orphan_threshold
-                  during an anchored pass, if more than this many orphans
-                  remain after the snap, kick off one more full k-means pass
-                  over the residual so a fresh theme can crystallise. Default
-                  60 — feel free to lower once the portfolio actually shrinks.
-
-    The result is persisted per session; without ?recompute=true a saved result
-    is returned as-is (no re-embedding/re-distilling).
+    recompute=true  fresh bundle + LLM call (the page calls this on click)
+    saved_only=true return cached result or {available:false} WITHOUT calling
+                   the LLM (so the page can rehydrate without burning tokens)
     """
     if not recompute:
         saved = await _load_result(session_id)
@@ -307,113 +195,20 @@ async def propose(
             return saved
         if saved_only:
             return {"available": False, "saved": False,
-                    "reason": "Not clustered yet — run the Cluster step.",
+                    "reason": "Press ✨ Group by themes (single-shot LLM) "
+                              "to organise the scan.",
                     "clusters": []}
 
     recon = await reconcile(session_id)
-    orphans = recon["orphans"]                      # unassigned, live repos
+    orphans = recon["orphans"]
     plan = plan_store.get_plan()
     hubs = list(plan.get("hubs", {}).keys())
-    placement = plan_store.repo_placement(plan)
-    forbid_map = plan_store.forbids_map(plan)
-
-    # ── topic_llm mode: hand the LLM the whole orphan set in one prompt ─
-    # Skips embeddings + k-means entirely. Returns themes with UNIQUE names
-    # and explicit overlap (a repo can be in multiple themes). Falls through
-    # to k-means if the LLM call fails or returns nothing.
-    if mode == "themes" and orphans:
-        return await _propose_themes(
-            session_id, orphans, hubs=hubs, source=source,
-            forbid_map=forbid_map)
-
-    # ── anchor-driven mode: drop hub members from the free pool, then snap ─
-    if anchors and hubs:
-        anchored_names = {
-            name for name, place in placement.items()
-            if place.get("verdict") in ("absorb", "keep")
-        }
-        free_orphans = [r for r in orphans if r["name"] not in anchored_names]
-        # Hydrate anchored members from the same scan rows so we can re-embed.
-        anchored_repos = [r for r in recon["repos"] if r["name"] in anchored_names]
-        # Group anchored_repos by hub for snap_to_anchors.
-        hub_to_members: dict[str, list[dict]] = {}
-        for r in anchored_repos:
-            place = placement.get(r["name"]) or {}
-            hub = place.get("hub") or r["name"]  # keep-verdict hubs land on themselves
-            hub_to_members.setdefault(hub, []).append(_own_member_dicts([r])[0])
-    else:
-        free_orphans = orphans
-        hub_to_members = {}
-        anchored_names = set()
-
-    # owned is mixed-with-no-forks-no-stars; the `source` toggle only decides
-    # whether forks/stars join the same embedding space. In anchor mode we keep
-    # forks/stars out of the free pool — they're external references, not
-    # cluster-candidates for *my* portfolio.
-    owned = _own_member_dicts(free_orphans)
-    forks = [] if source == "owned" or anchors else await _load_with_topics(
-        "SELECT * FROM fork ORDER BY pushed_at DESC")
-    stars = [] if source == "owned" or anchors else await _load_with_topics(
-        "SELECT * FROM starred_repo")
-
-    n = len(owned) + len(forks) + len(stars)
-    eff_k = k if k is not None else cluster.default_k(n)
-    built = await cluster.build_clusters_mixed(owned, forks, stars, eff_k,
-                                               min_cluster_size=max(1, min_cluster_size),
-                                               coherence_floor=coherence_floor if anchors else 0.40)
-    if built is None:
-        return {"available": False,
-                "reason": "Embeddings not configured/reachable — set Setup → "
-                          "Embeddings (Ollama nomic-embed-text) and ensure "
-                          "Ollama is running.",
-                "clusters": [], "hubs": hubs, "orphan_count": len(orphans),
-                "anchored": list(hub_to_members.keys()),
-                "source": source,
-                "counts": {"owned": len(owned), "forks": len(forks), "stars": len(stars)}}
-    groups, dropped_singletons = built
-    if hub_to_members:
-        groups = await cluster.snap_to_anchors(groups, hub_to_members,
-                                                threshold=anchor_threshold)
-    # Forbid pass — drop any cluster member whose `forbids` list mentions the
-    # cluster's anchor hub OR its suggested_name; the dropped member rejoins
-    # the unassigned pool via the orphan count.
-    forb_dropped = _apply_forbids(groups, forbid_map)
-    dropped_singletons.extend(forb_dropped)
-    # Belt-and-braces: the UI keys per-member cells on a unique repo id, so
-    # a payload where the same repo appears in two clusters aborts the
-    # render. Stars often share a `name` across `full_name`s
-    # (forks/duplicates) — key on `full_name` first, fall back to `name`.
-    def _key(m: dict) -> str:
-        return m.get("full_name") or m.get("repo") or m.get("name") or ""
-    seen: set[str] = set()
-    for g in groups:
-        kept = []
-        for m in g.get("members", []):
-            k = _key(m)
-            if not k or k in seen:
-                continue
-            seen.add(k)
-            kept.append(m)
-        g["members"] = kept
-        g["size"] = len(kept)
-    groups = [g for g in groups if g["members"]]
-    dropped_singletons = [o for o in dropped_singletons if _key(o) not in seen]
-    payload = {"available": True, "k": eff_k, "clusters": groups, "hubs": hubs,
-               "orphan_count": len(orphans) + len(dropped_singletons),
-               "orphans_returned": dropped_singletons,
-               "source": source,
-               "anchored": list(hub_to_members.keys()),
-               "anchor_threshold": anchor_threshold if hub_to_members else None,
-               "counts": {"owned": len(owned), "forks": len(forks), "stars": len(stars)}}
-    await _save_result(session_id, payload)
-    return payload
+    return await _propose_themes(session_id, orphans, hubs=hubs)
 
 
 @router.delete("/cluster/{session_id}")
 async def reset(session_id: str):
-    """Forget the saved clustering for this session — every repo goes back to
-    the orphan pool. Hubs are NOT touched (their `absorbs` lists live in
-    plan_store, a different table). Re-clustering starts fresh."""
+    """Forget the saved grouping so the next visit re-runs the LLM call."""
     async for db in get_db():
         await db.execute(
             "DELETE FROM cluster_result WHERE session_id = ?", (session_id,)
@@ -435,12 +230,13 @@ class FormRequest(BaseModel):
 
 @router.post("/cluster/form/{session_id}")
 async def form(session_id: str, body: FormRequest):
+    """Form a hub from a theme's members. Used by Promote/Hub pages that need
+    to commit a cluster to plan_store. The cluster page itself is read-only."""
     name = body.hub_name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="hub_name required")
     plan = plan_store.get_plan()
 
-    # Create the hub unless we're adding to one that already exists.
     if name not in plan.get("hubs", {}):
         plan_store.upsert_hub(name, body.priority,
                               body.description, body.boundary)
@@ -452,51 +248,5 @@ async def form(session_id: str, body: FormRequest):
         plan_store.set_verdict(m, "absorb", name)
         absorbed.append(m)
     log.info("formed hub %s from cluster (%d absorbed)", name, len(absorbed))
-    # Dirty the cluster cache: absorbed repos no longer belong in any column,
-    # so the saved layout is now stale. Next GET re-derives from plan_store.
     await _invalidate(session_id)
     return {"hub": name, "absorbed": absorbed, "promoted": body.promote}
-
-
-@router.post("/cluster/refresh-forks/{session_id}")
-async def refresh_forks(session_id: str):
-    """Snapshot the user's owned forked repos into the `fork` table.
-
-    Replacement strategy: DELETE then INSERT in one transaction. Forks are
-    cheap to re-fetch; the alternative (incremental diff) saves no meaningful
-    work and complicates the schema.
-    """
-    sess = await require_session(session_id)
-
-    rows = []
-    async for r in list_repos(sess["github_token"]):
-        if not r.get("fork"):
-            continue
-        parent = r.get("parent") or {}
-        rows.append((
-            r.get("full_name", ""),
-            r.get("name", ""),
-            (r.get("owner") or {}).get("login", ""),
-            r.get("description") or "",
-            json.dumps(r.get("topics") or []),
-            r.get("language") or "",
-            parent.get("full_name") or "",
-            r.get("pushed_at") or "",
-            1 if r.get("archived") else 0,
-            r.get("html_url") or "",
-        ))
-
-    async for db in get_db():
-        await db.execute("DELETE FROM fork")
-        await db.executemany(
-            """INSERT OR REPLACE INTO fork
-               (full_name, name, owner, description, topics, language,
-                parent_full_name, pushed_at, archived, url)
-               VALUES (?,?,?,?,?,?,?,?,?,?)""",
-            rows,
-        )
-        await db.commit()
-
-    log.info("forks refresh: %d forks snapshotted for %s",
-             len(rows), sess["github_user"])
-    return {"count": len(rows)}

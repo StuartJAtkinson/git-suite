@@ -135,7 +135,6 @@ async def build_raw_bundle(session_id: str) -> list[dict]:
             "aim": r.get("aim") or "",
             "topics": r.get("topics") or [],
             "url": r.get("url") or "",
-            "language": r.get("language") or "",
             "stars": r.get("stars") or 0,
         })
 
@@ -170,7 +169,6 @@ async def build_raw_bundle(session_id: str) -> list[dict]:
             "name": p.get("name") or "",
             "full_name": fn,
             "source": "owned",          # bundler currently covers owned; threads/forks coming
-            "language": p.get("language") or "",
             "stars": p.get("stars") or 0,
             "description": (p.get("aim") or "").strip(),
             "url": p.get("url") or "",
@@ -241,16 +239,15 @@ async def _summarise_one(name: str, readme: str) -> dict:
 
 async def _summarise_cohort(cohort: list[dict],
                              concurrency: int = 6) -> list[dict]:
-    """Returns [{idx, summary_dict}] for each repo in the cohort."""
+    """Returns [summary_dict] in the same order as `cohort`."""
     sem = asyncio.Semaphore(concurrency)
 
-    async def one(idx: int, b: dict) -> tuple[int, dict]:
+    async def one(b: dict) -> dict:
         async with sem:
-            s = await _summarise_one(b.get("name") or b.get("full_name") or "",
-                                     b.get("readme") or "")
-            return idx, s
+            return await _summarise_one(b.get("name") or b.get("full_name") or "",
+                                        b.get("readme") or "")
 
-    return await asyncio.gather(*[one(i, c) for i, c in enumerate(cohort)])
+    return await asyncio.gather(*[one(c) for c in cohort])
 
 
 # ── iterate until bundle fits ───────────────────────────────────────────────
@@ -278,11 +275,9 @@ async def fit_to_budget(bundle: list[dict],
         # Pick the top 25% by current readme size. Summarise them.
         cohort_indices = _cohort_top_pct(cur, 0.25)
         targets = [cur[i] for i in cohort_indices]
-        # Pair each target with its own before_chars for the audit trail.
-        indexed_targets = [(ci, cur[ci]) for ci in cohort_indices]
+        before_chars = [len(t.get("readme") or "") for t in targets]
         summaries = await _summarise_cohort(targets)
-        for (idx, target_b), (abs_idx, summary) in zip(
-                indexed_targets, zip(cohort_indices, summaries)):
+        for abs_idx, summary, bchars in zip(cohort_indices, summaries, before_chars):
             entry = cur[abs_idx]
             entry["readme"] = ""                    # drop the prose entirely
             entry["purpose"] = summary.get("purpose", entry.get("purpose", ""))
@@ -294,7 +289,7 @@ async def fit_to_budget(bundle: list[dict],
                 "pass": it,
                 "name": entry.get("name"),
                 "heuristic": entry["_heuristic"],
-                "before_chars": len(target_b.get("readme") or ""),
+                "before_chars": bchars,
             })
 
     meta["stop_reason"] = f"max_iters ({max_iters}) reached — bundle still {est_bundle_tokens(cur)} tokens"
@@ -349,7 +344,6 @@ def to_prompt_records(artefact: dict) -> list[dict]:
             "entities": r.get("entities") or [],
             "domain": r.get("domain", ""),
             "topics": r.get("topics") or [],
-            "language": r.get("language", ""),
             "stars": r.get("stars", 0),
             "description": r.get("description", ""),
         })

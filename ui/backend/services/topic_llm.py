@@ -49,15 +49,24 @@ _SYS = (
     '   "slug": "<kebab-case unique id derived from name>", '
     '   "repo_names": ["<repo name exactly as given>", ...]}\n'
     ']}\n'
-    "Rules:\n"
-    "- name the THEME (activity/hobby/domain), not the tech (never 'python', "
-    "'tools', 'data', 'server' alone — too generic).\n"
-    "- SLUGS must be unique kebab-case derived from the name.\n"
-    "- A repo may appear in MULTIPLE themes.\n"
-    "- Aim for 15-30 themes. Small related clusters can be one theme.\n"
-    "- Every repo in the input must appear in at least one theme "
+    "Rules — in priority order:\n"
+    "1. NEVER group by software type or tech stack. Forbidden theme names "
+    "include (but are not limited to): 'software', 'tools', 'tooling', 'data', "
+    "'data processing', 'data analysis', 'programming', 'programming language', "
+    "'python', 'javascript', 'typescript', 'rust', 'go', 'web app', 'cli', "
+    "'library', 'framework', 'api', 'automation', 'machine learning', 'web "
+    "development', 'devops'. These are not themes — they're categories of "
+    "computing.\n"
+    "2. Name the HUMAN ACTIVITY the repos serve: tabletop role-playing, "
+    "homelab administration, music production, gardening, IT support, fantasy "
+    "writing, cooking, photography. If you can't name an activity, the theme "
+    "is wrong.\n"
+    "3. SLUGS must be unique kebab-case derived from the name.\n"
+    "4. A repo may appear in MULTIPLE themes.\n"
+    "5. Aim for 15-30 themes. Small related clusters can be one theme.\n"
+    "6. Every repo in the input must appear in at least one theme "
     "(use 'misc-unsorted' for anything unclassifiable).\n"
-    "- No descriptions, no prose — JSON only, nothing after the closing ']'."
+    "7. No descriptions, no prose — JSON only, nothing after the closing ']'."
 )
 
 
@@ -192,9 +201,8 @@ def themes_to_clusters(themes: list[dict], pool_by_name: dict[str, dict]
     of the pipeline already understands.
 
     Each theme becomes a cluster; its members are looked up in `pool_by_name`
-    to retrieve the rich dict (with source / language / stars / full_name).
-    Repos in the pool that don't appear in any theme's repo_names land in
-    `orphans_returned` so the user still has the sidebar to triage them.
+    to retrieve the rich dict (with source / stars / full_name). Repos in the
+    pool that don't appear in any theme's repo_names land in `orphans_returned`.
     """
     assigned: set[str] = set()
     clusters: list[dict] = []
@@ -208,7 +216,6 @@ def themes_to_clusters(themes: list[dict], pool_by_name: dict[str, dict]
                 "repo": p.get("repo") or p.get("name") or nm,
                 "full_name": p.get("full_name"),
                 "source": p.get("source", "owned"),
-                "language": p.get("language", ""),
                 "stars": p.get("stars", 0),
                 "domain": p.get("domain", ""),
                 "entities": p.get("entities", []),

@@ -47,7 +47,7 @@ def _archive_plan(recon: dict, plan: dict, gh: dict[str, bool]) -> dict:
             continue
         name = r["name"]
         item = {"repo": name, "hub": plan.get("archives", {}).get(name),
-                "language": r["language"], "aim": r["aim"]}
+                "aim": r["aim"]}
         if name not in gh:
             gone.append(item)
         elif gh[name]:

@@ -38,7 +38,6 @@ def _categorise(repo: dict, placement: dict[str, dict]) -> dict:
         "aim": repo.get("description") or "",
         "url": repo.get("html_url", ""),
         "visibility": "private" if repo.get("private") else "public",
-        "language": repo.get("language") or "",
         # enriched signal (all come free in the repos list response)
         "stars": repo.get("stargazers_count") or 0,
         "is_fork": 1 if repo.get("fork") else 0,
@@ -112,12 +111,12 @@ async def scan_ws(websocket: WebSocket, scan_id: str):
         await db.executemany(
             """INSERT OR REPLACE INTO repos
                (scan_id, name, full_name, super_cat, mid_cat, aim, url, visibility,
-                language, stars, is_fork, pushed_at, topics, archived, size)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                stars, is_fork, pushed_at, topics, archived, size)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             [
                 (
                     scan_id, r["name"], r.get("full_name"), r["super_cat"], r["mid_cat"],
-                    r["aim"], r["url"], r["visibility"], r["language"],
+                    r["aim"], r["url"], r["visibility"],
                     r["stars"], r["is_fork"], r["pushed_at"], r["topics"], r["archived"], r["size"],
                 )
                 for r in repos
@@ -131,11 +130,11 @@ async def scan_ws(websocket: WebSocket, scan_id: str):
         if forks:
             await db.executemany(
                 """INSERT OR REPLACE INTO fork
-                   (full_name, name, owner, description, topics, language,
+                   (full_name, name, owner, description, topics,
                     parent_full_name, pushed_at, archived, url)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
                 [(r.get("full_name") or "", r["name"], username, r.get("aim") or "",
-                  r["topics"], r["language"], "", r.get("pushed_at") or "",
+                  r["topics"], "", r.get("pushed_at") or "",
                   r.get("archived") or 0, r.get("url") or "") for r in forks],
             )
         await db.execute(

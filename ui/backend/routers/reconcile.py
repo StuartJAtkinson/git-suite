@@ -112,7 +112,6 @@ async def reconcile(session_id: str):
             "name": name,
             "verdict": verdict,
             "hub": hub,
-            "language": r.get("language") or "",
             "aim": r.get("aim") or "",
             "url": r.get("url") or "",
             "visibility": r.get("visibility") or "",
