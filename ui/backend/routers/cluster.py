@@ -45,6 +45,25 @@ def _own_member_dicts(orphans: list[dict]) -> list[dict]:
     return out
 
 
+async def _star_member_dicts() -> list[dict]:
+    """Every starred repo, same per-repo shape as _own_member_dicts. Stars
+    are a first-class dedup input (a starred project may already cover what
+    an owned repo would do), so they ride the same cluster/bundle pipeline —
+    not a separate, second-class path."""
+    from routers.stars import _load_stars
+    stars = await _load_stars()
+    out = []
+    for s in stars:
+        out.append({
+            "name": s.get("name", ""),
+            "full_name": s.get("full_name", ""),
+            "aim": s.get("description") or "",
+            "topics": s.get("topics") or [],
+            "stars": s.get("stars") or 0,
+        })
+    return out
+
+
 async def _save_result(session_id: str, payload: dict) -> None:
     async for db in get_db():
         await db.execute(
@@ -67,17 +86,47 @@ async def _invalidate(session_id: str) -> None:
         await db.commit()
 
 
-def _pool_by_name(orphans: list[dict]) -> tuple[list[dict], dict[str, dict]]:
-    pool = _own_member_dicts(orphans)
+async def _pool_by_name(orphans: list[dict]) -> tuple[list[dict], dict[str, dict]]:
+    """Owned orphans + every starred repo, merged into one pool. Owned entries
+    are keyed by their bare name (unique within one GitHub account); starred
+    entries are keyed by full `owner/repo` (bare names collide freely across
+    different starred orgs — two different "server" repos is a real thing).
+    `pool` (the flat list) is what `distill.records()` consumes; `pool_by_name`
+    (keyed dict) is what `topic_llm.themes_to_clusters()` resolves LLM-returned
+    repo_names against."""
+    pool: list[dict] = []
     pool_by_name: dict[str, dict] = {}
-    for p in pool:
+
+    for p in _own_member_dicts(orphans):
         nm = p.get("name", "")
-        pool_by_name[nm] = {
+        if not nm:
+            continue
+        entry = {
             "name": nm, "full_name": nm, "source": "owned",
-            "stars": p.get("stars", 0),
-            "aim": p.get("aim", ""),
+            "stars": p.get("stars", 0), "aim": p.get("aim", ""),
         }
+        pool.append(entry)
+        pool_by_name[nm] = entry
+
+    for s in await _star_member_dicts():
+        fn = s.get("full_name", "")
+        if not fn:
+            continue
+        entry = {
+            "name": s.get("name", ""), "full_name": fn, "source": "star",
+            "stars": s.get("stars", 0), "aim": s.get("aim", ""),
+        }
+        pool.append(entry)
+        pool_by_name[fn] = entry
+
     return pool, pool_by_name
+
+
+def _pool_counts(pool: list[dict]) -> dict[str, int]:
+    out = {"owned": 0, "star": 0}
+    for p in pool:
+        out[p.get("source", "owned")] = out.get(p.get("source", "owned"), 0) + 1
+    return out
 
 
 async def _propose_themes(session_id: str, orphans: list[dict],
@@ -91,7 +140,7 @@ async def _propose_themes(session_id: str, orphans: list[dict],
     """
     from services import distill, topic_llm, themes_bundle
 
-    pool, pool_by_name = _pool_by_name(orphans)
+    pool, pool_by_name = await _pool_by_name(orphans)
 
     bundle_meta = None
     try:
@@ -122,7 +171,7 @@ async def _propose_themes(session_id: str, orphans: list[dict],
                        "LLM Providers and ensure at least one model is reachable."),
             "clusters": [], "hubs": hubs, "orphans_returned": [],
             "mode": "themes",
-            "counts": {"owned": len(pool)},
+            "counts": _pool_counts(pool),
             "bundle": bundle_meta,
         }
     clusters, orphans_returned = topic_llm.themes_to_clusters(themes, pool_by_name)
@@ -135,7 +184,7 @@ async def _propose_themes(session_id: str, orphans: list[dict],
         "hubs": hubs,
         "orphan_count": len(orphans_returned),
         "orphans_returned": orphans_returned,
-        "counts": {"owned": len(pool)},
+        "counts": _pool_counts(pool),
         "bundle": bundle_meta,
     }
     await _save_result(session_id, payload)
@@ -260,9 +309,12 @@ async def import_themes(session_id: str, body: ImportRequest):
 
     recon = await reconcile(session_id)
     orphans = recon["orphans"]
-    pool, pool_by_name = _pool_by_name(orphans)
-    known = {p.get("name", "") for p in pool}
-    known.discard("")
+    pool, pool_by_name = await _pool_by_name(orphans)
+    # Keyed off pool_by_name (not pool[].name) — for stars that key is the
+    # disambiguated full_name, which is what the exported prompt told the
+    # external LLM to echo back in repo_names. pool[].name for a star entry
+    # is the bare short name, which would silently reject every star match.
+    known = set(pool_by_name.keys())
 
     try:
         themes = topic_llm.parse_external_response(body.text, known)
@@ -289,7 +341,7 @@ async def import_themes(session_id: str, body: ImportRequest):
         "hubs": list(plan.get("hubs", {}).keys()),
         "orphan_count": len(orphans_returned),
         "orphans_returned": orphans_returned,
-        "counts": {"owned": len(pool)},
+        "counts": _pool_counts(pool),
         "bundle": None,
     }
     await _save_result(session_id, payload)

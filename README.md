@@ -57,7 +57,7 @@ writes back to `plan.json`; nothing reaches GitHub until **Execute**.
 |-------|--------------|
 | **Setup** | First step — GitHub connection (PAT); configure LLM and embedding providers (API key + model + failover priority — call URLs are hardcoded per provider and models are fetched live from each provider's own listing endpoint). Shows where each chain is actually used. |
 | **Scan** | Pulls every owned repo (public + private) over a live WebSocket, capturing topics, stars, fork/archived flags, `pushed_at`. |
-| **Cluster** ("Themes") | Read-only, one-shot LLM group formation. Bundles the whole enriched scan — every repo's distilled purpose/entities/domain plus its full README — and asks the LLM to name each theme after the *human activity* the repos serve, never a tech-stack bucket. Can't reach an LLM directly? Download the identical prompt as a `.txt` file, run it through any chat LLM, and paste the JSON reply back in. Promoting a theme into a real hub happens on **Own**/**Hubs**, not here. |
+| **Cluster** ("Themes") | Read-only, one-shot LLM group formation. Bundles owned repos AND starred repos — every one's distilled purpose/entities/domain plus its full README — and asks the LLM to name each theme after the *human activity* the repos serve, never a tech-stack bucket. Can't reach an LLM directly? Download the identical prompt as a `.txt` file, run it through any chat LLM, and paste the JSON reply back in. Promoting a theme into a real hub happens on **Own**/**Hubs**, not here. |
 | **Own** | Step 3 — review owned forks (parent/upstream status), decide promote (→ keep / absorb into a hub) or drop (→ archive), and generate a git detach checklist. GitHub has no de-fork API, so the actual move is yours to run. |
 | **Order** | Per-hub Tree-of-Knowledge layout — arranges a hub's members from foundational (Gather) through Analyse to Display; per-row reorder + LLM Suggest; feeds the hub README's ordering section. |
 | **Triage** | Keyboard-fast verdict queue over remaining repos (absorb / keep / archive / orphan). |
@@ -112,7 +112,7 @@ Open `http://localhost:2173` and configure everything from the **Setup** page.
 ### Tests
 
 ```bash
-cd ui/backend && python -m pytest        # 111 tests
+cd ui/backend && python -m pytest        # 116 tests
 ```
 
 ---

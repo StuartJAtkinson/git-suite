@@ -159,3 +159,26 @@ def insert_scan(database, session_id="s1", scan_id="sc1", repos=None):
 
     asyncio.run(_go())
     return session_id, scan_id
+
+
+def insert_stars(database, stars=None):
+    """Helper: write rows into starred_repo. Each star dict needs at least
+    full_name + name; owner/description/topics/stars/url default sensibly."""
+    stars = stars or []
+
+    async def _go():
+        async for db in database.get_db():
+            for s in stars:
+                owner = s.get("owner") or s["full_name"].split("/")[0]
+                await db.execute(
+                    """INSERT INTO starred_repo
+                       (full_name, name, owner, description, topics, language,
+                        stars, pushed_at, archived, url)
+                       VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    (s["full_name"], s.get("name") or s["full_name"].split("/")[-1],
+                     owner, s.get("description", ""), "[]", s.get("language", ""),
+                     s.get("stars", 0), "", 0, s.get("url", "")),
+                )
+            await db.commit()
+
+    asyncio.run(_go())

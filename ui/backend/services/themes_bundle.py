@@ -113,14 +113,20 @@ async def _fetch_full_readme(token: str, owner: str, repo: str,
 # ── build the raw bundle: scan meta + distilled + full readme ───────────────
 async def build_raw_bundle(session_id: str) -> list[dict]:
     """One dict per repo, every signal we have on it. None of the fields are
-    optional — empty strings are fine, missing keys break the prompt."""
+    optional — empty strings are fine, missing keys break the prompt.
+
+    Covers BOTH owned repos (from reconcile) and starred repos (from the
+    starred_repo snapshot) — stars are a first-class dedup input, not just
+    an owned-repo add-on, so they ride the same bundle+cluster pipeline."""
     sess = await require_session(session_id)
     token = sess["github_token"]
 
     # Reuse reconcile so we get the same repo set the cluster page uses.
     from routers.reconcile import reconcile
+    from routers.stars import _load_stars
     recon = await reconcile(session_id)
     repos = recon.get("repos", [])
+    stars = await _load_stars()
 
     # Project to the shape distill expects + parse owner/name out of the URL.
     pool = []
@@ -136,6 +142,17 @@ async def build_raw_bundle(session_id: str) -> list[dict]:
             "topics": r.get("topics") or [],
             "url": r.get("url") or "",
             "stars": r.get("stars") or 0,
+            "source": "owned",
+        })
+    for s in stars:
+        pool.append({
+            "name": s.get("name") or "",
+            "full_name": s.get("full_name") or "",
+            "aim": s.get("description") or "",
+            "topics": s.get("topics") or [],
+            "url": s.get("url") or "",
+            "stars": s.get("stars") or 0,
+            "source": "star",
         })
 
     records, stop_reason = await distill.records(pool, stop_on_error=False)
@@ -168,7 +185,7 @@ async def build_raw_bundle(session_id: str) -> list[dict]:
         bundle.append({
             "name": p.get("name") or "",
             "full_name": fn,
-            "source": "owned",          # bundler currently covers owned; threads/forks coming
+            "source": p.get("source", "owned"),
             "stars": p.get("stars") or 0,
             "description": (p.get("aim") or "").strip(),
             "url": p.get("url") or "",
@@ -334,12 +351,19 @@ async def build_and_persist(session_id: str,
 # ── serialise into the themes prompt ────────────────────────────────────────
 def to_prompt_records(artefact: dict) -> list[dict]:
     """Strip the readme text for the prompt (it's been summarised into
-    purpose/entities/domain already if it was kept)."""
+    purpose/entities/domain already if it was kept).
+
+    `name` here is the identifier the LLM must echo back in `repo_names` —
+    for owned repos that's the bare name (unique within one account); for
+    stars it's the full `owner/repo` (bare names collide freely across
+    different starred orgs, e.g. two different "server" repos)."""
     out = []
     for r in artefact.get("bundle", []):
+        fn = r.get("full_name", "")
+        ident = fn if r.get("source") == "star" and fn else r.get("name", "")
         out.append({
-            "name": r.get("name", ""),
-            "full_name": r.get("full_name", ""),
+            "name": ident,
+            "full_name": fn,
             "purpose": r.get("purpose", ""),
             "entities": r.get("entities") or [],
             "domain": r.get("domain", ""),
@@ -372,12 +396,7 @@ def render_external_prompt(artefact: dict) -> str:
     head.append(_SYS.strip())
     head.append("```\n")
     head.append("## USER (paste as your message)\n")
-    head.append(_build_prompt([{
-        "name": r.get("name", ""),
-        "purpose": r.get("purpose", ""),
-        "entities": r.get("entities") or [],
-        "domain": r.get("domain", ""),
-    } for r in bundle]))
+    head.append(_build_prompt(to_prompt_records(artefact)))
     head.append("")
 
     # Full scraping body — repo-per-repo, GitHub link + every field + README
@@ -391,7 +410,11 @@ def render_external_prompt(artefact: dict) -> str:
             f"https://github.com/{r['full_name']}" if r.get("full_name")
             else "https://github.com"
         )
-        head.append(f"\n### {r.get('name') or r.get('full_name') or '(unknown)'}")
+        # Same identifier as the compact table above (full_name for stars,
+        # bare name for owned) so the two sections cross-reference cleanly.
+        ident = r.get("full_name") if r.get("source") == "star" and r.get("full_name") \
+                else r.get("name") or r.get("full_name") or "(unknown)"
+        head.append(f"\n### {ident}")
         head.append(f"- URL: {url}")
         head.append(f"- Source: {r.get('source', 'owned')}")
         head.append(f"- Stars: {r.get('stars', 0)}")
