@@ -413,10 +413,21 @@ def render_external_prompt(artefact: dict) -> str:
         else:
             head.append("- (no README fetched)")
 
-    head.append("\n## EXPECTED RESPONSE\n")
+    head.append("\n## EXPECTED RESPONSE — paste this back into git-suite's "
+                "\"Import result\" box on the Cluster page\n")
     head.append(
-        "Reply with JSON ONLY in the schema the system prompt specifies: "
-        "`{\"themes\": [{\"name\", \"slug\", \"description\", "
-        "\"repo_names\"}, ...]}`. No prose, no fences.\n"
+        "Reply with JSON ONLY, no prose, no code fences, matching exactly:\n\n"
+        "```json\n"
+        '{"themes": [\n'
+        '  {"name": "<2-4 word activity, e.g. \\"homelab administration\\">",\n'
+        '   "slug": "<kebab-case unique id>",\n'
+        '   "description": "<optional one-liner>",\n'
+        '   "repo_names": ["<repo name EXACTLY as it appears above>", ...]}\n'
+        "]}\n"
+        "```\n\n"
+        "`repo_names` must match the `name` field above character-for-character "
+        "(not the URL, not full_name) — anything else is silently dropped on "
+        "import. Every repo should appear in at least one theme; a repo may "
+        "appear in more than one.\n"
     )
     return "\n".join(head)

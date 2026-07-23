@@ -195,6 +195,18 @@ async def discover_themes(repos: list[dict]) -> list[dict]:
     return []
 
 
+def parse_external_response(raw: str, known_names: set[str]) -> list[dict]:
+    """Parse + validate a themes JSON blob pasted back from an external LLM
+    (the response to render_external_prompt's EXPECTED RESPONSE contract).
+    Same extraction/validation as the internal one-shot call, just without
+    the retry loop — a human is in the loop here, not a retry budget."""
+    parsed = json.loads(_extract_json(raw))
+    themes = parsed.get("themes") if isinstance(parsed, dict) else parsed
+    if not isinstance(themes, list):
+        raise ValueError("expected {\"themes\": [...]} or a bare [...] list")
+    return _validate(themes, known_names)
+
+
 def themes_to_clusters(themes: list[dict], pool_by_name: dict[str, dict]
                        ) -> tuple[list[dict], list[dict]]:
     """Convert validated themes into the (clusters, orphans) tuple the rest

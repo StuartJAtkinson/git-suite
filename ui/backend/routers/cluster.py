@@ -67,6 +67,19 @@ async def _invalidate(session_id: str) -> None:
         await db.commit()
 
 
+def _pool_by_name(orphans: list[dict]) -> tuple[list[dict], dict[str, dict]]:
+    pool = _own_member_dicts(orphans)
+    pool_by_name: dict[str, dict] = {}
+    for p in pool:
+        nm = p.get("name", "")
+        pool_by_name[nm] = {
+            "name": nm, "full_name": nm, "source": "owned",
+            "stars": p.get("stars", 0),
+            "aim": p.get("aim", ""),
+        }
+    return pool, pool_by_name
+
+
 async def _propose_themes(session_id: str, orphans: list[dict],
                           hubs: list[str]) -> dict:
     """One-shot LLM topic discovery.
@@ -78,15 +91,7 @@ async def _propose_themes(session_id: str, orphans: list[dict],
     """
     from services import distill, topic_llm, themes_bundle
 
-    pool = _own_member_dicts(orphans)
-    pool_by_name: dict[str, dict] = {}
-    for p in pool:
-        nm = p.get("name", "")
-        pool_by_name[nm] = {
-            "name": nm, "full_name": nm, "source": "owned",
-            "stars": p.get("stars", 0),
-            "aim": p.get("aim", ""),
-        }
+    pool, pool_by_name = _pool_by_name(orphans)
 
     bundle_meta = None
     try:
@@ -240,6 +245,55 @@ async def export_prompt(session_id: str):
 
     prompt = themes_bundle.render_external_prompt(artefact)
     return PlainTextResponse(prompt, media_type="text/plain; charset=utf-8")
+
+
+class ImportRequest(BaseModel):
+    text: str    # the raw text pasted back from the external LLM
+
+
+@router.post("/cluster/{session_id}/import")
+async def import_themes(session_id: str, body: ImportRequest):
+    """Take the JSON an external LLM produced (per render_external_prompt's
+    EXPECTED RESPONSE contract) and turn it into the same cluster-card shape
+    the internal one-shot LLM call produces. Saved + rendered identically."""
+    from services import topic_llm
+
+    recon = await reconcile(session_id)
+    orphans = recon["orphans"]
+    pool, pool_by_name = _pool_by_name(orphans)
+    known = {p.get("name", "") for p in pool}
+    known.discard("")
+
+    try:
+        themes = topic_llm.parse_external_response(body.text, known)
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=400,
+                            detail=f"couldn't parse themes JSON: {exc}")
+    except Exception as exc:
+        raise HTTPException(status_code=400,
+                            detail=f"invalid JSON: {str(exc)[:200]}")
+    if not themes:
+        raise HTTPException(status_code=400,
+                            detail="parsed but no valid themes survived "
+                                   "validation (check repo names match "
+                                   "exactly)")
+
+    clusters, orphans_returned = topic_llm.themes_to_clusters(themes, pool_by_name)
+    plan = plan_store.get_plan()
+    payload = {
+        "available": True,
+        "mode": "themes",
+        "source": "external-import",
+        "k": len(clusters),
+        "clusters": clusters,
+        "hubs": list(plan.get("hubs", {}).keys()),
+        "orphan_count": len(orphans_returned),
+        "orphans_returned": orphans_returned,
+        "counts": {"owned": len(pool)},
+        "bundle": None,
+    }
+    await _save_result(session_id, payload)
+    return payload
 
 
 class FormRequest(BaseModel):

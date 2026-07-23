@@ -16,6 +16,9 @@
   let busy = false;
   let exporting = false;
   let exportMsg = '';
+  let importing = false;
+  let importText = '';
+  let showImport = false;
   let errorMsg = '';
   let msg = '';
   let bundleInfo = null;       // meta block from themes_bundle (token est, iters)
@@ -42,28 +45,38 @@
     finally { busy = false; }
   }
 
-  async function copyPrompt() {
+  async function downloadPrompt() {
+    // Clipboard can't reliably hold a 300KB+ string across browsers — always
+    // download the file instead. It's a plain, self-contained text document:
+    // paste it whole into any chat LLM, then paste the JSON it returns back
+    // into "Import result" below.
     exporting = true; exportMsg = ''; errorMsg = '';
     try {
       const url = `/api/cluster/${$session.session_id}/prompt`;
       const r = await fetch(url);
       if (!r.ok) throw new Error((await r.text()) || r.statusText);
       const text = await r.text();
-      const bytes = new Blob([text]).size;
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-        exportMsg = `Copied ${bytes.toLocaleString()} chars to clipboard`;
-      } else {
-        // Fallback for non-secure-context: download the file
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
-        a.download = `themes-prompt-${new Date().toISOString().slice(0,10)}.txt`;
-        a.click();
-        URL.revokeObjectURL(a.href);
-        exportMsg = `Downloaded themes-prompt.txt (${bytes.toLocaleString()} chars)`;
-      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+      a.download = `themes-prompt-${new Date().toISOString().slice(0,10)}.txt`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      exportMsg = `Downloaded ${new Blob([text]).size.toLocaleString()} bytes — ` +
+                  `feed it to any chat LLM, then paste its JSON reply below.`;
     } catch (e) { errorMsg = e.message; }
     finally { exporting = false; }
+  }
+
+  async function importThemes() {
+    if (!importText.trim()) return;
+    importing = true; errorMsg = ''; msg = '';
+    try {
+      data = await api.importThemes($session.session_id, importText);
+      build(data);
+      msg = `Imported: ${themes.length} themes · ${orphans.length} unplaced`;
+      importText = ''; showImport = false;
+    } catch (e) { errorMsg = e.message; }
+    finally { importing = false; }
   }
 
   function build(d) {
@@ -108,8 +121,9 @@
   <h1>Themes</h1>
   <p class="sub">
     Two ways to group the scan: <b>✨ use my LLM</b> fires the configured
-    provider chain; <b>📋 copy prompt</b> exports the exact system+user prompt
-    so you can paste it into any chat LLM (Claude.ai, ChatGPT, Gemini, …).
+    provider chain; <b>⬇ download prompt</b> saves the exact system+user
+    prompt as a .txt file for any chat LLM (Claude.ai, ChatGPT, Gemini, …) —
+    paste its JSON reply into <b>↥ Import result</b> to render it here.
     The model groups every repo into <strong>themes</strong> — the real-world
     activity, hobby, or line of work the repos serve. <em>Not</em> tech-stack
     buckets (no "python", "data", "tools", "libraries", "APIs"). Read-only
@@ -139,11 +153,25 @@
         title="Bundle the scan + READMEs and ask your configured LLM chain to group by activity, not tech">
         ✨ {busy ? 'Grouping…' : 'Group by themes (use my LLM)'}
       </button>
-      <button class="secondary" disabled={busy || exporting} on:click={copyPrompt}
-        title="Build the same prompt, but copy it as text so you can paste it into any chat LLM (Claude.ai, ChatGPT, …). Includes the system prompt + full README scrape + clickable links.">
-        📋 {exporting ? 'Exporting…' : 'Copy prompt (use external LLM)'}
+      <button class="secondary" disabled={busy || exporting} on:click={downloadPrompt}
+        title="Download the same prompt as a .txt file so you can paste it into any chat LLM (Claude.ai, ChatGPT, …). Includes the system prompt + full README scrape + clickable links.">
+        ⬇ {exporting ? 'Downloading…' : 'Download prompt (.txt)'}
       </button>
       {#if exportMsg}<div class="ok-msg" style="margin:0;font-size:0.74rem">{exportMsg}</div>{/if}
+
+      <button class="secondary" disabled={importing} on:click={() => showImport = !showImport}
+        title="Paste the JSON an external LLM returned to build theme cards from it, same as the internal LLM path.">
+        ↥ Import result
+      </button>
+      {#if showImport}
+        <div class="import-box">
+          <textarea bind:value={importText} rows="6"
+            placeholder='Paste the {"themes": [...]} JSON the external LLM returned…'></textarea>
+          <button class="primary" disabled={importing || !importText.trim()} on:click={importThemes}>
+            {importing ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+      {/if}
 
       {#if bundleInfo}
         <div class="bundle-info">
@@ -227,6 +255,11 @@
   .primary:disabled { opacity: 0.5; cursor: not-allowed; }
   .secondary { width: 100%; text-align: center; padding: 0.5rem 0.6rem;
     font-size: 0.82rem; font-weight: 600; }
+
+  .import-box { display: flex; flex-direction: column; gap: 0.4rem; }
+  .import-box textarea { width: 100%; font-family: monospace; font-size: 0.72rem;
+    padding: 0.4rem; border: 1px solid #e5e7eb; border-radius: 6px; resize: vertical; }
+  .import-box .primary { padding: 0.4rem 0.6rem; font-size: 0.8rem; }
 
   .bundle-info { background: #f8fafc; border: 1px solid #e5e7eb;
     border-radius: 6px; padding: 0.5rem 0.6rem; font-size: 0.76rem;

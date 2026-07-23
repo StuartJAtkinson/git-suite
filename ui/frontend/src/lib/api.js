@@ -76,6 +76,8 @@ export const api = {
     req('POST', `/api/cluster/form/${session_id}`, body),
   resetClusters: (session_id) =>
     req('DELETE', `/api/cluster/${session_id}`),
+  importThemes: (session_id, text) =>
+    req('POST', `/api/cluster/${session_id}/import`, { text }),
 
   // Promote (Step 3 "Own" — turn owned forks into first-class repos)
   listForks: (session_id) => req('GET', `/api/promote/${session_id}`),
