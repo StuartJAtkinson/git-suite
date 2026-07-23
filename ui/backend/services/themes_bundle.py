@@ -348,3 +348,75 @@ def to_prompt_records(artefact: dict) -> list[dict]:
             "description": r.get("description", ""),
         })
     return out
+
+
+def render_external_prompt(artefact: dict) -> str:
+    """Drop-in prompt for any external LLM: the exact system+user pair the
+    internal one-shot receives. Includes every repo's full README, distilled
+    purpose/domain/entities, GitHub URL, and stars — so the user can paste
+    into Claude.ai / ChatGPT / etc. without further prep."""
+    from services.topic_llm import _SYS, _build_prompt
+    bundle = artefact.get("bundle", []) or []
+    n = len(bundle)
+
+    head = []
+    head.append(f"# git-suite themes prompt — paste as-is into any chat LLM\n")
+    head.append(
+        f"# {n} repos from your portfolio. Internal LLM would receive the same "
+        "system prompt + user content below; the external LLM has no other "
+        "context, so the entire scrape is inlined (READMEs may be summarised "
+        "where they wouldn't fit the token budget of the configured model).\n"
+    )
+    head.append("## SYSTEM (paste as system / 'instructions' / 'preamble')\n")
+    head.append("```text")
+    head.append(_SYS.strip())
+    head.append("```\n")
+    head.append("## USER (paste as your message)\n")
+    head.append(_build_prompt([{
+        "name": r.get("name", ""),
+        "purpose": r.get("purpose", ""),
+        "entities": r.get("entities") or [],
+        "domain": r.get("domain", ""),
+    } for r in bundle]))
+    head.append("")
+
+    # Full scraping body — repo-per-repo, GitHub link + every field + README
+    # text (or summarised snippet if it had to be compressed).
+    head.append("\n## APPENDIX — full scrape per repo (links + READMEs)\n")
+    head.append("# Every repo below is in the bundle above. The external LLM "
+                "can re-read this section for any detail the compact table "
+                "trimmed.\n")
+    for r in bundle:
+        url = r.get("url") or (
+            f"https://github.com/{r['full_name']}" if r.get("full_name")
+            else "https://github.com"
+        )
+        head.append(f"\n### {r.get('name') or r.get('full_name') or '(unknown)'}")
+        head.append(f"- URL: {url}")
+        head.append(f"- Source: {r.get('source', 'owned')}")
+        head.append(f"- Stars: {r.get('stars', 0)}")
+        head.append(f"- Description: {(r.get('description') or '').strip()}")
+        if r.get("topics"):
+            head.append(f"- Topics: {', '.join(r.get('topics') or [])}")
+        head.append(f"- Purpose (distilled): {r.get('purpose', '') or '—'}")
+        head.append(f"- Entities (distilled): "
+                    f"{', '.join(r.get('entities') or []) or '—'}")
+        head.append(f"- Domain (distilled): {r.get('domain', '') or '—'}")
+        if r.get("_summarised"):
+            head.append(f"- _README was summarised to fit the budget for the "
+                        "configured model. The summary is in Purpose / "
+                        "Entities / Domain above._")
+            head.append(f"\n>>> README (summarised fingerprint):\n"
+                        f"{(r.get('readme') or '').strip()[:1500] or '—'}\n<<<")
+        elif r.get("readme"):
+            head.append(f"\n>>> README:\n{r['readme'].rstrip()}\n<<<")
+        else:
+            head.append("- (no README fetched)")
+
+    head.append("\n## EXPECTED RESPONSE\n")
+    head.append(
+        "Reply with JSON ONLY in the schema the system prompt specifies: "
+        "`{\"themes\": [{\"name\", \"slug\", \"description\", "
+        "\"repo_names\"}, ...]}`. No prose, no fences.\n"
+    )
+    return "\n".join(head)

@@ -217,6 +217,31 @@ async def reset(session_id: str):
     return {"reset": True}
 
 
+@router.get("/cluster/{session_id}/prompt")
+async def export_prompt(session_id: str):
+    """Build (if missing) + return the full external-LLM prompt as text/plain.
+    The internal LLM call gets the same system+user pair; this endpoint just
+    inlines the persisted bundle so the user can paste it into any chat LLM
+    (Claude.ai, ChatGPT, etc.) without further prep."""
+    from fastapi.responses import PlainTextResponse
+    from services import themes_bundle
+
+    path = themes_bundle._BUNDLE_PATH
+    artefact = None
+    try:
+        artefact = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
+    # Stale or missing — re-run the bundler, then re-read from disk.
+    if not artefact or artefact.get("session_id") != session_id:
+        await themes_bundle.build_and_persist(session_id)
+        artefact = json.loads(path.read_text(encoding="utf-8"))
+
+    prompt = themes_bundle.render_external_prompt(artefact)
+    return PlainTextResponse(prompt, media_type="text/plain; charset=utf-8")
+
+
 class FormRequest(BaseModel):
     # priority is emergent — left unset at form time; hub order derives from
     # size until someone sets a manual override (promote/order).

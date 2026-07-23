@@ -14,6 +14,8 @@
   let orphans = [];            // repos the LLM didn't place in any theme
   let loading = true;
   let busy = false;
+  let exporting = false;
+  let exportMsg = '';
   let errorMsg = '';
   let msg = '';
   let bundleInfo = null;       // meta block from themes_bundle (token est, iters)
@@ -38,6 +40,30 @@
       msg = `${themes.length} themes · ${orphans.length} unplaced`;
     } catch (e) { errorMsg = e.message; }
     finally { busy = false; }
+  }
+
+  async function copyPrompt() {
+    exporting = true; exportMsg = ''; errorMsg = '';
+    try {
+      const url = `/api/cluster/${$session.session_id}/prompt`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error((await r.text()) || r.statusText);
+      const text = await r.text();
+      const bytes = new Blob([text]).size;
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        exportMsg = `Copied ${bytes.toLocaleString()} chars to clipboard`;
+      } else {
+        // Fallback for non-secure-context: download the file
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+        a.download = `themes-prompt-${new Date().toISOString().slice(0,10)}.txt`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        exportMsg = `Downloaded themes-prompt.txt (${bytes.toLocaleString()} chars)`;
+      }
+    } catch (e) { errorMsg = e.message; }
+    finally { exporting = false; }
   }
 
   function build(d) {
@@ -81,11 +107,14 @@
 <div class="page-header">
   <h1>Themes</h1>
   <p class="sub">
-    Send the entire enriched scan to the LLM in one shot. The model groups every
-    repo into <strong>themes</strong> — the real-world activity, hobby, or line
-    of work the repos serve. <em>Not</em> tech-stack buckets (no "python",
-    "data", "tools", "libraries", "APIs"). Read-only here; promote hubs from
-    the <a href="/promote">Promote</a> or <a href="/hubs">Hubs</a> pages.
+    Two ways to group the scan: <b>✨ use my LLM</b> fires the configured
+    provider chain; <b>📋 copy prompt</b> exports the exact system+user prompt
+    so you can paste it into any chat LLM (Claude.ai, ChatGPT, Gemini, …).
+    The model groups every repo into <strong>themes</strong> — the real-world
+    activity, hobby, or line of work the repos serve. <em>Not</em> tech-stack
+    buckets (no "python", "data", "tools", "libraries", "APIs"). Read-only
+    here; promote hubs from the <a href="/promote">Promote</a> or
+    <a href="/hubs">Hubs</a> pages.
   </p>
 </div>
 
@@ -106,10 +135,15 @@
         {/if}
       </div>
 
-      <button class="primary" disabled={busy} on:click={groupNow}
-        title="Bundle the scan + READMEs and ask the LLM to group by activity, not tech">
-        ✨ {busy ? 'Grouping…' : 'Group by themes (single-shot LLM)'}
+      <button class="primary" disabled={busy || exporting} on:click={groupNow}
+        title="Bundle the scan + READMEs and ask your configured LLM chain to group by activity, not tech">
+        ✨ {busy ? 'Grouping…' : 'Group by themes (use my LLM)'}
       </button>
+      <button class="secondary" disabled={busy || exporting} on:click={copyPrompt}
+        title="Build the same prompt, but copy it as text so you can paste it into any chat LLM (Claude.ai, ChatGPT, …). Includes the system prompt + full README scrape + clickable links.">
+        📋 {exporting ? 'Exporting…' : 'Copy prompt (use external LLM)'}
+      </button>
+      {#if exportMsg}<div class="ok-msg" style="margin:0;font-size:0.74rem">{exportMsg}</div>{/if}
 
       {#if bundleInfo}
         <div class="bundle-info">
@@ -191,6 +225,8 @@
     padding: 0.6rem 0.75rem; font-size: 0.88rem; font-weight: 700;
     cursor: pointer; width: 100%; }
   .primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .secondary { width: 100%; text-align: center; padding: 0.5rem 0.6rem;
+    font-size: 0.82rem; font-weight: 600; }
 
   .bundle-info { background: #f8fafc; border: 1px solid #e5e7eb;
     border-radius: 6px; padding: 0.5rem 0.6rem; font-size: 0.76rem;
