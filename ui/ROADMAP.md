@@ -12,24 +12,19 @@ intent against live GitHub, and turns decisions into real, idempotent actions.
 
 ## Run it
 
-### Docker (production)
-
-```bash
-docker compose up -d            # frontend + backend + nginx, served on :8080
-```
-
-Then open `http://localhost:8080` and configure everything from the **Setup**
-page. (`HTTP_PORT` overrides the host port.)
-
-### Local development
+Local dev only — there is no Docker deployment (the `docker-compose.yml` /
+`Dockerfile.*` / `nginx.conf` that used to live at the repo root were removed
+2026-07-23; they'd drifted weeks stale and duplicated state a second running
+copy of the app could silently diverge from). One source of truth: the two
+processes below.
 
 ```powershell
-# backend (port 2800)
+# backend (port 2801) — 2800 is avoided, see ../PORTS.md
 cd ui/backend
 pip install -r requirements-dev.txt
-python -m uvicorn main:app --reload --port 2800
+python -m uvicorn main:app --reload --port 2801
 
-# frontend (port 2173) — separate terminal
+# frontend (port 2173) — separate terminal, proxies /api + /auth to :2801
 cd ui/frontend
 npm install
 npm run dev          # http://localhost:2173
@@ -38,10 +33,10 @@ npm run dev          # http://localhost:2173
 ### Tests
 
 ```bash
-cd ui/backend && python -m pytest        # 99 tests
+cd ui/backend && python -m pytest        # 108 tests
 ```
 
-Health: `http://localhost:2800/health`. API docs: `/docs`.
+Health: `http://localhost:2801/health`. API docs: `/docs`.
 
 ---
 
@@ -103,7 +98,7 @@ The full pipeline (✅ built · ◻ not yet):
    modular hub apps/info. git-suite is the planning/analysis/recommendation/install
    brain — it does **not** build the hub apps themselves (that's the portfolio's shape).
 
-Steps 3 and 5–8 are the unbuilt half; they're tracked as Open items in
+Steps 5–8 are the unbuilt half; they're tracked as Open items in
 [`../ISSUES.md`](../ISSUES.md).
 
 ---
@@ -125,7 +120,7 @@ Steps 3 and 5–8 are the unbuilt half; they're tracked as Open items in
 |------|--------------|
 | **Setup** | First step — GitHub connection (PAT); LLM provider config (API key + failover priority; call URLs are hardcoded per provider, models are fetched live from each provider's own listing endpoint and filtered to completion-capable ones); embedding provider + live-listed embedding models; chain readout showing where each is used |
 | **Scan** | Streams the live portfolio (incl. private repos) over a same-origin WebSocket; enriched fields (topics, stars, fork, pushed_at, archived, size) |
-| **Cluster** | Assisted group formation — embeds **owned + forks + stars in one space** (mixed-source, default) or owned-only (legacy), groups them with spherical k-means (# clusters slider), suggests a theme, user names a new hub / promotes a member / adds to existing; per-member `[O]/[F]/[S]` prefix symbols show source at a glance. Stars double as a dedup signal (a starred project that already covers an owned repo) |
+| **Cluster** ("Themes") | Read-only, one-shot LLM group formation — no k-means, no per-cell promote/remove, no orphan sidebar. **✨ Group by themes** bundles the whole enriched scan (every repo's distilled purpose/entities/domain + the full README, iteratively summarised to fit the active model's context budget) and asks the configured LLM chain to name each theme after the *human activity* the repos serve, never a tech-stack bucket (no "python", "data", "tools"). **⬇ Download prompt (.txt)** exports the identical system+user prompt as a file for pasting into any external chat LLM (clipboard can't reliably hold 300KB+); **↥ Import result** parses that LLM's JSON reply back into the same theme cards. Themes are cached per-session (`cluster_result`); promoting a theme into a real hub happens on **Promote**/**Hubs**, not here |
 | **Own** | Step 3 — owned forks with upstream status (parent, private-upstream flag), current verdict + cluster; per-fork decide promote (→ keep / absorb into a hub) or drop (→ archive), and generate a git detach checklist (GitHub has no de-fork API, so the move is yours to run) |
 | **Order** | Per-hub Tree-of-Knowledge layout — one ordered list of a hub's members (foundational first, presentation last); three classification checkboxes (Gather / Analyse / Display) act as filters; per-row arrow reordering + per-row and per-hub LLM Suggest; per-hub compat-tag vocabulary override |
 | **Triage** | Keyboard-fast verdict queue (1–N absorb, a/k/o/s); stub badges |
@@ -170,16 +165,25 @@ services/
   embeddings.py    async failover chain + DB cache (cosine)
   github.py        REST: list/archive/unarchive/delete/create, files, readme
   distill.py       per-repo LLM record: purpose / entities / domain (cached)
-  cluster.py       spherical k-means over embeddings (# clusters) + theme suggest
+  themes_bundle.py full-scan bundle builder: scan meta + distilled fields +
+                   full READMEs, iter-fit-to-budget (summarise top-25%-largest
+                   READMEs per pass, target 70% of the active model's context
+                   window), persisted to ~/.git-suite/themes-bundle.json
+  topic_llm.py     one-shot LLM theme discovery over the bundle; forbids
+                   tech-stack theme names; parse_external_response() re-uses
+                   the same extract/validate path for pasted-back JSON
   migration.py     absorb checklist + scaffold + MIGRATION.md
   promote.py       fork detach checklist (Step 3 "Own")
   stars.py         starred-repo snapshot (refresh / list)
   models.py        live model listing per provider dialect (no static lists)
   columns.py       Order-page column names + default compat tags
 routers/
-  auth            login, gh-token, session
+  auth            login (purges every OTHER session row for the same
+                   github_user — one live session per user, always), gh-token,
+                   session
   scan            start + WebSocket stream + results + latest + distill
-  cluster         propose (saved_only or explicit recompute) / form hub / refresh forks
+  cluster         propose (saved_only or explicit recompute) / prompt (.txt
+                   export) / import (external LLM JSON reply) / form hub
   promote         list forks / decide promote|drop / detach checklist
   stars           refresh starred snapshot / list
   order           per-hub ToK layout: get/save/suggest-order/suggest-column/
@@ -195,12 +199,17 @@ routers/
 ```
 
 State: `~/.git-suite/plan.json` (plan), `~/.git-suite/config.json` (keys),
-`ui/backend/state.db` (sessions, scans, forks, starred snapshot, repo_domain,
-hub_actions, hub_order, migration checklists, embeddings cache, cluster_result).
+`~/.git-suite/state.db` (sessions, scans, forks, starred snapshot, repo_domain,
+hub_actions, hub_order, migration checklists, embeddings cache, cluster_result),
+`~/.git-suite/themes-bundle.json` (audit copy of the last full-scan bundle sent
+to the LLM). `GIT_SUITE_HOME` overrides the directory. Session rows are
+single-per-user — login purges any other session for the same `github_user`.
 
 ---
 
-*Last updated: 2026-06-18 — cross-source cluster (owned + forks + stars
-in one embedding space) + new Order page (per-hub Tree-of-Knowledge
-layout with three classification columns and LLM Suggest). Hub README
-compose_section now renders the ToK ordering subsection. 99 tests green.*
+*Last updated: 2026-07-23 — Cluster page rewritten as one-shot LLM theme
+grouping (dropped k-means/anchor/orphan-snap/per-cell promote entirely);
+`language` removed from the scan schema; added .txt prompt export + JSON
+re-import for external LLMs; session rows now purge on login (one per user);
+Docker deployment removed (local dev is the only supported path). 108 tests
+green.*

@@ -85,6 +85,38 @@ async def get_gh_token():
         raise HTTPException(status_code=504, detail="gh CLI timed out")
 
 
+async def _purge_other_sessions(db, github_user: str, keep: str) -> int:
+    """One session per user, always. Every login mints a fresh session row and
+    used to just leave the old ones around forever — orphaned rows that still
+    held real state (scan_meta/repos/cluster_result), so a stray script or a
+    stale browser tab pointed at an old session_id would read/write data the
+    active browser tab could never see (this is exactly how a themes import
+    once landed in the wrong session). Cascade-delete everything scoped to a
+    session_id: scan_meta (+ its repos via scan_id) and cluster_result.
+    Nothing else is session-scoped (plan.json, starred_repo, repo_domain,
+    fork, embedding, hub_order are global/repo/hub-keyed, not session-keyed)."""
+    rows = await db.execute_fetchall(
+        "SELECT id FROM session WHERE github_user = ? AND id != ?",
+        (github_user, keep),
+    )
+    stale_ids = [r["id"] for r in rows]
+    if not stale_ids:
+        return 0
+    placeholders = ",".join("?" * len(stale_ids))
+    scan_rows = await db.execute_fetchall(
+        f"SELECT scan_id FROM scan_meta WHERE session_id IN ({placeholders})",
+        stale_ids,
+    )
+    scan_ids = [r["scan_id"] for r in scan_rows]
+    if scan_ids:
+        scan_placeholders = ",".join("?" * len(scan_ids))
+        await db.execute(f"DELETE FROM repos WHERE scan_id IN ({scan_placeholders})", scan_ids)
+        await db.execute(f"DELETE FROM scan_meta WHERE scan_id IN ({scan_placeholders})", scan_ids)
+    await db.execute(f"DELETE FROM cluster_result WHERE session_id IN ({placeholders})", stale_ids)
+    await db.execute(f"DELETE FROM session WHERE id IN ({placeholders})", stale_ids)
+    return len(stale_ids)
+
+
 @router.post("/login", response_model=LoginResponse)
 async def login(body: LoginRequest):
     try:
@@ -105,8 +137,11 @@ async def login(body: LoginRequest):
             (session_id, body.token, user["login"], ""),
         )
         await db.commit()
+        purged = await _purge_other_sessions(db, user["login"], keep=session_id)
+        await db.commit()
 
-    log.info("session created for %s  id=%s", user["login"], session_id)
+    log.info("session created for %s  id=%s (purged %d stale)",
+             user["login"], session_id, purged)
     return LoginResponse(
         session_id=session_id,
         github_user=user["login"],

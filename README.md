@@ -35,14 +35,14 @@ Operationally, planning is **cheap, local, and reversible**; execution is a **se
 deliberate** step that touches GitHub.
 
 - **Plan is data, not code.** The canonical plan lives in `plan.json` under
-  `GIT_SUITE_HOME` (defaults to `~/.git-suite`; in Docker, `/app/data` so the
-  existing host mount covers it). It starts empty — no hubs are seeded. Every
-  verdict, hub, and boundary is an edit to that file — never a code change.
+  `GIT_SUITE_HOME` (defaults to `~/.git-suite`). It starts empty — no hubs are
+  seeded. Every verdict, hub, and boundary is an edit to that file — never a
+  code change.
 - **Remote-only.** The portfolio is sourced entirely from the GitHub API. A local
   checkout carries no meaning: presence in a folder never qualifies, classifies, or
   sources a repo, and there is no local path configuration.
 - **No repo is assumed a hub.** Hub membership is *derived* through the plan (cluster →
-  triage → replan → overlap), not inferred from a name or an existing checkout.
+  own → triage), not inferred from a name or an existing checkout.
 - **Degrades cleanly.** LLM and embedding features run through failover chains and fall
   back to deterministic keyword/language rules when no provider is configured.
 
@@ -57,7 +57,7 @@ writes back to `plan.json`; nothing reaches GitHub until **Execute**.
 |-------|--------------|
 | **Setup** | First step — GitHub connection (PAT); configure LLM and embedding providers (API key + model + failover priority — call URLs are hardcoded per provider and models are fetched live from each provider's own listing endpoint). Shows where each chain is actually used. |
 | **Scan** | Pulls every owned repo (public + private) over a live WebSocket, capturing topics, stars, fork/archived flags, `pushed_at`. |
-| **Cluster** | Embeds **owned repos + forks + stars in one space** and groups them with spherical k-means (# clusters slider); suggests a theme so you can promote a member into a hub or form a new one. Stars double as a dedup signal — a starred project that already covers an owned repo. |
+| **Cluster** ("Themes") | Read-only, one-shot LLM group formation. Bundles the whole enriched scan — every repo's distilled purpose/entities/domain plus its full README — and asks the LLM to name each theme after the *human activity* the repos serve, never a tech-stack bucket. Can't reach an LLM directly? Download the identical prompt as a `.txt` file, run it through any chat LLM, and paste the JSON reply back in. Promoting a theme into a real hub happens on **Own**/**Hubs**, not here. |
 | **Own** | Step 3 — review owned forks (parent/upstream status), decide promote (→ keep / absorb into a hub) or drop (→ archive), and generate a git detach checklist. GitHub has no de-fork API, so the actual move is yours to run. |
 | **Order** | Per-hub Tree-of-Knowledge layout — arranges a hub's members from foundational (Gather) through Analyse to Display; per-row reorder + LLM Suggest; feeds the hub README's ordering section. |
 | **Triage** | Keyboard-fast verdict queue over remaining repos (absorb / keep / archive / orphan). |
@@ -69,55 +69,50 @@ writes back to `plan.json`; nothing reaches GitHub until **Execute**.
 ## Architecture
 
 ```
-SvelteKit frontend ──► nginx ──► FastAPI backend ──► SQLite (state.db)
+SvelteKit frontend (:2173) ──► FastAPI backend (:2801) ──► SQLite (state.db)
                                       │
                                       ├── GitHub API   (scan / archive / create / READMEs)
-                                      ├── LLM chain     (failover: replan, migration, commercial)
-                                      └── Embeddings    (failover: cluster, overlap, replan)
+                                      ├── LLM chain     (failover: themes, migration)
+                                      └── Embeddings    (failover: cache)
 ```
 
 - **Backend** (`ui/backend`) — FastAPI. Routers under `/api` (`scan`, `stars`, `cluster`,
-  `hubs`, `plan`, `replan`, `overlap`, `reconcile`, `execute`, `migration`, `readme`,
-  `commercial`, `config`) and `/auth`. Services: `github`, `llm`, `embeddings`,
-  `stars`, `cluster`, `replan`, `migration`, `scraper`, `claude_ai`. Plan persistence
-  in `plan_store.py`; provider registry in `llm_providers.py`.
+  `hubs`, `plan`, `order`, `reconcile`, `execute`, `migration`, `readme`, `promote`,
+  `config`) and `/auth`. Services: `github`, `llm`, `embeddings`, `distill`,
+  `themes_bundle`, `topic_llm`, `stars`, `migration`, `promote`, `models`, `columns`.
+  Plan persistence in `plan_store.py`; provider registry in `llm_providers.py`.
 - **Frontend** (`ui/frontend`) — SvelteKit, one route per workflow stage.
 - **Config** — no env files for app config; everything is set through the Setup page and
-  stored in `config.json` under `GIT_SUITE_HOME`. All persistent state
-  (`state.db`, `config.json`, `plan.json`) lives under that one directory so a
-  single host volume covers everything.
+  stored in `config.json` under `GIT_SUITE_HOME` (defaults to `~/.git-suite`). All
+  persistent state (`state.db`, `config.json`, `plan.json`, `themes-bundle.json`)
+  lives under that one directory.
 
 ---
 
 ## Running it
 
-### Docker (production)
+Local dev only — there is no Docker deployment. (A `docker-compose.yml` used to live
+here; it duplicated state a second running copy could silently diverge from, went
+weeks stale, and was removed 2026-07-23.)
 
 ```bash
-docker compose up -d            # frontend + backend + nginx, served on :8080
-```
-
-Then open `http://localhost:8080` and configure everything from the **Setup** page.
-(`HTTP_PORT` overrides the host port.)
-
-### Local development
-
-```bash
-# backend
+# backend (port 2801)
 cd ui/backend
-pip install -r requirements.txt
-uvicorn main:app --reload        # :8000
+pip install -r requirements-dev.txt
+python -m uvicorn main:app --reload --port 2801
 
-# frontend
+# frontend (port 2173, proxies /api and /auth to :2801)
 cd ui/frontend
 npm install
-npm run dev                      # :5173, proxies /api and WS to :8000
+npm run dev
 ```
+
+Open `http://localhost:2173` and configure everything from the **Setup** page.
 
 ### Tests
 
 ```bash
-cd ui/backend && python -m pytest        # 99 tests
+cd ui/backend && python -m pytest        # 108 tests
 ```
 
 ---
@@ -128,6 +123,9 @@ cd ui/backend && python -m pytest        # 99 tests
 
 ---
 
-*Last updated: 2026-06-30 — reframed around the "hubs standardise, don't contain" model:
-owned-repo library, hubs as modular standardising apps, and a Meta-Hub (recommendation
-MCP + unified DB/Docker source of truth).*
+*Last updated: 2026-07-23 — Cluster page rewritten as one-shot LLM theme grouping with
+.txt prompt export + JSON re-import for external LLMs; Docker deployment removed (local
+dev only); this doc's Architecture/Running-it sections were describing routers
+(`replan`/`overlap`/`commercial`) removed in an earlier pass — corrected the doc and
+deleted the last unused leftover, `services/cluster.py` (the pre-LLM k-means module,
+imported nowhere).*
