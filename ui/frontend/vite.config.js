@@ -8,8 +8,8 @@ export default defineConfig({
     proxy: {
       // ws:true so the scan WebSocket (/api/scan/{id}/ws) proxies too,
       // letting the client use a same-origin URL (works in dev + behind nginx).
-      '/api': { target: 'http://localhost:2800', ws: true },
-      '/auth': 'http://localhost:2800',
+      '/api': { target: 'http://localhost:2801', ws: true },
+      '/auth': 'http://localhost:2801',
     },
   },
 });
