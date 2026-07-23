@@ -30,6 +30,7 @@
     // isn't one, the page shows the single CTA button instead of "Loading…".
     try {
       data = await api.getClusters($session.session_id, { savedOnly: true });
+      if (data) build(data);
     } catch (e) { errorMsg = e.message; }
     finally { loading = false; }
   });
