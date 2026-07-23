@@ -51,3 +51,5 @@ nginx.conf
 .env.docker
 .env.*.localstartStop.md
 startStop.md
+
+.playwright-mcp/
