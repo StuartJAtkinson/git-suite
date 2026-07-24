@@ -4,16 +4,16 @@
   import { session } from '$lib/stores';
   import { api } from '$lib/api';
 
-  // The page does ONE thing: send the whole enriched scan to the LLM in one
-  // shot and render the resulting theme columns. No promote/remove/reset,
-  // no k-means fallback, no orphan sidebar — the user inspects the result,
-  // then promotes hubs elsewhere (Promote / Hubs pages).
+  // Refinement surface between the raw scan and hub promotion: the LLM
+  // proposes clusters, the user merges/splits/moves/renames until every
+  // pair's margin reads comfortably wide, then promotes from Promote/Hubs.
 
   let data = null;
-  let themes = [];             // [{suggested_name, suggested_description, members, size}]
-  let orphans = [];            // repos the LLM didn't place in any theme
+  let themes = [];             // [{id, suggested_name, suggested_description, members, size, nearest}]
+  let orphans = [];            // repos in zero clusters
   let loading = true;
-  let busy = false;
+  let busy = false;            // group/import in flight
+  let mutating = false;        // merge/split/move/rename/delete in flight
   let exporting = false;
   let exportMsg = '';
   let importing = false;
@@ -21,13 +21,14 @@
   let showImport = false;
   let errorMsg = '';
   let msg = '';
-  let bundleInfo = null;       // meta block from themes_bundle (token est, iters)
-  const MAX_ROWS_BEFORE_SCROLL = 50;
+  let bundleInfo = null;
+
+  let editingId = null;
+  let editingValue = '';
+  let splitSelect = {};        // clusterId -> Set(memberKey)
 
   onMount(async () => {
     if (!$session) { goto('/'); return; }
-    // Rehydrate: ask for the cached result WITHOUT firing the LLM. If there
-    // isn't one, the page shows the single CTA button instead of "Loading…".
     try {
       data = await api.getClusters($session.session_id, { savedOnly: true });
       if (data) build(data);
@@ -47,10 +48,6 @@
   }
 
   async function downloadPrompt() {
-    // Clipboard can't reliably hold a 300KB+ string across browsers — always
-    // download the file instead. It's a plain, self-contained text document:
-    // paste it whole into any chat LLM, then paste the JSON it returns back
-    // into "Import result" below.
     exporting = true; exportMsg = ''; errorMsg = '';
     try {
       const url = `/api/cluster/${$session.session_id}/prompt`;
@@ -82,6 +79,7 @@
 
   function build(d) {
     themes = (d.clusters || []).map((c) => ({
+      id: c.id,
       suggested_name: c.suggested_name,
       suggested_description: c.suggested_description || '',
       members: (c.members || []).map((m) => ({
@@ -94,7 +92,8 @@
         purpose: m.purpose || '',
         aim: m.aim || m.description || '',
       })),
-      size: c.size || (c.members || []).length,
+      size: c.size ?? (c.members || []).length,
+      nearest: c.nearest || null,
     }));
     orphans = (d.orphans_returned || []).map((m) => ({
       repo: m.repo || m.name || m.full_name,
@@ -103,10 +102,64 @@
       aim: m.aim || m.description || '',
     }));
     bundleInfo = d.bundle || null;
+    splitSelect = {};
   }
 
-  // Manual assessment link. Owned/fork → repo; star → the starrer's profile
-  // (no repo page exists for a starred item).
+  function memberKey(m) { return m.full_name || m.repo; }
+
+  function lowestMargin() {
+    let lowest = null;
+    for (const t of themes) {
+      if (t.nearest && (lowest === null || t.nearest.score < lowest.score)) lowest = t.nearest;
+    }
+    return lowest;
+  }
+
+  async function afterMutation(promise) {
+    mutating = true; errorMsg = '';
+    try {
+      data = await promise;
+      build(data);
+    } catch (e) { errorMsg = e.message; }
+    finally { mutating = false; }
+  }
+
+  function startRename(t) { editingId = t.id; editingValue = t.suggested_name; }
+  function cancelRename() { editingId = null; editingValue = ''; }
+  async function saveRename(t) {
+    const name = editingValue.trim();
+    editingId = null;
+    if (!name || name === t.suggested_name) return;
+    await afterMutation(api.renameCluster($session.session_id, t.id, name));
+  }
+
+  async function mergeWithNearest(t) {
+    if (!t.nearest) return;
+    await afterMutation(api.mergeClusters($session.session_id, t.id, t.nearest.id));
+  }
+
+  function toggleSplitMember(clusterId, key) {
+    const set = splitSelect[clusterId] || new Set();
+    if (set.has(key)) set.delete(key); else set.add(key);
+    splitSelect = { ...splitSelect, [clusterId]: set };
+  }
+
+  async function doSplit(t) {
+    const set = splitSelect[t.id];
+    if (!set || set.size === 0) return;
+    await afterMutation(api.splitCluster($session.session_id, t.id, [...set]));
+  }
+
+  async function deleteCluster(t) {
+    if (!confirm(`Delete "${t.suggested_name}"? Its ${t.size} member(s) become unplaced.`)) return;
+    await afterMutation(api.deleteCluster($session.session_id, t.id));
+  }
+
+  async function moveMemberTo(m, fromId, toId) {
+    if (!toId || toId === fromId) return;
+    await afterMutation(api.moveMember($session.session_id, memberKey(m), fromId, toId));
+  }
+
   function ghUrl(m) {
     const fn = m.full_name || '';
     if (m.source === 'star') {
@@ -121,15 +174,11 @@
 <div class="page-header">
   <h1>Themes</h1>
   <p class="sub">
-    Two ways to group the scan: <b>✨ use my LLM</b> fires the configured
-    provider chain; <b>⬇ download prompt</b> saves the exact system+user
-    prompt as a .txt file for any chat LLM (Claude.ai, ChatGPT, Gemini, …) —
-    paste its JSON reply into <b>↥ Import result</b> to render it here.
-    The model groups every repo into <strong>themes</strong> — the real-world
-    activity, hobby, or line of work the repos serve. <em>Not</em> tech-stack
-    buckets (no "python", "data", "tools", "libraries", "APIs"). Read-only
-    here; promote hubs from the <a href="/promote">Promote</a> or
-    <a href="/hubs">Hubs</a> pages.
+    A refinement surface, not a decision. Group by themes, then merge near-
+    duplicates, split bloated clusters, move a stray member, or rename —
+    until the lowest margin between any two clusters reads
+    <b>wide</b>. Promote hubs from the <a href="/promote">Promote</a> or
+    <a href="/hubs">Hubs</a> pages once boundaries feel real.
   </p>
 </div>
 
@@ -145,23 +194,31 @@
           <b>{themes.length}</b> themes<br>
           <b>{themes.reduce((n, t) => n + t.size, 0)}</b> grouped<br>
           {#if orphans.length}<span class="stat-orphans">{orphans.length} unplaced</span>{/if}
+          {#if themes.length > 1}
+            {@const low = lowestMargin()}
+            {#if low}
+              <div class="margin-summary flag-{low.flag}">
+                lowest margin: <b>{low.flag}</b> ({(1 - low.score).toFixed(2)} similar)
+              </div>
+            {/if}
+          {/if}
         {:else}
           <span class="muted">Not yet grouped.</span>
         {/if}
       </div>
 
-      <button class="primary" disabled={busy || exporting} on:click={groupNow}
+      <button class="primary" disabled={busy || exporting || mutating} on:click={groupNow}
         title="Bundle the scan + READMEs and ask your configured LLM chain to group by activity, not tech">
         ✨ {busy ? 'Grouping…' : 'Group by themes (use my LLM)'}
       </button>
       <button class="secondary" disabled={busy || exporting} on:click={downloadPrompt}
-        title="Download the same prompt as a .txt file so you can paste it into any chat LLM (Claude.ai, ChatGPT, …). Includes the system prompt + full README scrape + clickable links.">
+        title="Download the same prompt as a .txt file so you can paste it into any chat LLM.">
         ⬇ {exporting ? 'Downloading…' : 'Download prompt (.txt)'}
       </button>
       {#if exportMsg}<div class="ok-msg" style="margin:0;font-size:0.74rem">{exportMsg}</div>{/if}
 
       <button class="secondary" disabled={importing} on:click={() => showImport = !showImport}
-        title="Paste the JSON an external LLM returned to build theme cards from it, same as the internal LLM path.">
+        title="Paste the JSON an external LLM returned to build theme cards from it.">
         ↥ Import result
       </button>
       {#if showImport}
@@ -194,6 +251,24 @@
       {/if}
 
       {#if data.saved}<span class="saved-pill">cached</span>{/if}
+
+      {#if orphans.length}
+        <div class="orphans-box">
+          <div class="orphans-head">unplaced ({orphans.length})</div>
+          {#each orphans as o (memberKey(o))}
+            <div class="orphan-row">
+              <a class="orphan-name" href={ghUrl(o)} target="_blank" rel="noopener">{o.repo}</a>
+              <select disabled={mutating}
+                on:change={(e) => { moveMemberTo(o, 'orphans', e.target.value); e.target.value=''; }}>
+                <option value="">add to…</option>
+                {#each themes as t (t.id)}
+                  <option value={t.id}>{t.suggested_name}</option>
+                {/each}
+              </select>
+            </div>
+          {/each}
+        </div>
+      {/if}
     </aside>
 
     <div class="canvas">
@@ -205,28 +280,71 @@
         <p class="empty">No themes — every repo was unplaced.</p>
       {:else}
         <div class="stage">
-          {#each themes as t (t.suggested_name)}
-            <section class="col">
-              <header class="col-head" title={t.suggested_name}>
-                <div class="col-label">{t.suggested_name}</div>
-                <div class="col-count">{t.size} repo{t.size === 1 ? '' : 's'}</div>
-                {#if t.suggested_description}
-                  <div class="col-desc">{t.suggested_description}</div>
-                {/if}
-              </header>
-              <div class="col-body"
-                style="max-height:{MAX_ROWS_BEFORE_SCROLL * 96}px;">
-                {#each t.members as m (m.full_name || m.repo)}
-                  <div class="cell">
-                    <a class="cell-title" href={ghUrl(m)} target="_blank" rel="noopener"
-                       title={`Open ${m.full_name || m.repo} on GitHub`}>{m.repo}</a>
-                    <div class="cell-sub">
-                      {#if m.domain}<span class="domain-pill">{m.domain}</span>{/if}
-                      {#if m.stars}<span>★ {m.stars}</span>{/if}
+          {#each themes as t (t.id)}
+            <section class="card">
+              <div class="margin-bar flag-{t.nearest?.flag || 'wide'}"
+                title={t.nearest ? `nearest: ${t.nearest.name} (${t.nearest.flag}, ${(1 - t.nearest.score).toFixed(2)} similar)` : ''}></div>
+              <div class="card-body">
+                <header class="card-head">
+                  {#if editingId === t.id}
+                    <input class="name-edit" bind:value={editingValue}
+                      on:keydown={(e) => { if (e.key === 'Enter') saveRename(t); if (e.key === 'Escape') cancelRename(); }}
+                      on:blur={() => saveRename(t)} autofocus />
+                  {:else}
+                    <button class="card-title" title="Click to rename" on:click={() => startRename(t)}>
+                      {t.suggested_name}
+                    </button>
+                  {/if}
+                  <div class="card-count">{t.size} repo{t.size === 1 ? '' : 's'}</div>
+                  {#if t.suggested_description}
+                    <div class="card-desc">{t.suggested_description}</div>
+                  {/if}
+                </header>
+
+                <div class="card-actions">
+                  {#if t.nearest}
+                    <button class="chip" disabled={mutating} on:click={() => mergeWithNearest(t)}
+                      title={`Merge with nearest neighbour: ${t.nearest.name}`}>
+                      🔗 merge w/ {t.nearest.name}
+                    </button>
+                  {/if}
+                  {#if (splitSelect[t.id]?.size || 0) > 0}
+                    <button class="chip" disabled={mutating} on:click={() => doSplit(t)}>
+                      ✂ split {splitSelect[t.id].size} off
+                    </button>
+                  {/if}
+                  <button class="chip danger" disabled={mutating} on:click={() => deleteCluster(t)}>
+                    🗑 delete
+                  </button>
+                </div>
+
+                <div class="card-members">
+                  {#each t.members as m (memberKey(m))}
+                    <div class="cell">
+                      <input type="checkbox" class="split-check"
+                        checked={splitSelect[t.id]?.has(memberKey(m)) || false}
+                        on:change={() => toggleSplitMember(t.id, memberKey(m))}
+                        title="Select for split" />
+                      <div class="cell-main">
+                        <a class="cell-title" href={ghUrl(m)} target="_blank" rel="noopener"
+                           title={`Open ${m.full_name || m.repo} on GitHub`}>{m.repo}</a>
+                        <div class="cell-sub">
+                          {#if m.domain}<span class="domain-pill">{m.domain}</span>{/if}
+                          {#if m.stars}<span>★ {m.stars}</span>{/if}
+                        </div>
+                        {#if m.aim}<div class="cell-desc" title={m.aim}>{m.aim}</div>{/if}
+                      </div>
+                      <select class="move-select" disabled={mutating}
+                        on:change={(e) => { moveMemberTo(m, t.id, e.target.value); e.target.value=''; }}>
+                        <option value="">move…</option>
+                        {#each themes.filter(x => x.id !== t.id) as x (x.id)}
+                          <option value={x.id}>{x.suggested_name}</option>
+                        {/each}
+                        <option value="orphans">unplaced</option>
+                      </select>
                     </div>
-                    {#if m.aim}<div class="cell-desc" title={m.aim}>{m.aim}</div>{/if}
-                  </div>
-                {/each}
+                  {/each}
+                </div>
               </div>
             </section>
           {/each}
@@ -237,7 +355,7 @@
 {/if}
 
 <style>
-  .layout { display: grid; grid-template-columns: 240px 1fr; gap: 1rem;
+  .layout { display: grid; grid-template-columns: 260px 1fr; gap: 1rem;
     margin-top: 0.7rem; align-items: start; }
 
   .rail { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
@@ -249,6 +367,11 @@
   .stat-orphans { color: #b45309; font-weight: 600; }
   .muted { color: #9ca3af; }
   .small { font-size: 0.74rem; }
+  .margin-summary { margin-top: 0.3rem; font-size: 0.74rem; padding: 0.15rem 0.4rem;
+    border-radius: 4px; display: inline-block; }
+  .margin-summary.flag-thin { background: #fef2f2; color: #b91c1c; }
+  .margin-summary.flag-ok { background: #fffbeb; color: #b45309; }
+  .margin-summary.flag-wide { background: #ecfdf5; color: #047857; }
 
   .primary { background: #4f46e5; color: #fff; border: none; border-radius: 6px;
     padding: 0.6rem 0.75rem; font-size: 0.88rem; font-weight: 700;
@@ -272,28 +395,55 @@
     border: 1px solid #a7f3d0; border-radius: 4px; padding: 0.1rem 0.5rem;
     align-self: flex-start; }
 
+  .orphans-box { border-top: 1px solid #e5e7eb; padding-top: 0.5rem;
+    display: flex; flex-direction: column; gap: 0.3rem; max-height: 260px; overflow-y: auto; }
+  .orphans-head { font-size: 0.76rem; font-weight: 700; color: #b45309; }
+  .orphan-row { display: flex; align-items: center; justify-content: space-between;
+    gap: 0.3rem; font-size: 0.74rem; }
+  .orphan-name { font-family: monospace; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; max-width: 130px; }
+  .orphan-row select { font-size: 0.68rem; max-width: 90px; }
+
   .stage { border: 1px solid #e5e7eb; border-radius: 10px;
     background: radial-gradient(circle at 1px 1px, #f1f5f9 1px, transparent 0) 0 0 / 22px 22px;
     padding: 0.6rem; display: flex; flex-wrap: wrap; gap: 0.6rem;
     align-items: flex-start; min-height: 12rem; }
-  .col { flex: 1 1 calc(25% - 0.6rem); min-width: 280px; max-width: 100%;
-    display: flex; flex-direction: column;
-    background: rgba(255,255,255,0.5); border-radius: 8px;
-    border: 1px solid #e5e7eb; }
-  .col-head { padding: 0.45rem 0.55rem 0.4rem; border-bottom: 1px solid #e5e7eb;
-    background: rgba(255,255,255,0.6); border-radius: 8px 8px 0 0; }
-  .col-label { font-size: 0.92rem; font-weight: 800; color: #4338ca;
-    text-transform: lowercase; letter-spacing: 0.01em;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .col-count { font-size: 0.7rem; color: #6b7280; margin-top: 0.15rem; }
-  .col-desc { font-size: 0.76rem; color: #4b5563; margin-top: 0.25rem;
-    line-height: 1.35; }
-  .col-body { overflow-y: auto; padding: 0.35rem;
-    display: grid; grid-template-columns: 1fr; row-gap: 0.35rem; }
+  .card { flex: 1 1 calc(25% - 0.6rem); min-width: 280px; max-width: 100%;
+    display: flex; background: rgba(255,255,255,0.5); border-radius: 8px;
+    border: 1px solid #e5e7eb; overflow: hidden; }
+  .margin-bar { width: 6px; flex-shrink: 0; }
+  .margin-bar.flag-thin { background: #ef4444; }
+  .margin-bar.flag-ok { background: #f59e0b; }
+  .margin-bar.flag-wide { background: #10b981; }
 
-  .cell { border-radius: 6px; padding: 0.45rem 0.6rem;
-    background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+  .card-body { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .card-head { padding: 0.45rem 0.55rem 0.4rem; border-bottom: 1px solid #e5e7eb;
+    background: rgba(255,255,255,0.6); }
+  .card-title { font-size: 0.92rem; font-weight: 800; color: #4338ca;
+    text-transform: lowercase; letter-spacing: 0.01em; background: none; border: none;
+    padding: 0; cursor: pointer; text-align: left; width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-title:hover { text-decoration: underline; }
+  .name-edit { font-size: 0.92rem; font-weight: 700; width: 100%; padding: 0.1rem 0.2rem;
+    border: 1px solid #4f46e5; border-radius: 4px; }
+  .card-count { font-size: 0.7rem; color: #6b7280; margin-top: 0.15rem; }
+  .card-desc { font-size: 0.76rem; color: #4b5563; margin-top: 0.25rem; line-height: 1.35; }
+
+  .card-actions { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0.35rem 0.55rem;
+    border-bottom: 1px solid #f1f5f9; }
+  .chip { font-size: 0.68rem; padding: 0.15rem 0.5rem; border-radius: 999px;
+    border: 1px solid #e5e7eb; background: #f8fafc; cursor: pointer; }
+  .chip:disabled { opacity: 0.5; cursor: not-allowed; }
+  .chip.danger { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+
+  .card-members { overflow-y: auto; padding: 0.35rem;
+    display: grid; grid-template-columns: 1fr; row-gap: 0.35rem; max-height: 40rem; }
+
+  .cell { display: flex; align-items: flex-start; gap: 0.3rem; border-radius: 6px;
+    padding: 0.45rem 0.5rem; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.08);
     border: 2px solid #111827; overflow: hidden; }
+  .split-check { margin-top: 0.2rem; flex-shrink: 0; }
+  .cell-main { min-width: 0; flex: 1; }
   .cell-title { font-family: monospace; font-size: 0.78rem; font-weight: 600;
     color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     text-decoration: none; display: block; margin-bottom: 0.2rem; }
@@ -304,6 +454,7 @@
     border-radius: 3px; font-size: 0.68rem; }
   .cell-desc { font-size: 0.78rem; color: #4b5563; line-height: 1.35;
     margin-top: 0.2rem;
-    display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
     overflow: hidden; text-overflow: ellipsis; }
+  .move-select { font-size: 0.64rem; max-width: 66px; flex-shrink: 0; align-self: flex-start; }
 </style>

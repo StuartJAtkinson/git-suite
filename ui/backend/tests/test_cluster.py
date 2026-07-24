@@ -2,7 +2,12 @@
 import asyncio
 import json
 
-from routers.cluster import form, FormRequest, _pool_by_name, import_themes, ImportRequest
+from routers.cluster import (
+    form, FormRequest, _pool_by_name, import_themes, ImportRequest,
+    merge_clusters, MergeRequest, split_cluster, SplitRequest,
+    move_member, MoveRequest, rename_cluster, RenameRequest,
+    delete_cluster, DeleteClusterRequest,
+)
 
 
 def test_form_creates_hub_and_absorbs(isolated_plan):
@@ -108,3 +113,90 @@ def test_import_themes_resolves_star_by_full_name(temp_db, isolated_plan):
     assert members["owned-repo"]["source"] == "owned"
     assert members["starred-thing"]["source"] == "star"
     assert members["starred-thing"]["full_name"] == "someorg/starred-thing"
+
+
+# -- iterative refinement: merge / split / move / rename / delete ------------
+
+
+def _seed_three_theme_import(db):
+    from tests.conftest import insert_scan
+    insert_scan(db, session_id="s1", scan_id="sc1", repos=[
+        {"name": "repo-a", "language": "Python"},
+        {"name": "repo-b", "language": "Python"},
+        {"name": "repo-c", "language": "Python"},
+    ])
+    fake_reply = json.dumps({"themes": [
+        {"name": "theme one", "slug": "theme-one", "repo_names": ["repo-a"]},
+        {"name": "theme two", "slug": "theme-two", "repo_names": ["repo-b"]},
+        {"name": "theme three", "slug": "theme-three", "repo_names": ["repo-c"]},
+    ]})
+    return asyncio.run(import_themes("s1", ImportRequest(text=fake_reply)))
+
+
+def test_merge_clusters_unions_members_and_removes_originals(temp_db, isolated_plan):
+    res = _seed_three_theme_import(temp_db)
+    ids = {c["suggested_name"]: c["id"] for c in res["clusters"]}
+    merged = asyncio.run(merge_clusters("s1", MergeRequest(
+        a=ids["theme one"], b=ids["theme two"], new_name="merged theme")))
+
+    names = {c["suggested_name"] for c in merged["clusters"]}
+    assert names == {"merged theme", "theme three"}
+    m = next(c for c in merged["clusters"] if c["suggested_name"] == "merged theme")
+    assert {mm["repo"] for mm in m["members"]} == {"repo-a", "repo-b"}
+    assert m["created_from"] == [ids["theme one"], ids["theme two"]]
+
+
+def test_split_cluster_peels_off_members(temp_db, isolated_plan):
+    from tests.conftest import insert_scan
+    insert_scan(temp_db, session_id="s1", scan_id="sc1", repos=[
+        {"name": "repo-a", "language": "Python"},
+        {"name": "repo-b", "language": "Python"},
+    ])
+    fake_reply = json.dumps({"themes": [
+        {"name": "combo", "slug": "combo", "repo_names": ["repo-a", "repo-b"]},
+    ]})
+    res = asyncio.run(import_themes("s1", ImportRequest(text=fake_reply)))
+    cid = res["clusters"][0]["id"]
+
+    split = asyncio.run(split_cluster("s1", SplitRequest(
+        cluster_id=cid, members=["repo-b"], new_name="split-off")))
+
+    by_name = {c["suggested_name"]: c for c in split["clusters"]}
+    assert by_name["combo"]["members"][0]["repo"] == "repo-a"
+    assert by_name["split-off"]["members"][0]["repo"] == "repo-b"
+
+
+def test_move_member_between_clusters_and_to_orphans(temp_db, isolated_plan):
+    res = _seed_three_theme_import(temp_db)
+    ids = {c["suggested_name"]: c["id"] for c in res["clusters"]}
+
+    moved = asyncio.run(move_member("s1", MoveRequest(
+        repo="repo-a", source=ids["theme one"], dest=ids["theme two"])))
+    by_name = {c["suggested_name"]: c for c in moved["clusters"]}
+    assert by_name["theme one"]["members"] == []
+    assert {m["repo"] for m in by_name["theme two"]["members"]} == {"repo-a", "repo-b"}
+
+    to_orphans = asyncio.run(move_member("s1", MoveRequest(
+        repo="repo-a", source=ids["theme two"], dest="orphans")))
+    assert "repo-a" in {o["repo"] for o in to_orphans["orphans_returned"]}
+
+
+def test_rename_cluster(temp_db, isolated_plan):
+    res = _seed_three_theme_import(temp_db)
+    cid = res["clusters"][0]["id"]
+    renamed = asyncio.run(rename_cluster("s1", RenameRequest(cluster_id=cid, name="new name")))
+    assert renamed["clusters"][0]["suggested_name"] == "new name"
+
+
+def test_delete_cluster_moves_members_to_orphans(temp_db, isolated_plan):
+    res = _seed_three_theme_import(temp_db)
+    cid = res["clusters"][0]["id"]
+    deleted = asyncio.run(delete_cluster("s1", DeleteClusterRequest(cluster_id=cid)))
+    assert len(deleted["clusters"]) == 2
+    assert "repo-a" in {o["repo"] for o in deleted["orphans_returned"]}
+
+
+def test_margins_present_and_flag_thin_for_similar_clusters(temp_db, isolated_plan):
+    res = _seed_three_theme_import(temp_db)
+    assert "margins" in res
+    assert all("nearest" in c for c in res["clusters"])

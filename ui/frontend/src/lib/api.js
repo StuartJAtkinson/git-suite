@@ -78,6 +78,16 @@ export const api = {
     req('DELETE', `/api/cluster/${session_id}`),
   importThemes: (session_id, text) =>
     req('POST', `/api/cluster/${session_id}/import`, { text }),
+  mergeClusters: (session_id, a, b, new_name = null) =>
+    req('POST', `/api/cluster/${session_id}/merge`, { a, b, new_name }),
+  splitCluster: (session_id, cluster_id, members, new_name = null) =>
+    req('POST', `/api/cluster/${session_id}/split`, { cluster_id, members, new_name }),
+  moveMember: (session_id, repo, source, dest) =>
+    req('POST', `/api/cluster/${session_id}/move`, { repo, source, dest }),
+  renameCluster: (session_id, cluster_id, name) =>
+    req('POST', `/api/cluster/${session_id}/rename`, { cluster_id, name }),
+  deleteCluster: (session_id, cluster_id) =>
+    req('POST', `/api/cluster/${session_id}/delete`, { cluster_id }),
 
   // Promote (Step 3 "Own" — turn owned forks into first-class repos)
   listForks: (session_id) => req('GET', `/api/promote/${session_id}`),

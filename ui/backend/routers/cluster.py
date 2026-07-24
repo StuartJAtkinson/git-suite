@@ -11,8 +11,11 @@ cluster.py (router) — one-shot LLM topic grouping across the whole scan.
 The page does one thing: build the themes bundle, fire one LLM call, render
 the result. K-means / anchor / orphan-snap / refresh-forks are gone.
 """
+import itertools
 import json
 import logging
+import re
+import uuid
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -23,6 +26,86 @@ from routers.reconcile import reconcile
 
 log = logging.getLogger(__name__)
 router = APIRouter()
+
+_STOPWORDS = {
+    "the", "and", "for", "with", "that", "this", "from", "into", "your",
+    "using", "based", "via", "over", "across", "their", "such", "each",
+    "also", "than", "then", "have", "has", "are", "was", "were",
+}
+
+
+def _slugify(name: str) -> str:
+    s = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return s or "theme"
+
+
+def _member_key(m: dict) -> str:
+    return m.get("full_name") or m.get("repo") or m.get("name") or ""
+
+
+def _cluster_tokens(cluster: dict) -> set[str]:
+    text = " ".join([
+        cluster.get("suggested_name", ""),
+        cluster.get("suggested_description", ""),
+        *[m.get("domain", "") for m in cluster.get("members", [])],
+        *[m.get("aim", "") for m in cluster.get("members", [])],
+        *[" ".join(m.get("entities", []) or []) for m in cluster.get("members", [])],
+    ])
+    tokens = {w for w in re.findall(r"[a-z0-9]+", text.lower()) if len(w) > 2}
+    return tokens - _STOPWORDS
+
+
+def _margin_flag(score: float) -> str:
+    if score < 0.75:
+        return "thin"
+    if score < 0.90:
+        return "ok"
+    return "wide"
+
+
+async def _ensure_ids(session_id: str, payload: dict) -> dict:
+    """Assign a stable id (and slug) to every cluster, once. Persisted
+    immediately so merge/split/move/rename calls that reference an id from a
+    prior GET keep resolving after this."""
+    clusters = payload.get("clusters") or []
+    changed = False
+    for c in clusters:
+        if not c.get("id"):
+            c["id"] = uuid.uuid4().hex[:12]
+            changed = True
+        if not c.get("slug"):
+            c["slug"] = _slugify(c.get("suggested_name", ""))
+    if changed:
+        await _save_result(session_id, payload)
+    return payload
+
+
+def _with_margins(payload: dict) -> dict:
+    """Attach pairwise + nearest-neighbour margins (transient — recomputed on
+    every read, never persisted). Margin score = 1 - Jaccard(token sets); a
+    low score means two clusters read as near-duplicates and should probably
+    merge."""
+    clusters = payload.get("clusters") or []
+    token_sets = {c["id"]: _cluster_tokens(c) for c in clusters}
+    pairs = []
+    nearest: dict[str, dict] = {}
+    for a, b in itertools.combinations(clusters, 2):
+        ta, tb = token_sets[a["id"]], token_sets[b["id"]]
+        union = ta | tb
+        jaccard = len(ta & tb) / len(union) if union else 0.0
+        score = round(1 - jaccard, 4)
+        flag = _margin_flag(score)
+        pairs.append({"a": a["id"], "b": b["id"], "score": score, "flag": flag})
+        for x, y in ((a, b), (b, a)):
+            cur = nearest.get(x["id"])
+            if cur is None or score < cur["score"]:
+                nearest[x["id"]] = {"id": y["id"], "name": y.get("suggested_name", ""),
+                                     "score": score, "flag": flag}
+    pairs.sort(key=lambda p: p["score"])
+    payload["margins"] = pairs[:150]
+    for c in clusters:
+        c["nearest"] = nearest.get(c["id"])
+    return payload
 
 
 def _own_member_dicts(orphans: list[dict]) -> list[dict]:
@@ -246,6 +329,9 @@ async def propose(
         saved = await _load_result(session_id)
         if saved is not None:
             saved["saved"] = True
+            if saved.get("available") and saved.get("clusters"):
+                saved = await _ensure_ids(session_id, saved)
+                saved = _with_margins(saved)
             return saved
         if saved_only:
             return {"available": False, "saved": False,
@@ -257,7 +343,11 @@ async def propose(
     orphans = recon["orphans"]
     plan = plan_store.get_plan()
     hubs = list(plan.get("hubs", {}).keys())
-    return await _propose_themes(session_id, orphans, hubs=hubs)
+    payload = await _propose_themes(session_id, orphans, hubs=hubs)
+    if payload.get("available") and payload.get("clusters"):
+        payload = await _ensure_ids(session_id, payload)
+        payload = _with_margins(payload)
+    return payload
 
 
 @router.delete("/cluster/{session_id}")
@@ -345,7 +435,184 @@ async def import_themes(session_id: str, body: ImportRequest):
         "bundle": None,
     }
     await _save_result(session_id, payload)
-    return payload
+    payload = await _ensure_ids(session_id, payload)
+    return _with_margins(payload)
+
+
+# -- iterative refinement: merge / split / move / rename / delete -----------
+# All operate on the saved cluster_result in place. Each loads the saved
+# payload, mutates clusters/orphans_returned, re-saves, and returns the same
+# augmented (ids + margins) shape the GET endpoint returns, so the frontend
+# can just replace its local state with the response.
+
+
+async def _load_saved_or_404(session_id: str) -> dict:
+    saved = await _load_result(session_id)
+    if saved is None or not saved.get("available") or not saved.get("clusters"):
+        raise HTTPException(status_code=404,
+                            detail="no saved clustering to edit — group or import one first")
+    return await _ensure_ids(session_id, saved)
+
+
+def _find_cluster(payload: dict, cluster_id: str) -> dict:
+    for c in payload.get("clusters", []):
+        if c["id"] == cluster_id:
+            return c
+    raise HTTPException(status_code=404, detail=f"unknown cluster id {cluster_id!r}")
+
+
+class MergeRequest(BaseModel):
+    a: str
+    b: str
+    new_name: str | None = None
+
+
+@router.post("/cluster/{session_id}/merge")
+async def merge_clusters(session_id: str, body: MergeRequest):
+    payload = await _load_saved_or_404(session_id)
+    ca = _find_cluster(payload, body.a)
+    cb = _find_cluster(payload, body.b)
+    if ca["id"] == cb["id"]:
+        raise HTTPException(status_code=400, detail="can't merge a cluster with itself")
+
+    seen = {_member_key(m) for m in ca["members"]}
+    members = list(ca["members"])
+    for m in cb["members"]:
+        k = _member_key(m)
+        if k and k not in seen:
+            seen.add(k)
+            members.append(m)
+
+    merged = {
+        "id": uuid.uuid4().hex[:12],
+        "suggested_name": body.new_name or f"{ca['suggested_name']} + {cb['suggested_name']}",
+        "suggested_description": ca.get("suggested_description") or cb.get("suggested_description") or "",
+        "members": members,
+        "size": len(members),
+        "created_from": [ca["id"], cb["id"]],
+    }
+    merged["slug"] = _slugify(merged["suggested_name"])
+    payload["clusters"] = [c for c in payload["clusters"] if c["id"] not in (ca["id"], cb["id"])]
+    payload["clusters"].append(merged)
+    payload["k"] = len(payload["clusters"])
+    await _save_result(session_id, payload)
+    return _with_margins(payload)
+
+
+class SplitRequest(BaseModel):
+    cluster_id: str
+    members: list[str]     # repo/full_name keys to peel off into a new cluster
+    new_name: str | None = None
+
+
+@router.post("/cluster/{session_id}/split")
+async def split_cluster(session_id: str, body: SplitRequest):
+    payload = await _load_saved_or_404(session_id)
+    src = _find_cluster(payload, body.cluster_id)
+    take = set(body.members)
+    if not take:
+        raise HTTPException(status_code=400, detail="members required")
+
+    kept, moved = [], []
+    for m in src["members"]:
+        (moved if _member_key(m) in take else kept).append(m)
+    if not moved:
+        raise HTTPException(status_code=400, detail="none of the given members are in that cluster")
+    if not kept:
+        raise HTTPException(status_code=400, detail="split would empty the source cluster — delete it instead")
+
+    src["members"] = kept
+    src["size"] = len(kept)
+    new_cluster = {
+        "id": uuid.uuid4().hex[:12],
+        "suggested_name": body.new_name or f"{src['suggested_name']} (split)",
+        "suggested_description": "",
+        "members": moved,
+        "size": len(moved),
+        "created_from": [src["id"]],
+    }
+    new_cluster["slug"] = _slugify(new_cluster["suggested_name"])
+    payload["clusters"].append(new_cluster)
+    payload["k"] = len(payload["clusters"])
+    await _save_result(session_id, payload)
+    return _with_margins(payload)
+
+
+class MoveRequest(BaseModel):
+    repo: str                 # member key (full_name or repo/name)
+    source: str                 # cluster id, or "orphans"
+    dest: str                   # cluster id, or "orphans"
+
+
+@router.post("/cluster/{session_id}/move")
+async def move_member(session_id: str, body: MoveRequest):
+    payload = await _load_saved_or_404(session_id)
+    if body.source == body.dest:
+        return _with_margins(payload)
+
+    def _take_from(loc: str) -> dict | None:
+        if loc == "orphans":
+            pool = payload.get("orphans_returned", [])
+            for i, m in enumerate(pool):
+                if _member_key(m) == body.repo:
+                    return pool.pop(i)
+            return None
+        c = _find_cluster(payload, loc)
+        for i, m in enumerate(c["members"]):
+            if _member_key(m) == body.repo:
+                m = c["members"].pop(i)
+                c["size"] = len(c["members"])
+                return m
+        return None
+
+    member = _take_from(body.source)
+    if member is None:
+        raise HTTPException(status_code=404,
+                            detail=f"{body.repo!r} not found in {body.source!r}")
+
+    if body.dest == "orphans":
+        payload.setdefault("orphans_returned", []).append(member)
+    else:
+        c = _find_cluster(payload, body.dest)
+        c["members"].append(member)
+        c["size"] = len(c["members"])
+    payload["orphan_count"] = len(payload.get("orphans_returned", []))
+    await _save_result(session_id, payload)
+    return _with_margins(payload)
+
+
+class RenameRequest(BaseModel):
+    cluster_id: str
+    name: str
+
+
+@router.post("/cluster/{session_id}/rename")
+async def rename_cluster(session_id: str, body: RenameRequest):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="name required")
+    payload = await _load_saved_or_404(session_id)
+    c = _find_cluster(payload, body.cluster_id)
+    c["suggested_name"] = name
+    c["slug"] = _slugify(name)
+    await _save_result(session_id, payload)
+    return _with_margins(payload)
+
+
+class DeleteClusterRequest(BaseModel):
+    cluster_id: str
+
+
+@router.post("/cluster/{session_id}/delete")
+async def delete_cluster(session_id: str, body: DeleteClusterRequest):
+    payload = await _load_saved_or_404(session_id)
+    c = _find_cluster(payload, body.cluster_id)
+    payload["clusters"] = [x for x in payload["clusters"] if x["id"] != c["id"]]
+    payload.setdefault("orphans_returned", []).extend(c["members"])
+    payload["k"] = len(payload["clusters"])
+    payload["orphan_count"] = len(payload["orphans_returned"])
+    await _save_result(session_id, payload)
+    return _with_margins(payload)
 
 
 class FormRequest(BaseModel):

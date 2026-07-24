@@ -33,7 +33,7 @@ npm run dev          # http://localhost:2173
 ### Tests
 
 ```bash
-cd ui/backend && python -m pytest        # 116 tests
+cd ui/backend && python -m pytest        # 122 tests
 ```
 
 Health: `http://localhost:2801/health`. API docs: `/docs`.
@@ -120,7 +120,7 @@ Steps 6–8 are the unbuilt half; they're tracked as Open items in
 |------|--------------|
 | **Setup** | First step — GitHub connection (PAT); LLM provider config (API key + failover priority; call URLs are hardcoded per provider, models are fetched live from each provider's own listing endpoint and filtered to completion-capable ones); embedding provider + live-listed embedding models; chain readout showing where each is used |
 | **Scan** | Streams the live portfolio (incl. private repos) over a same-origin WebSocket; enriched fields (topics, stars, fork, pushed_at, archived, size) |
-| **Cluster** ("Themes") | Read-only, one-shot LLM group formation — no k-means, no per-cell promote/remove, no orphan sidebar. **✨ Group by themes** bundles **owned repos AND starred repos** (every repo's distilled purpose/entities/domain + the full README, iteratively summarised to fit the active model's context budget) and asks the configured LLM chain to name each theme after the *human activity* the repos serve, never a tech-stack bucket (no "python", "data", "tools"). Stars are identified to the LLM by full `owner/repo` (owned repos by bare name) so same-named stars from different orgs never collide. **⬇ Download prompt (.txt)** exports the identical system+user prompt as a file for pasting into any external chat LLM (clipboard can't reliably hold 300KB+); **↥ Import result** parses that LLM's JSON reply back into the same theme cards. Themes are cached per-session (`cluster_result`); promoting a theme into a real hub happens on **Promote**/**Hubs**, not here |
+| **Cluster** ("Themes") | An **iterative refinement surface**, not a one-shot render. **✨ Group by themes** bundles **owned repos AND starred repos** (every repo's distilled purpose/entities/domain + the full README, iteratively summarised to fit the active model's context budget) and asks the configured LLM chain to name each theme after the *human activity* the repos serve, never a tech-stack bucket (no "python", "data", "tools"). Stars are identified to the LLM by full `owner/repo` (owned repos by bare name) so same-named stars from different orgs never collide. **⬇ Download prompt (.txt)** exports the identical system+user prompt as a file for pasting into any external chat LLM; **↥ Import result** parses that LLM's JSON reply back into the same theme cards. Each theme card shows a **margin bar** (1 − Jaccard token overlap vs. its nearest neighbour; thin/ok/wide) and supports **merge with nearest**, **split** (checkbox-select members → peel into a new card), **move** a single member to another card or to unplaced, **rename** (click the title), and **delete** (members return to unplaced). All five mutate the saved `cluster_result` in place via `POST /cluster/{sid}/merge\|split\|move\|rename\|delete`. Themes are cached per-session; promoting a theme into a real hub happens on **Promote**/**Hubs**, not here |
 | **Own** | Step 3 — owned forks with upstream status (parent, private-upstream flag), current verdict + cluster; per-fork decide promote (→ keep / absorb into a hub) or drop (→ archive), and generate a git detach checklist (GitHub has no de-fork API, so the move is yours to run) |
 | **Order** | Per-hub Tree-of-Knowledge layout — one ordered list of a hub's members (foundational first, presentation last); three classification checkboxes (Gather / Analyse / Display) act as filters; per-row arrow reordering + per-row and per-hub LLM Suggest; **✨ Features** per row asks the LLM to identify the repo's concrete features (architecture Step 5), saved immediately into `feature_annotations`; per-hub compat-tag vocabulary override |
 | **Triage** | Keyboard-fast verdict queue (1–N absorb, a/k/o/s); stub badges |
@@ -211,15 +211,25 @@ single-per-user — login purges any other session for the same `github_user`.
 
 ---
 
-*Last updated: 2026-07-24 — clustering now covers starred repos, not just
-owned (themes_bundle.build_raw_bundle and cluster.py's pool builder both
-hardcoded "owned" and never touched starred_repo; stars are identified to
-the LLM by full owner/repo to avoid same-name collisions across different
-starred orgs). Previous entry (2026-07-23): Cluster page rewritten as
-one-shot LLM theme grouping (dropped k-means/anchor/orphan-snap/per-cell
-promote entirely); `language` removed from the scan schema; added .txt
-prompt export + JSON re-import for external LLMs; session rows now purge
-on login (one per user); Docker deployment removed (local dev is the only
-supported path); dead k-means `services/cluster.py` deleted; architecture
-Step 5 (Feature-identify) built — Order page's ✨ Features button.
-116 tests green.*
+*Last updated: 2026-07-24 — Cluster page rewritten again, from a read-only
+one-shot render into an **iterative refinement surface**: cards (not
+columns) with a per-card margin bar (1 − Jaccard token overlap against the
+nearest other cluster; thin/ok/wide), and five new mutation endpoints —
+`POST /cluster/{sid}/merge|split|move|rename|delete` — that edit the saved
+`cluster_result` in place (reused rather than adding a parallel
+`cluster_proposal` table; it already held the exact shape needed). Clusters
+now carry a stable `id` (assigned once, persisted) so edits survive
+renames. The 843-repo live pool (150 owned + 693 stars) was clustered by
+hand — the internal minimax-only LLM chain hung/rate-limited on two
+consecutive attempts at the single 20-minute topic-discovery call with no
+failover provider configured — via the existing external-LLM paste-back
+path (export prompt → classify → `/import`), landing 33 themes, 153
+repos in `misc-unsorted` (mostly banner-only READMEs with no real scan
+signal). Previous entry (same day): clustering now covers starred repos,
+not just owned (themes_bundle.build_raw_bundle and cluster.py's pool
+builder both hardcoded "owned" and never touched starred_repo; stars are
+identified to the LLM by full owner/repo to avoid same-name collisions
+across different starred orgs). Docker deployment removed (local dev is
+the only supported path); dead k-means `services/cluster.py` deleted;
+architecture Step 5 (Feature-identify) built — Order page's ✨ Features
+button. **122 tests green.**
