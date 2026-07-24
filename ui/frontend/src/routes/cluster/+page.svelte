@@ -410,9 +410,9 @@
 
   .stage { border: 1px solid #e5e7eb; border-radius: 10px;
     background: radial-gradient(circle at 1px 1px, #f1f5f9 1px, transparent 0) 0 0 / 22px 22px;
-    padding: 1rem; display: flex; flex-wrap: wrap; gap: 1.1rem;
-    align-items: flex-start; min-height: 12rem; }
-  .card { flex: 1 1 340px; min-width: 340px; max-width: 460px;
+    padding: 1rem; display: flex; flex-direction: column; gap: 1.1rem;
+    align-items: stretch; min-height: 12rem; }
+  .card { width: 100%;
     display: flex; background: rgba(255,255,255,0.5); border-radius: 10px;
     border: 1px solid #e5e7eb; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
   .margin-bar { width: 7px; flex-shrink: 0; }
@@ -442,11 +442,12 @@
   .chip:disabled { opacity: 0.5; cursor: not-allowed; }
   .chip.danger { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
 
-  .card-members { overflow-y: auto; padding: 0.6rem;
-    display: grid; grid-template-columns: 1fr; row-gap: 0.55rem; max-height: 42rem; }
+  .card-members { overflow-y: auto; padding: 0.7rem;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; max-height: 48rem; }
 
   .cell { display: flex; align-items: flex-start; gap: 0.5rem; border-radius: 7px;
-    padding: 0.65rem 0.75rem; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    padding: 0.65rem 0.75rem; min-height: 6.5rem; background: #fff;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
     border: 2px solid #111827; overflow: hidden; }
   .split-check { margin-top: 0.25rem; flex-shrink: 0; }
   .cell-main { min-width: 0; flex: 1; }
@@ -460,7 +461,15 @@
     border-radius: 3px; font-size: 0.7rem; }
   .cell-desc { font-size: 0.8rem; color: #4b5563; line-height: 1.4;
     margin-top: 0.3rem;
-    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
     overflow: hidden; text-overflow: ellipsis; }
   .move-select { font-size: 0.68rem; max-width: 76px; flex-shrink: 0; align-self: flex-start; }
+
+  @media (max-width: 1000px) {
+    .card-members { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .card-members { grid-template-columns: 1fr; }
+    .layout { grid-template-columns: 1fr; }
+  }
 </style>
