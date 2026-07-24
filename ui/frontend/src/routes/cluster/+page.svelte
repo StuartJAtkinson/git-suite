@@ -91,10 +91,13 @@
         entities: m.entities || [],
         purpose: m.purpose || '',
         aim: m.aim || m.description || '',
-      })),
+      })).sort((a, b) => b.stars - a.stars),
       size: c.size ?? (c.members || []).length,
       nearest: c.nearest || null,
     }));
+    themes = themes
+      .map((t) => ({ ...t, totalStars: t.members.reduce((n, m) => n + (m.stars || 0), 0) }))
+      .sort((a, b) => b.totalStars - a.totalStars);
     orphans = (d.orphans_returned || []).map((m) => ({
       repo: m.repo || m.name || m.full_name,
       full_name: m.full_name || m.repo || m.name || '',
@@ -295,7 +298,8 @@
                       {t.suggested_name}
                     </button>
                   {/if}
-                  <div class="card-count">{t.size} repo{t.size === 1 ? '' : 's'}</div>
+                  <div class="card-count">{t.size} repo{t.size === 1 ? '' : 's'}
+                    {#if t.totalStars}<span class="card-stars">★ {t.totalStars.toLocaleString()}</span>{/if}</div>
                   {#if t.suggested_description}
                     <div class="card-desc">{t.suggested_description}</div>
                   {/if}
@@ -406,55 +410,57 @@
 
   .stage { border: 1px solid #e5e7eb; border-radius: 10px;
     background: radial-gradient(circle at 1px 1px, #f1f5f9 1px, transparent 0) 0 0 / 22px 22px;
-    padding: 0.6rem; display: flex; flex-wrap: wrap; gap: 0.6rem;
+    padding: 1rem; display: flex; flex-wrap: wrap; gap: 1.1rem;
     align-items: flex-start; min-height: 12rem; }
-  .card { flex: 1 1 calc(25% - 0.6rem); min-width: 280px; max-width: 100%;
-    display: flex; background: rgba(255,255,255,0.5); border-radius: 8px;
-    border: 1px solid #e5e7eb; overflow: hidden; }
-  .margin-bar { width: 6px; flex-shrink: 0; }
+  .card { flex: 1 1 340px; min-width: 340px; max-width: 460px;
+    display: flex; background: rgba(255,255,255,0.5); border-radius: 10px;
+    border: 1px solid #e5e7eb; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .margin-bar { width: 7px; flex-shrink: 0; }
   .margin-bar.flag-thin { background: #ef4444; }
   .margin-bar.flag-ok { background: #f59e0b; }
   .margin-bar.flag-wide { background: #10b981; }
 
   .card-body { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-  .card-head { padding: 0.45rem 0.55rem 0.4rem; border-bottom: 1px solid #e5e7eb;
+  .card-head { padding: 0.75rem 0.9rem 0.65rem; border-bottom: 1px solid #e5e7eb;
     background: rgba(255,255,255,0.6); }
-  .card-title { font-size: 0.92rem; font-weight: 800; color: #4338ca;
+  .card-title { font-size: 1rem; font-weight: 800; color: #4338ca;
     text-transform: lowercase; letter-spacing: 0.01em; background: none; border: none;
     padding: 0; cursor: pointer; text-align: left; width: 100%;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card-title:hover { text-decoration: underline; }
-  .name-edit { font-size: 0.92rem; font-weight: 700; width: 100%; padding: 0.1rem 0.2rem;
+  .name-edit { font-size: 1rem; font-weight: 700; width: 100%; padding: 0.15rem 0.3rem;
     border: 1px solid #4f46e5; border-radius: 4px; }
-  .card-count { font-size: 0.7rem; color: #6b7280; margin-top: 0.15rem; }
-  .card-desc { font-size: 0.76rem; color: #4b5563; margin-top: 0.25rem; line-height: 1.35; }
+  .card-count { font-size: 0.74rem; color: #6b7280; margin-top: 0.25rem;
+    display: flex; align-items: center; gap: 0.5rem; }
+  .card-stars { color: #b45309; font-weight: 600; }
+  .card-desc { font-size: 0.8rem; color: #4b5563; margin-top: 0.35rem; line-height: 1.4; }
 
-  .card-actions { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0.35rem 0.55rem;
+  .card-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0.5rem 0.9rem;
     border-bottom: 1px solid #f1f5f9; }
-  .chip { font-size: 0.68rem; padding: 0.15rem 0.5rem; border-radius: 999px;
+  .chip { font-size: 0.72rem; padding: 0.22rem 0.65rem; border-radius: 999px;
     border: 1px solid #e5e7eb; background: #f8fafc; cursor: pointer; }
   .chip:disabled { opacity: 0.5; cursor: not-allowed; }
   .chip.danger { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
 
-  .card-members { overflow-y: auto; padding: 0.35rem;
-    display: grid; grid-template-columns: 1fr; row-gap: 0.35rem; max-height: 40rem; }
+  .card-members { overflow-y: auto; padding: 0.6rem;
+    display: grid; grid-template-columns: 1fr; row-gap: 0.55rem; max-height: 42rem; }
 
-  .cell { display: flex; align-items: flex-start; gap: 0.3rem; border-radius: 6px;
-    padding: 0.45rem 0.5rem; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+  .cell { display: flex; align-items: flex-start; gap: 0.5rem; border-radius: 7px;
+    padding: 0.65rem 0.75rem; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.08);
     border: 2px solid #111827; overflow: hidden; }
-  .split-check { margin-top: 0.2rem; flex-shrink: 0; }
+  .split-check { margin-top: 0.25rem; flex-shrink: 0; }
   .cell-main { min-width: 0; flex: 1; }
-  .cell-title { font-family: monospace; font-size: 0.78rem; font-weight: 600;
+  .cell-title { font-family: monospace; font-size: 0.84rem; font-weight: 600;
     color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    text-decoration: none; display: block; margin-bottom: 0.2rem; }
+    text-decoration: none; display: block; margin-bottom: 0.3rem; }
   .cell-title:hover { color: #4f46e5; text-decoration: underline; }
-  .cell-sub { display: flex; gap: 0.4rem; align-items: center; font-size: 0.7rem;
+  .cell-sub { display: flex; gap: 0.55rem; align-items: center; font-size: 0.74rem;
     color: #4b5563; line-height: 1.4; }
-  .domain-pill { background: #eef2ff; color: #4338ca; padding: 0 0.35em;
-    border-radius: 3px; font-size: 0.68rem; }
-  .cell-desc { font-size: 0.78rem; color: #4b5563; line-height: 1.35;
-    margin-top: 0.2rem;
+  .domain-pill { background: #eef2ff; color: #4338ca; padding: 0.05rem 0.45em;
+    border-radius: 3px; font-size: 0.7rem; }
+  .cell-desc { font-size: 0.8rem; color: #4b5563; line-height: 1.4;
+    margin-top: 0.3rem;
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
     overflow: hidden; text-overflow: ellipsis; }
-  .move-select { font-size: 0.64rem; max-width: 66px; flex-shrink: 0; align-self: flex-start; }
+  .move-select { font-size: 0.68rem; max-width: 76px; flex-shrink: 0; align-self: flex-start; }
 </style>
