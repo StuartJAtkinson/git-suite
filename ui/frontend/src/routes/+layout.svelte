@@ -27,6 +27,7 @@
     <a href="/order" class={active('/order')}>Order</a>
     <a href="/triage" class={active('/triage')}>Triage</a>
     <a href="/execute" class={active('/execute')}>Execute</a>
+    <a href="/install" class={active('/install')} title="Step 8: hand-off install plan">Install</a>
     <a href="/summary" class={active('/summary')}>Summary</a>
   </div>
   <span class="spacer"></span>
