@@ -166,3 +166,22 @@ def test_forbids_map_drops_empty_buckets(isolated_plan):
     isolated_plan.set_forbid("foo", "maps-hub")
     isolated_plan.clear_forbids("foo")
     assert isolated_plan.forbids_map() == {}
+
+
+# -- label_for / VERDICT_LABELS --------------------------------------------
+
+def test_label_for_known_verdicts():
+    from plan_store import VERDICT_LABELS, label_for
+    assert VERDICT_LABELS["absorb"]   != "absorb"     # the whole point
+    assert label_for("absorb")  == VERDICT_LABELS["absorb"]
+    assert label_for("archive") == "archive"
+    assert label_for("keep")    == "keep"
+    assert label_for("orphan")  == VERDICT_LABELS["orphan"]
+
+
+def test_label_for_unknown_verdict_passes_through():
+    """A future verdict (e.g. 'feature_in' from Step 6) lands unknown — the
+    helper must not crash; the raw token shows so the UI degrades visibly."""
+    from plan_store import label_for
+    assert label_for("feature_in") == "feature_in"
+    assert label_for("")           == ""

@@ -111,6 +111,7 @@ async def reconcile(session_id: str):
         reconciled.append({
             "name": name,
             "verdict": verdict,
+            "label": plan_store.label_for(verdict),
             "hub": hub,
             "aim": r.get("aim") or "",
             "url": r.get("url") or "",

@@ -41,6 +41,25 @@ _LOCK = threading.Lock()
 
 VERDICTS = {"absorb", "archive", "keep", "orphan"}
 
+# User-facing labels for the internal verdict tokens. "absorb" predates the
+# feature-level pipeline model — the roadmap's intended sense (Step 6+) is
+# "fold a feature from a star/fork into an owned repo", but the stored verdict
+# still maps a whole repo into a hub's absorbs list. We don't rename the
+# internal token (would invalidate existing plan.json on disk) — we rename
+# what the UI / READMEs call it. Add new tokens here when Step 6 lands; the
+# legacy verb stays for back-compat with plans on disk.
+VERDICT_LABELS = {
+    "absorb":  "group into hub",         # legacy: repo → hub
+    "archive": "archive",
+    "keep":    "keep",
+    "orphan":  "unplaced",
+}
+
+
+def label_for(verdict: str) -> str:
+    """UI-facing verb for an internal verdict. Unknown verdicts pass through."""
+    return VERDICT_LABELS.get(verdict, verdict)
+
 
 def _seed_plan() -> dict:
     """The default plan on first run: fully empty. Nothing is assumed — no

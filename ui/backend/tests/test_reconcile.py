@@ -20,6 +20,32 @@ def test_reconcile_classifies_every_repo(temp_db, isolated_plan):
     assert by["MarvelGraph"] == "archive"
     assert by["random-xyz"] == "orphan"
     assert by["game-hub"] == "keep"
+
+
+def test_reconcile_emits_ui_labels_for_each_verdict(temp_db, isolated_plan):
+    """Each verdict gets a clear user-facing label — 'absorb' (legacy
+    repo→hub sense) renders as 'group into hub' so the roadmap's
+    feature-level meaning has somewhere to land when Step 6 ships."""
+    from routers.reconcile import reconcile
+    from plan_store import VERDICT_LABELS
+    insert_scan(temp_db, repos=[
+        {"name": "quivr"},        # absorb
+        {"name": "git-suite"},    # keep (also hub)
+        {"name": "MarvelGraph"},  # archive
+        {"name": "random-xyz"},   # orphan
+    ])
+    r = asyncio.run(reconcile("s1"))
+    by_label = {x["name"]: x["label"] for x in r["repos"]}
+    # The user-facing label follows the same mapping as plan_store.VERDICT_LABELS;
+    # we don't hard-code the legacy alias string here so the test still passes
+    # when Step 6 renames it.
+    assert by_label["quivr"]      == VERDICT_LABELS["absorb"]
+    assert by_label["git-suite"]  == VERDICT_LABELS["keep"]
+    assert by_label["MarvelGraph"] == VERDICT_LABELS["archive"]
+    assert by_label["random-xyz"] == VERDICT_LABELS["orphan"]
+    # Sanity: every label is non-empty human-readable copy, not the raw token.
+    for v, lbl in by_label.items():
+        assert lbl and lbl != v, f"{v} should have a clearer label"
     assert r["stats"]["undecided"] == 1
     assert [o["name"] for o in r["orphans"]] == ["random-xyz"]
 
