@@ -15,6 +15,7 @@ Usage:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -113,6 +114,28 @@ def _should_failover(exc: Exception, provider: str) -> bool:
         or _matches(msg, GLOBAL_EXHAUST_PHRASES)
         or _matches(msg, TRANSIENT_PHRASES)
     )
+
+
+def _is_exhausted(exc: Exception, provider: str) -> bool:
+    """Credits/quota gone — retrying the same provider can't help."""
+    msg = str(exc)
+    meta = PROVIDERS.get(provider, {})
+    return _matches(msg, meta.get("exhaust_patterns", [])) or _matches(msg, GLOBAL_EXHAUST_PHRASES)
+
+
+def _is_transient(exc: Exception, provider: str) -> bool:
+    """DNS blips, rate limits, timeouts, 5xx — worth a short retry on the
+    SAME provider before giving up on it. A single-provider chain (the
+    common case when only one API key is configured) has nothing to fail
+    over to, so a transient glitch on a ~20-minute call would otherwise be
+    fatal to the whole run."""
+    return _matches(str(exc), TRANSIENT_PHRASES) and not _is_exhausted(exc, provider)
+
+
+# Extra same-provider attempts for a transient error, before moving on
+# (or raising, if this is the last/only provider in the chain).
+_RETRY_ATTEMPTS = 2
+_RETRY_BACKOFF_SECONDS = 3
 
 
 # --- per-provider calls ----------------------------------------------------
@@ -216,13 +239,27 @@ async def complete(prompt: str, system: str = "", max_tokens: int = 1024) -> str
     idx = min(_floor, len(chain) - 1)
     while idx < len(chain):
         name, key, model = chain[idx]
-        try:
-            text = await _dispatch(name, key, model, prompt, system, max_tokens)
-        except Exception as exc:
-            # Fail over on ANY provider error — a misconfigured leading provider
-            # (e.g. a 404 from a wrong endpoint/model) must not kill the chain.
-            # `_should_failover` now only flavours the log; the next provider is
-            # always tried.
+        attempt = 0
+        exc: Exception | None = None
+        text = ""
+        while True:
+            try:
+                text = await _dispatch(name, key, model, prompt, system, max_tokens)
+                exc = None
+                break
+            except Exception as e:
+                exc = e
+                if _is_transient(e, name) and attempt < _RETRY_ATTEMPTS:
+                    attempt += 1
+                    delay = _RETRY_BACKOFF_SECONDS * attempt
+                    log.warning("LLM provider %s transient error, retry %d/%d in %ds: %s",
+                                name, attempt, _RETRY_ATTEMPTS, delay, str(e)[:160])
+                    await asyncio.sleep(delay)
+                    continue
+                break
+        if exc is not None:
+            # Fail over on ANY provider error (after exhausting retries above)
+            # — a misconfigured leading provider must not kill the chain.
             errors.append(f"{name}: {str(exc)[:160]}")
             log.warning("LLM provider %s failed (failover=%s): %s",
                         name, _should_failover(exc, name), str(exc)[:160])

@@ -77,3 +77,49 @@ def test_complete_raises_when_no_providers(monkeypatch):
     monkeypatch.setattr(llm, "build_chain", lambda: [])
     with pytest.raises(llm.AllProvidersFailed):
         asyncio.run(llm.complete("hi"))
+
+
+def test_complete_retries_transient_error_on_same_provider_before_failover(monkeypatch):
+    """A DNS blip / rate-limit / timeout on a SINGLE-provider chain (the
+    common case — only one API key configured, nothing to fail over to)
+    must not be immediately fatal. Retry the same provider a couple of
+    times first."""
+    from services import llm
+    llm.reset_floor()
+    monkeypatch.setattr(llm, "build_chain", lambda: [("minimax", "k1", "m1")])
+
+    sleeps = []
+    async def fake_sleep(s):
+        sleeps.append(s)
+    monkeypatch.setattr(llm.asyncio, "sleep", fake_sleep)
+
+    calls = []
+    async def fake(name, key, model, prompt, system, mt):
+        calls.append(name)
+        if len(calls) < 3:
+            raise RuntimeError("HTTP 429: rate limit exceeded")
+        return "ok after retries"
+
+    monkeypatch.setattr(llm, "_dispatch", fake)
+    out = asyncio.run(llm.complete("hi"))
+    assert out == "ok after retries"
+    assert calls == ["minimax", "minimax", "minimax"]
+    assert len(sleeps) == 2                 # backed off before each retry
+
+
+def test_complete_does_not_retry_exhaustion_errors(monkeypatch):
+    """Credits/quota gone — retrying the same provider can't help, so it
+    should fail over (or raise, if it's the only provider) immediately."""
+    from services import llm
+    llm.reset_floor()
+    monkeypatch.setattr(llm, "build_chain", lambda: [("minimax", "k1", "m1")])
+
+    calls = []
+    async def fake(name, key, model, prompt, system, mt):
+        calls.append(name)
+        raise RuntimeError("insufficient balance")
+
+    monkeypatch.setattr(llm, "_dispatch", fake)
+    with pytest.raises(llm.AllProvidersFailed):
+        asyncio.run(llm.complete("hi"))
+    assert calls == ["minimax"]             # no retry attempts

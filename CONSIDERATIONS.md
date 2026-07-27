@@ -1,0 +1,5 @@
+# Considerations — git-suite
+
+Decisions that need a human call, logged instead of guessed.
+
+- **Real multi-provider LLM failover still needs a second configured provider.** `services/llm.py` now retries a transient error (DNS blip, 429, timeout, 5xx) on the *same* provider up to twice with backoff before failing over — this alone would very likely have absorbed both of the reported clustering-run failures. But with only `minimax` keyed in `~/.git-suite/config.json`'s `llm_keys`, there is still nothing to fail over to for a sustained outage or a real exhaustion error. The registry already supports Anthropic/OpenAI/DeepSeek/OpenRouter/xAI (need an API key from you) and a keyless local Ollama fallback (needs Ollama running and either added to `llm_priority_order` or given a model in `llm_models` — currently opt-in on purpose so git-suite never silently hammers `localhost:11434`). Adding a second provider means either supplying another key via Setup → LLM Providers, or explicitly opting into local Ollama — both are your call, not something to default silently.
