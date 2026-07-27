@@ -111,6 +111,8 @@ export const api = {
     req('POST', `/api/order/${session_id}/${hub}/compat-tags`, { tags }),
   annotate: (session_id, hub, repo, annotations) =>
     req('POST', `/api/order/${session_id}/${hub}/annotate`, { repo, annotations }),
+  alignPrinciples: (session_id, hub) =>
+    req('POST', `/api/order/${session_id}/${hub}/align`, {}),
 
   // Execute (plan -> real GitHub actions)
   executePreview: (session_id) => req('GET', `/api/execute/preview/${session_id}`),

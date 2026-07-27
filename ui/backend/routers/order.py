@@ -11,6 +11,7 @@ feature annotations live in the `hub_order` and `hub_compat_tags` tables.
   POST /api/order/{session_id}/{hub}/suggest-column   LLM: propose a column for one repo
   POST /api/order/{session_id}/{hub}/compat-tags      set per-hub compat-tag vocabulary override
   POST /api/order/{session_id}/{hub}/annotate         set feature annotations for one repo
+  POST /api/order/{session_id}/{hub}/align            Step 7: align design principles across absorbed repos
 """
 from __future__ import annotations
 
@@ -496,3 +497,111 @@ async def annotate(session_id: str, hub: str, body: AnnotateRequest):
         )
         await db.commit()
     return {"hub": hub, "repo": body.repo, "annotations": cleaned}
+
+
+# --- align design principles ----------------------------------------------
+
+# Baseline categories Step 7 of the architecture model converges the owned
+# library against. Listed once here so the prompt and any future UI agree.
+ALIGN_PRINCIPLES: list[str] = [
+    "README structure (Overview, Install, Usage, Contributing)",
+    "License file",
+    "CONTRIBUTING.md or equivalent",
+    "Tests present and runnable",
+    "CI / GitHub Actions workflow",
+    "Lint/format config consistent with hub standard",
+    "Dependency manifest (requirements.txt / package.json / Cargo.toml)",
+    "Changelog / release notes convention",
+]
+
+
+@router.post("/order/{session_id}/{hub}/align")
+async def align_principles(session_id: str, hub: str):
+    """Step 7 of the architecture model — score each absorbed repo against
+    the hub's design-principles baseline and list the concrete edits needed
+    to converge them. Read-only; nothing is written to plan.json or the DB.
+
+    The prompt is deterministic (same hub + same distilled records → same
+    checklist shape), so a second call replaces a stale result without
+    history bookkeeping. One LLM call, one JSON reply, no follow-ups.
+    """
+    await require_session(session_id)
+    meta = await _hub_meta(hub)
+    plan = plan_store.get_plan()
+    members = sorted(set([hub] + plan["hubs"][hub].get("absorbs", [])))
+
+    rows: list[dict] = []
+    for repo in members:
+        rec = await _distilled_record(repo)
+        rows.append({"repo": repo,
+                     "purpose": rec.get("purpose", ""),
+                     "domain": rec.get("domain", ""),
+                     "entities": rec.get("entities", [])})
+
+    principles_bullets = "\n".join(f"- {p}" for p in ALIGN_PRINCIPLES)
+    repo_lines = "\n".join(
+        f"- {r['repo']}\n  purpose: {r['purpose'] or '(undistilled)'}\n"
+        f"  domain: {r['domain'] or '(none)'}\n  entities: {', '.join(r['entities']) or '(none)'}"
+        for r in rows
+    )
+
+    system = (
+        "You audit a set of related repos for design-principles alignment and "
+        "produce a concrete convergence checklist. "
+        "Output STRICT JSON. Schema: "
+        '{"principles": [{"name": "<principle>", "repos": [{"repo": "<repo>", '
+        '"present": <bool>, "note": "<short reason or "" if present>"}]}], '
+        '"summary": "<1-2 sentences on overall alignment, biggest gap, biggest strength>"} '
+        "Be honest — mark present:false when unsure. Keep notes to 6-12 words. "
+        "No prose outside the JSON."
+    )
+    prompt = f"""Hub: {hub}
+Hub description: {meta.get('description', '') or '(none)'}
+Hub boundary: {meta.get('boundary', '') or '(none)'}
+
+Baseline principles (audit each absorbed repo against this list):
+{principles_bullets}
+
+Repos to audit ({len(rows)}):
+{repo_lines}
+
+For every (principle, repo) pair, decide present: true/false and a short note.
+Reply with JSON only, no fences.
+"""
+    raw = await llm.complete(prompt, system=system, max_tokens=4000)
+    try:
+        parsed = json.loads(llm._FENCE.match(raw.strip()).group(1) if llm._FENCE.match(raw.strip()) else raw)
+    except Exception as exc:
+        raise HTTPException(status_code=502,
+                            detail=f"couldn't parse align-principles JSON: {str(exc)[:160]}")
+
+    principles = parsed.get("principles") if isinstance(parsed, dict) else None
+    summary = parsed.get("summary") if isinstance(parsed, dict) else None
+    if not isinstance(principles, list):
+        raise HTTPException(status_code=502, detail="align-principles response missing 'principles' list")
+
+    # Defensive shape normalisation — keep only known principle names so the
+    # UI never has to invent a category from a hallucinated key.
+    by_name = {p.get("name", ""): p for p in principles if isinstance(p, dict)}
+    normalised: list[dict] = []
+    for name in ALIGN_PRINCIPLES:
+        src = by_name.get(name) or {}
+        repos: list[dict] = []
+        for r in src.get("repos", []) or []:
+            if isinstance(r, dict) and r.get("repo"):
+                repos.append({"repo": r["repo"],
+                               "present": bool(r.get("present")),
+                               "note": str(r.get("note") or "")[:140]})
+        normalised.append({"name": name, "repos": repos})
+
+    # Derive a per-repo gap count (the 0-n badge on each row in the UI).
+    gap_by_repo: dict[str, int] = {m: 0 for m in members}
+    for p in normalised:
+        for r in p["repos"]:
+            if not r["present"] and r["repo"] in gap_by_repo:
+                gap_by_repo[r["repo"]] += 1
+
+    return {"hub": hub, "principles": normalised,
+            "summary": (str(summary) if summary else None),
+            "gap_by_repo": gap_by_repo,
+            "members": members}

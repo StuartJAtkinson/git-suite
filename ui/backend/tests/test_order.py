@@ -5,7 +5,7 @@ import json
 from services import llm
 from routers.order import (
     get_order, save_order, suggest_order, suggest_column, suggest_features,
-    set_compat_tags, annotate,
+    set_compat_tags, annotate, align_principles, ALIGN_PRINCIPLES,
     OrderSaveRequest, OrderRow,
     SuggestColumnRequest, SuggestFeaturesRequest, CompatTagsRequest, AnnotateRequest,
 )
@@ -345,3 +345,83 @@ def test_suggest_features_rejects_non_absorb_repo(temp_db, isolated_plan):
     with pytest.raises(Exception) as ei:
         asyncio.run(suggest_features("s1", "h", SuggestFeaturesRequest(repo="outsider")))
     assert "outsider" in str(ei.value)
+
+
+# -- Step 7 — align design principles ---------------------------------------
+
+
+def _seed_align_setup(temp_db, isolated_plan):
+    from tests.conftest import insert_scan
+    insert_scan(temp_db, session_id="s1", scan_id="sc1", repos=[
+        {"name": "h", "language": "Python"},
+        {"name": "a", "language": "Python"},
+        {"name": "b", "language": "Python"},
+    ])
+    isolated_plan.upsert_hub("h")
+    isolated_plan.set_verdict("a", "absorb", "h")
+    isolated_plan.set_verdict("b", "absorb", "h")
+    # Seed distilled records so the prompt has real data to reason about.
+    async def _seed_records():
+        async for db in get_db():
+            for name, rec in [
+                ("a", {"purpose": "ingests CSV", "entities": ["csv"], "domain": "etl"}),
+                ("b", {"purpose": "renders charts", "entities": ["chart"], "domain": "viz"}),
+            ]:
+                await db.execute(
+                    "INSERT OR REPLACE INTO repo_domain (repo, record, src_hash) "
+                    "VALUES (?, ?, ?)",
+                    (name, json.dumps(rec), "h" + name),
+                )
+                await db.commit()
+    from database import get_db
+    asyncio.run(_seed_records())
+
+
+def test_align_returns_canonical_principle_list(temp_db, isolated_plan, monkeypatch):
+    _seed_align_setup(temp_db, isolated_plan)
+    fake = {"principles": [
+        {"name": name, "repos": [
+            {"repo": "a", "present": True, "note": "ok"},
+            {"repo": "b", "present": False, "note": "no tests"},
+        ]} for name in ALIGN_PRINCIPLES
+    ], "summary": "two gaps"}
+    async def fake_complete(prompt, system="", max_tokens=1024):
+        return json.dumps(fake)
+    monkeypatch.setattr(llm, "complete", fake_complete)
+
+    res = asyncio.run(align_principles("s1", "h"))
+    assert res["hub"] == "h"
+    assert [p["name"] for p in res["principles"]] == ALIGN_PRINCIPLES
+    # gap_by_repo counts only the present:false rows
+    assert res["gap_by_repo"]["a"] == 0
+    assert res["gap_by_repo"]["b"] == len(ALIGN_PRINCIPLES)
+
+
+def test_align_ignores_hallucinated_principle_names(temp_db, isolated_plan, monkeypatch):
+    """The model may invent extra principles; the UI must never see them —
+    ALIGN_PRINCIPLES is the canonical list, anything else is dropped."""
+    _seed_align_setup(temp_db, isolated_plan)
+    fake = {"principles": [
+        {"name": "Bogus principle invented by the model", "repos": []},
+        {"name": ALIGN_PRINCIPLES[0], "repos": [
+            {"repo": "a", "present": True, "note": ""},
+        ]},
+    ], "summary": ""}
+    async def fake_complete(prompt, system="", max_tokens=1024):
+        return json.dumps(fake)
+    monkeypatch.setattr(llm, "complete", fake_complete)
+
+    res = asyncio.run(align_principles("s1", "h"))
+    names = [p["name"] for p in res["principles"]]
+    assert names == ALIGN_PRINCIPLES          # only the canonical 8
+    assert all(n == n.strip() for n in names) # sanity
+    # summary was a non-empty string passed straight through
+    assert isinstance(res["summary"], (str, type(None)))
+
+
+def test_align_rejects_non_hub_repo(temp_db, isolated_plan):
+    _seed_align_setup(temp_db, isolated_plan)
+    import pytest
+    with pytest.raises(Exception) as ei:
+        asyncio.run(align_principles("s1", "nope-no-such-hub"))
+    assert "nope-no-such-hub" in str(ei.value)

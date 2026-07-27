@@ -16,6 +16,8 @@
   let data = null;          // GET /api/order response
   let rows = [];            // local working copy
   let compatTags = [];      // per-hub compat-tag vocabulary
+  let aligning = false;     // Step 7: design-principles audit in flight
+  let alignResult = null;   // last align response from the server
   let columns = COLUMNS;
 
   let loading = false;
@@ -57,6 +59,7 @@
     history = [];
     proposedOrder = null;
     suggestPropose = null;
+    alignResult = null;
     await load();
   }
 
@@ -176,6 +179,19 @@
     finally { suggestingOrder = false; }
   }
 
+  // Step 7: audit the absorbed repos against the hub's design-principles
+  // baseline. Read-only — nothing is written anywhere; results render as a
+  // per-principle, per-repo grid below the rows so you can see who needs
+  // what without leaving the page.
+  async function runAlign() {
+    if (!hub) return;
+    aligning = true; error = '';
+    try {
+      alignResult = await api.alignPrinciples($session.session_id, hub);
+    } catch (e) { error = e.message; }
+    finally { aligning = false; }
+  }
+
   function acceptProposedOrder() {
     if (!proposedOrder) return;
     // Build a map: repo -> new position from the LLM proposal
@@ -272,6 +288,10 @@
     </label>
     <button class="ghost sm" on:click={suggestOrderAll} disabled={suggestingOrder || rows.length < 2}>
       {suggestingOrder ? 'Suggesting…' : '✨ Suggest order'}
+    </button>
+    <button class="ghost sm" on:click={runAlign} disabled={aligning || rows.length < 1}
+      title="Audit each absorbed repo against the hub's design-principles baseline (Step 7)">
+      {aligning ? 'Auditing…' : '✓ Align principles'}
     </button>
     <button on:click={save} disabled={saving || loading}>
       {saving ? 'Saving…' : '💾 Save'}
@@ -396,6 +416,45 @@
       </div>
     {/each}
   </div>
+
+  {#if alignResult}
+    <section class="align-panel">
+      <header>
+        <h2>Design-principles alignment <span class="muted">(Step 7)</span></h2>
+        {#if alignResult.summary}<p class="align-summary">{alignResult.summary}</p>{/if}
+      </header>
+      <table class="align-grid">
+        <thead>
+          <tr>
+            <th class="row-head">principle</th>
+            {#each alignResult.members as m}
+              <th class="repo-col">
+                {m}
+                <span class="gap-pill">{alignResult.gap_by_repo[m] ?? 0} gap{((alignResult.gap_by_repo[m] ?? 0) === 1) ? '' : 's'}</span>
+              </th>
+            {/each}
+          </tr>
+        </thead>
+        <tbody>
+          {#each alignResult.principles as p (p.name)}
+            <tr>
+              <td class="row-head">{p.name}</td>
+              {#each alignResult.members as m}
+                {@const cell = p.repos.find((r) => r.repo === m)}
+                <td class="cell {cell?.present ? 'present' : 'absent'}"
+                  title={cell?.note || ''}>
+                  {cell?.present ? '✓' : '✗'}
+                  {#if cell && !cell.present && cell.note}
+                    <span class="cell-note">{cell.note}</span>
+                  {/if}
+                </td>
+              {/each}
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </section>
+  {/if}
 {/if}
 
 <style>
@@ -448,4 +507,26 @@
   .feature-rationale { font-size: 0.74rem; color: #78716c; font-style: italic; margin: 0.3rem 0 0; }
 
   .suggest-card { flex-basis: 100%; margin-top: 0.4rem; background: #f5f3ff; border: 1px solid #c4b5fd; border-radius: 6px; padding: 0.5rem 0.7rem; }
+
+  .align-panel { margin-top: 1rem; border: 1px solid #e5e7eb; border-radius: 8px;
+    background: #fff; padding: 0.7rem 0.9rem 0.9rem; }
+  .align-panel h2 { font-size: 1rem; font-weight: 700; color: #111827;
+    margin: 0 0 0.35rem; display: flex; align-items: center; gap: 0.5rem; }
+  .align-panel h2 .muted { color: #6b7280; font-weight: 500; font-size: 0.85rem; }
+  .align-summary { font-size: 0.84rem; color: #4b5563; margin: 0 0 0.7rem; line-height: 1.45; }
+  .align-grid { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  .align-grid th, .align-grid td { padding: 0.4rem 0.55rem; border-bottom: 1px solid #f1f5f9;
+    text-align: left; vertical-align: top; }
+  .align-grid thead th { color: #6b7280; font-weight: 600; font-size: 0.74rem;
+    background: #f9fafb; border-bottom: 1px solid #e5e7eb; }
+  .align-grid .row-head { font-weight: 600; color: #111827; min-width: 14rem; }
+  .align-grid .repo-col { font-family: monospace; }
+  .align-grid .gap-pill { display: inline-block; margin-left: 0.4rem;
+    background: #fffbeb; color: #92400e; padding: 0 0.4em; border-radius: 3px;
+    font-size: 0.66rem; font-family: inherit; font-weight: 600; }
+  .align-grid .cell { font-family: monospace; font-weight: 700; text-align: center; }
+  .align-grid .cell.present { color: #047857; }
+  .align-grid .cell.absent { color: #b91c1c; }
+  .align-grid .cell-note { display: block; font-family: inherit; font-weight: 400;
+    font-size: 0.7rem; color: #6b7280; margin-top: 0.2rem; line-height: 1.3; }
 </style>
