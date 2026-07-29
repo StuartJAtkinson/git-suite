@@ -299,3 +299,51 @@ def test_self_check_runs():
     )
     assert out.returncode == 0, out.stderr
     assert "self-check OK" in out.stdout, out.stdout
+
+# --- cache correctness regressions ---------------------------------------
+
+def test_cache_key_invalidates_when_source_url_changes(temp_db, isolated_plan, monkeypatch):
+    """A different source_url for the same (hub, repo) must NOT be served the
+    old runbook. The cache is keyed (hub, repo) in SQL, so the stored
+    cache_key is the only thing that can catch a changed input — it has to be
+    compared on read, or the plan silently points at the wrong remote."""
+    from fastapi.testclient import TestClient
+    from main import app
+    from services import llm
+    monkeypatch.setattr(llm, "has_provider", lambda: False)
+    insert_scan(temp_db, repos=[{"name": "quivr"}])
+    with TestClient(app) as c:
+        c.post("/api/absorb/plan/s1", json={
+            "hub": "personal-ai-os", "repo": "quivr",
+            "source_url": "https://github.com/first-owner/quivr.git",
+        })
+        second = c.post("/api/absorb/plan/s1", json={
+            "hub": "personal-ai-os", "repo": "quivr",
+            "source_url": "https://github.com/second-owner/quivr.git",
+        }).json()
+    joined = "\n".join(second["commands"])
+    assert "second-owner" in joined, joined
+    assert "first-owner" not in joined, joined
+
+
+def test_cached_response_includes_checklist(temp_db, isolated_plan, monkeypatch):
+    """The checklist is half the deliverable — the frontend renders it from the
+    same payload. A cache hit must not drop it."""
+    from fastapi.testclient import TestClient
+    from main import app
+    from services import llm
+    monkeypatch.setattr(llm, "has_provider", lambda: False)
+    insert_scan(temp_db, repos=[{"name": "quivr"}])
+    with TestClient(app) as c:
+        c.post("/api/absorb/plan/s1", json={
+            "hub": "personal-ai-os", "repo": "quivr",
+            "source_url": "https://github.com/x/quivr.git",
+        })
+        hit = c.post("/api/absorb/plan/s1", json={
+            "hub": "personal-ai-os", "repo": "quivr",
+            "source_url": "https://github.com/x/quivr.git",
+        }).json()
+        got = c.get("/api/absorb/plan/personal-ai-os/quivr/s1").json()
+    assert hit.get("cached") is True
+    assert any("Archive quivr" in s for s in hit.get("checklist") or []), hit
+    assert any("Archive quivr" in s for s in got.get("checklist") or []), got

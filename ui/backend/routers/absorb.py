@@ -64,30 +64,40 @@ async def _repo_meta(session_id: str, repo: str) -> dict:
 
 def _cache_key(hub: str, repo: str, payload: dict[str, Any]) -> str:
     """Hash the inputs that actually change the plan so we regenerate when
-    `repo_meta`/branch hints move, but not on every retry."""
+    `source_url`/branch hints move, but not on every retry.
+
+    `source_url` is the important one: the SQL cache is keyed (hub, repo)
+    alone, so pointing the same absorb at a different remote would otherwise
+    be served the previous runbook — a plan that fetches the wrong repo."""
     blob = json.dumps(
-        {k: payload[k] for k in ("source_url", "target_branch", "source_branch",
-                                  "module", "strategy") if k in payload},
+        {k: payload.get(k) for k in ("source_url", "target_branch", "source_branch",
+                                     "module", "strategy")},
         sort_keys=True,
     ).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()
 
 
-async def _cached(hub: str, repo: str) -> dict | None:
+async def _cached(hub: str, repo: str, expect_key: str | None = None) -> dict | None:
+    """Return the cached plan, or None if absent — or if `expect_key` is given
+    and the stored row was built from different inputs."""
     async for db in get_db():
         row = await db.execute_fetchall(
             "SELECT plan, notes, strategy, source_branch, target_branch, module, "
-            "       source, created_at FROM absorb_plan WHERE hub = ? AND repo = ?",
+            "       source, checklist, cache_key, created_at "
+            "  FROM absorb_plan WHERE hub = ? AND repo = ?",
             (hub, repo),
         )
     if not row:
         return None
     r = row[0]
+    if expect_key is not None and r["cache_key"] != expect_key:
+        return None                      # inputs changed — force a regenerate
     return {
         "hub": hub,
         "repo": repo,
         "commands": json.loads(r["plan"]),
         "notes": json.loads(r["notes"]),
+        "checklist": json.loads(r["checklist"] or "[]"),
         "strategy": r["strategy"],
         "source_branch": r["source_branch"],
         "target_branch": r["target_branch"],
@@ -120,7 +130,11 @@ async def gen_plan(session_id: str, body: PlanRequest):
         raise HTTPException(status_code=400, detail="source_url is required")
 
     meta = await _repo_meta(session_id, body.repo)
-    cached = None if body.regenerate else await _cached(body.hub, body.repo)
+    # Key off the *request*, not the generated plan — the plan has no
+    # source_url on it, and its source_branch is already resolved, so keying
+    # off it made the URL invisible to the cache. Same expression both sides.
+    key = _cache_key(body.hub, body.repo, body.model_dump())
+    cached = None if body.regenerate else await _cached(body.hub, body.repo, key)
     if cached:
         return cached
 
@@ -130,18 +144,18 @@ async def gen_plan(session_id: str, body: PlanRequest):
         source_branch=body.source_branch, strategy=body.strategy,
         repo_meta=meta,
     )
-    key = _cache_key(body.hub, body.repo, plan)
     async for db in get_db():
         await db.execute(
             """INSERT OR REPLACE INTO absorb_plan
                (hub, repo, cache_key, plan, notes, strategy, source_branch,
-                target_branch, module, source, created_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))""",
+                target_branch, module, source, checklist, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))""",
             (body.hub, body.repo, key,
              json.dumps(plan["commands"]),
              json.dumps(plan["notes"]),
              plan["strategy"], plan["source_branch"], plan["target_branch"],
-             plan["module"], plan["source"]),
+             plan["module"], plan["source"],
+             json.dumps(plan["checklist"])),
         )
         await db.commit()
     log.info("absorb plan %s→%s (%s, %d commands, %d notes)",

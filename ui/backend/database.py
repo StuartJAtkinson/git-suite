@@ -178,6 +178,7 @@ async def init_db() -> None:
                 target_branch  TEXT NOT NULL,    -- branch landed in the hub
                 module         TEXT NOT NULL,    -- subdir under modules/
                 source         TEXT NOT NULL,    -- 'rule' | 'llm+rule'
+                checklist      TEXT,             -- JSON array of post-merge steps
                 created_at     TEXT DEFAULT (datetime('now')),
                 PRIMARY KEY (hub, repo)
             );
@@ -198,6 +199,11 @@ _REPOS_ADDED_COLUMNS = {
     "full_name": "TEXT",    # owner/name — needed for heads/distill/cluster keying
 }
 
+# Same, for absorb_plan — the checklist was added after the table shipped.
+_ABSORB_PLAN_ADDED_COLUMNS = {
+    "checklist": "TEXT",    # JSON array of post-merge steps
+}
+
 
 async def _migrate(db) -> None:
     """Idempotently add new columns to existing tables (SQLite has no IF NOT EXISTS for columns)."""
@@ -206,6 +212,12 @@ async def _migrate(db) -> None:
     for col, decl in _REPOS_ADDED_COLUMNS.items():
         if col not in existing:
             await db.execute(f"ALTER TABLE repos ADD COLUMN {col} {decl}")
+
+    cur = await db.execute("PRAGMA table_info(absorb_plan)")
+    existing = {row[1] for row in await cur.fetchall()}
+    for col, decl in _ABSORB_PLAN_ADDED_COLUMNS.items():
+        if col not in existing:
+            await db.execute(f"ALTER TABLE absorb_plan ADD COLUMN {col} {decl}")
 
 
 async def get_db():
