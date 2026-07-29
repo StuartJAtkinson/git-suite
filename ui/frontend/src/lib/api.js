@@ -136,6 +136,14 @@ export const api = {
     req('POST', `/api/migration/checklist/${session_id}`, { hub, repo, regenerate }),
   pushMigration: (session_id, hub) =>
     req('POST', `/api/migration/push/${session_id}`, { hub }),
+
+  // Absorb flow — git runbook that moves a repo's content into a hub with
+  // history preserved (via `git subtree add`). The app never runs git; this
+  // just returns the cached plan + checklist.
+  absorbPlan: (session_id, body) =>
+    req('POST', `/api/absorb/plan/${session_id}`, body),
+  getAbsorbPlan: (hub, repo, session_id) =>
+    req('GET', `/api/absorb/plan/${hub}/${repo}/${session_id}`),
 };
 
 export function scanWs(scan_id, onRepo, onDone, onError) {

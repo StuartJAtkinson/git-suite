@@ -160,6 +160,28 @@ async def init_db() -> None:
                 updated_at TEXT DEFAULT (datetime('now'))
             );
 
+            -- The Absorb flow: a cached git runbook per (hub, repo) that
+            -- moves the source repo's content into the hub's modules/<name>/
+            -- subdirectory with full history preserved via `git subtree add`.
+            -- git-suite NEVER runs git itself — this row is the *plan* the
+            -- user runs locally; cached so we don't re-prompt the LLM each
+            -- visit. `cache_key` invalidates on input change (source URL,
+            -- branches, module name, strategy).
+            CREATE TABLE IF NOT EXISTS absorb_plan (
+                hub            TEXT NOT NULL,
+                repo           TEXT NOT NULL,
+                cache_key      TEXT NOT NULL,
+                plan           TEXT NOT NULL,    -- JSON array of runbook lines
+                notes          TEXT NOT NULL,    -- JSON array of advisory strings
+                strategy       TEXT NOT NULL,    -- 'subtree' | 'join'
+                source_branch  TEXT NOT NULL,    -- branch taken from the source repo
+                target_branch  TEXT NOT NULL,    -- branch landed in the hub
+                module         TEXT NOT NULL,    -- subdir under modules/
+                source         TEXT NOT NULL,    -- 'rule' | 'llm+rule'
+                created_at     TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (hub, repo)
+            );
+
         """)
         await _migrate(db)
         await db.commit()

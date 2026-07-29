@@ -77,6 +77,11 @@
   let migByHub = {};      // hub -> absorbs[]
   let absBusy = '';       // "hub/repo" in flight
   let pushMigBusy = '';
+  // Absorb flow — git runbook for the user to run locally
+  let absorbPlanByRepo = {};       // "hub/repo" -> {commands, notes, checklist, ...}
+  let absorbBusy = '';
+  let absorbOpen = '';             // "hub/repo" whose runbook is expanded
+  let absorbUrlByRepo = {};        // "hub/repo" -> source URL the user typed
 
   async function loadMigration() {
     const hubs = (preview?.hubs_state ?? []).map((h) => h.hub);
@@ -100,6 +105,29 @@
       msg = `${hub}: pushed MIGRATION.md.`;
       await loadMigration();
     } catch (e) { errorMsg = e.message; } finally { pushMigBusy = ''; }
+  }
+
+  async function genAbsorbPlan(hub, repo) {
+    const key = `${hub}/${repo}`;
+    const url = absorbUrlByRepo[key] || `https://github.com/<you>/${repo}.git`;
+    absorbBusy = key; errorMsg = '';
+    try {
+      const plan = await api.absorbPlan($session.session_id, { hub, repo, source_url: url });
+      absorbPlanByRepo = { ...absorbPlanByRepo, [key]: plan };
+      absorbOpen = key;
+      msg = `${repo}: absorb plan ready (${plan.commands.length} commands, source=${plan.source}).`;
+    } catch (e) { errorMsg = e.message; } finally { absorbBusy = ''; }
+  }
+
+  async function fetchAbsorbPlan(hub, repo) {
+    const key = `${hub}/${repo}`;
+    absorbBusy = key;
+    try {
+      const plan = await api.getAbsorbPlan(hub, repo, $session.session_id);
+      absorbPlanByRepo = { ...absorbPlanByRepo, [key]: plan };
+      absorbOpen = key;
+    } catch { /* not cached yet — leave closed */ }
+    finally { absorbBusy = ''; }
   }
 
   // hub lifecycle
@@ -232,17 +260,58 @@
         </div>
         <div class="repo-list">
           {#each absorbs as a}
+            {@const absorbKey = `${hub}/${a.repo}`}
             <div class="repo-row" class:dim={a.done}>
               <span class="repo-name">{a.repo}</span>
               {#if !a.live}<span class="tag none">not live</span>{/if}
               {#if a.done}
                 <span class="tag ok">absorbed</span>
               {:else}
-                <button class="sm" style="margin-left:auto" disabled={absBusy === `${hub}/${a.repo}`} on:click={() => markAbsorbed(hub, a.repo)}>
-                  {absBusy === `${hub}/${a.repo}` ? '…' : 'Mark absorbed'}
+                <input
+                  type="text"
+                  placeholder={`https://github.com/<you>/${a.repo}.git`}
+                  bind:value={absorbUrlByRepo[absorbKey]}
+                  class="absorb-url"
+                  style="margin-left:auto;font-size:0.72rem;width:18rem;"
+                />
+                <button class="sm" disabled={absorbBusy === absorbKey} on:click={() => genAbsorbPlan(hub, a.repo)}>
+                  {absorbBusy === absorbKey ? '…' : 'Absorb plan'}
+                </button>
+                <button class="sm" style="margin-left:auto" disabled={absBusy === absorbKey} on:click={() => markAbsorbed(hub, a.repo)}>
+                  {absBusy === absorbKey ? '…' : 'Mark absorbed'}
                 </button>
               {/if}
             </div>
+            {#if absorbOpen === absorbKey && absorbPlanByRepo[absorbKey]}
+              {@const p = absorbPlanByRepo[absorbKey]}
+              <div class="absorb-runbook">
+                <div class="absorb-meta">
+                  <span class="tag doc">{p.strategy}</span>
+                  <span class="muted">source={p.source_branch} → {p.target_branch}</span>
+                  <span class="muted">modules/{p.module}/</span>
+                  {#if p.cached}<span class="tag ok">cached</span>{:else}<span class="tag doc">fresh</span>{/if}
+                  <button class="sm" style="margin-left:auto" on:click={() => (absorbOpen = '')}>Hide</button>
+                </div>
+                {#if p.notes?.length}
+                  <ul class="absorb-notes">
+                    {#each p.notes as n}<li>{n}</li>{/each}
+                  </ul>
+                {/if}
+                <details open>
+                  <summary>Runbook ({p.commands.length} lines)</summary>
+                  <pre class="absorb-cmds">{p.commands.join('\n')}</pre>
+                </details>
+                {#if p.checklist?.length}
+                  <details>
+                    <summary>Post-merge checklist ({p.checklist.length})</summary>
+                    <ol class="absorb-checklist">
+                      {#each p.checklist as s}<li>{s}</li>{/each}
+                    </ol>
+                  </details>
+                {/if}
+                <p class="hint" style="margin-top:0.4rem;">Run the runbook locally — git-suite never runs git for you. Mark the row absorbed when the push lands.</p>
+              </div>
+            {/if}
           {/each}
         </div>
       </div>
@@ -302,4 +371,10 @@
   .hub-life-actions { margin-left: auto; display: flex; gap: 0.3rem; }
   .mig-hub { margin-bottom: 0.9rem; }
   .mig-hub-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; }
+  .absorb-runbook { margin: 0.4rem 0 0.6rem 1.1rem; padding: 0.7rem 0.9rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.82rem; }
+  .absorb-meta { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
+  .absorb-cmds { background: #0f172a; color: #e2e8f0; padding: 0.6rem 0.8rem; border-radius: 5px; font-size: 0.75rem; line-height: 1.4; overflow-x: auto; margin: 0.4rem 0 0; }
+  .absorb-notes { margin: 0.2rem 0 0.5rem 1.1rem; color: #475569; }
+  .absorb-checklist { margin: 0.3rem 0 0 1.3rem; }
+  .absorb-url { padding: 0.18rem 0.4rem; border: 1px solid #e5e7eb; border-radius: 4px; font-family: monospace; background: #fafafa; }
 </style>
