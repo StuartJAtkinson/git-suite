@@ -82,6 +82,36 @@
   let absorbBusy = '';
   let absorbOpen = '';             // "hub/repo" whose runbook is expanded
   let absorbUrlByRepo = {};        // "hub/repo" -> source URL the user typed
+  let absorbCopied = '';           // "hub/repo" whose runbook was just copied to clipboard
+
+  async function copyRunbook(hub, repo) {
+    const key = `${hub}/${repo}`;
+    const plan = absorbPlanByRepo[key];
+    if (!plan) return;
+    const text = plan.commands.join('\n');
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Legacy fallback (older browsers / non-secure contexts) — temporary
+        // textarea, select, execCommand. Kept tiny so the UX degrades cleanly.
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      absorbCopied = key;
+      setTimeout(() => {
+        if (absorbCopied === key) absorbCopied = '';
+      }, 1500);
+    } catch {
+      msg = `${repo}: clipboard copy failed — select-all from the runbook instead.`;
+    }
+  }
 
   async function loadMigration() {
     const hubs = (preview?.hubs_state ?? []).map((h) => h.hub);
@@ -299,6 +329,9 @@
                 {/if}
                 <details open>
                   <summary>Runbook ({p.commands.length} lines)</summary>
+                  <button class="sm" style="margin:0.3rem 0 0.4rem;" on:click={() => copyRunbook(hub, a.repo)}>
+                    {absorbCopied === absorbKey ? '✓ Copied' : 'Copy runbook'}
+                  </button>
                   <pre class="absorb-cmds">{p.commands.join('\n')}</pre>
                 </details>
                 {#if p.checklist?.length}

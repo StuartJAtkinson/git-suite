@@ -87,6 +87,28 @@ def test_post_checklist_names_hub_and_repo():
     assert any("Mark AllaganTools absorbed" in s for s in steps)
 
 
+def test_rule_plan_commands_are_copyable_strings():
+    """The Execute page renders a 'Copy runbook' button that puts the joined
+    command list on the clipboard. The list must be a flat sequence of plain
+    strings — no Nones, no embedded objects, no duplicates of the squash flag
+    that would silently break a `git` paste."""
+    from services import absorb
+    out = absorb._rule_plan(
+        "game-hub", "https://github.com/StuartJAtkinson/AllaganTools.git",
+        repo="AllaganTools", module="allagantools",
+        target_branch="main", source_branch=None, strategy="subtree",
+    )
+    cmds = out["commands"]
+    assert cmds, "runbook must produce commands"
+    assert all(isinstance(c, str) for c in cmds), cmds
+    joined = "\n".join(cmds)
+    # The exact subtree-add invocation must appear once, never with --squash
+    assert joined.count("git subtree add --prefix=modules/allagantools absorb-source main") == 1
+    assert "--squash" not in joined, "history must be preserved"
+    # No stray placeholder that a paste-into-terminal would error on
+    assert "<you>" in joined, "<you> is the intentional placeholder for the user to edit"
+
+
 def test_plan_for_works_without_llm(monkeypatch):
     from services import absorb, llm
     monkeypatch.setattr(llm, "has_provider", lambda: False)
