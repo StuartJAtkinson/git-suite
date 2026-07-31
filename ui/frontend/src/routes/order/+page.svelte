@@ -17,6 +17,8 @@
   let rows = [];            // local working copy
   let compatTags = [];      // per-hub compat-tag vocabulary
   let aligning = false;     // Step 7: design-principles audit in flight
+  let aligningDocs = false; // one-click align-docs push in flight
+  let alignPushResult = null; // last align-docs response (pushed / up to date / error)
   let alignResult = null;   // last align response from the server
   let columns = COLUMNS;
 
@@ -188,8 +190,18 @@
     aligning = true; error = '';
     try {
       alignResult = await api.alignPrinciples($session.session_id, hub);
+      alignPushResult = null;
     } catch (e) { error = e.message; }
     finally { aligning = false; }
+  }
+
+  async function runAlignDocs() {
+    if (!hub) return;
+    aligningDocs = true; error = '';
+    try {
+      alignPushResult = await api.alignDocs($session.session_id, hub);
+    } catch (e) { error = e.message; }
+    finally { aligningDocs = false; }
   }
 
   function acceptProposedOrder() {
@@ -293,6 +305,12 @@
       title="Audit each absorbed repo against the hub's design-principles baseline (Step 7)">
       {aligning ? 'Auditing…' : '✓ Align principles'}
     </button>
+    {#if alignResult}
+      <button class="ghost sm" on:click={runAlignDocs} disabled={aligningDocs}
+        title="One-click: rerun the audit and push ALIGNMENT.md to the hub repo">
+        {aligningDocs ? 'Pushing…' : '📤 Push ALIGNMENT.md'}
+      </button>
+    {/if}
     <button on:click={save} disabled={saving || loading}>
       {saving ? 'Saving…' : '💾 Save'}
     </button>
@@ -422,6 +440,11 @@
       <header>
         <h2>Design-principles alignment <span class="muted">(Step 7)</span></h2>
         {#if alignResult.summary}<p class="align-summary">{alignResult.summary}</p>{/if}
+        {#if alignPushResult}
+          <p class="align-push" class:error={!alignPushResult.pushed && alignPushResult.reason !== 'up to date'}>
+            {#if alignPushResult.pushed}Pushed ALIGNMENT.md to {alignPushResult.hub}.{:else if alignPushResult.reason === 'up to date'}ALIGNMENT.md already up to date.{:else}Push failed: {alignPushResult.detail || 'unknown error'}{/if}
+          </p>
+        {/if}
       </header>
       <table class="align-grid">
         <thead>

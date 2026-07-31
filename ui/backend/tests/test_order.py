@@ -425,3 +425,124 @@ def test_align_rejects_non_hub_repo(temp_db, isolated_plan):
     with pytest.raises(Exception) as ei:
         asyncio.run(align_principles("s1", "nope-no-such-hub"))
     assert "nope-no-such-hub" in str(ei.value)
+
+
+# -- Step 7 — one-click align-docs push --------------------------------------
+
+
+def test_align_docs_pushes_alignment_md(temp_db, isolated_plan, monkeypatch):
+    """Rerun the audit, render ALIGNMENT.md, push via the Contents API."""
+    from tests.conftest import insert_scan
+    insert_scan(temp_db, session_id="s1", scan_id="sc1", repos=[
+        {"name": "h", "language": "Python"},
+        {"name": "a", "language": "Python"},
+    ])
+    isolated_plan.upsert_hub("h")
+    isolated_plan.set_verdict("a", "absorb", "h")
+
+    audit_payload = {
+        "principles": [
+            {"name": name, "repos": [
+                {"repo": "a", "present": True, "note": "ok"},
+            ]} for name in ALIGN_PRINCIPLES
+        ],
+        "summary": "a is aligned",
+        "gap_by_repo": {"a": 0},
+        "members": ["h", "a"],
+    }
+
+    async def fake_complete(prompt, system="", max_tokens=1024):
+        return json.dumps(audit_payload)
+    monkeypatch.setattr(llm, "complete", fake_complete)
+
+    pushed: list[dict] = []
+    async def fake_push_file(**kwargs):
+        pushed.append(kwargs)
+    async def fake_get_file(token, owner, repo, path):
+        # ALIGNMENT.md is not on the hub yet — return None so push happens.
+        return None
+
+    import services.github as gh
+    import routers.readme as readme_router
+    # readme.py captured the originals at import; rebind in BOTH places so
+    # the production path picks up the fakes (monkeypatching only `gh` is
+    # not enough because routers.readme already holds its own references).
+    for mod in (gh, readme_router):
+        monkeypatch.setattr(mod, "push_file", fake_push_file)
+        monkeypatch.setattr(mod, "get_file", fake_get_file)
+
+    from routers.order import align_docs
+    res = asyncio.run(align_docs("s1", "h"))
+
+    assert res["hub"] == "h"
+    assert res["pushed"] is True
+    assert res["path"] == "ALIGNMENT.md"
+    assert len(pushed) == 1
+    push = pushed[0]
+    assert push["repo"] == "h"
+    assert push["path"] == "ALIGNMENT.md"
+    # sha absent on first push
+    assert push.get("sha") is None
+    # The committed body contains the hub title and the gap-row.
+    import base64
+    body = base64.b64decode(push["content_b64"]).decode("utf-8")
+    assert "# h — Design-principles alignment" in body
+    assert "Per-repo gap totals" in body
+    assert "`a`: 0 gaps" in body
+
+
+def test_align_docs_is_idempotent(temp_db, isolated_plan, monkeypatch):
+    """If the rendered content already matches what's on disk, the push is
+    skipped entirely (no API call, no network)."""
+    from tests.conftest import insert_scan
+    insert_scan(temp_db, session_id="s1", scan_id="sc1", repos=[
+        {"name": "h", "language": "Python"},
+        {"name": "a", "language": "Python"},
+    ])
+    isolated_plan.upsert_hub("h")
+    isolated_plan.set_verdict("a", "absorb", "h")
+
+    audit_payload = {
+        "principles": [
+            {"name": name, "repos": [{"repo": "a", "present": True, "note": ""}]}
+            for name in ALIGN_PRINCIPLES
+        ],
+        "summary": "",
+        "gap_by_repo": {"a": 0},
+        "members": ["h", "a"],
+    }
+
+    async def fake_complete(prompt, system="", max_tokens=1024):
+        return json.dumps(audit_payload)
+    monkeypatch.setattr(llm, "complete", fake_complete)
+
+    # Render-on-demand: get_file will return the *current* rendered audit,
+    # so the no-change short-circuit fires regardless of member order.
+    from routers.readme import _render_alignment_md
+    push_calls: list[dict] = []
+    last_audit: dict = {}
+    async def fake_push_file(**kwargs):
+        push_calls.append(kwargs)
+    async def fake_get_file(token, owner, repo, path):
+        # Return whatever the *current* render would produce — uses the live
+        # audit object (closed over by reference, mutated in the assertion
+        # below right before this is called).
+        return {"content": _render_alignment_md("h", last_audit),
+                "sha": "stable-sha"}
+
+    import services.github as gh
+    import routers.readme as readme_router
+    for mod in (gh, readme_router):
+        monkeypatch.setattr(mod, "push_file", fake_push_file)
+        monkeypatch.setattr(mod, "get_file", fake_get_file)
+
+    from routers.order import align_docs
+    # Pre-compute the live audit so fake_get_file returns the *current* render
+    # (member order in align_principles's audit is alphabetic; pinning
+    # happens inside _render_alignment_md).
+    live_audit = asyncio.run(align_principles("s1", "h"))
+    last_audit.update(live_audit)
+    res = asyncio.run(align_docs("s1", "h"))
+    assert res["pushed"] is False
+    assert res["reason"] == "up to date"
+    assert push_calls == [], "no push when content already matches"

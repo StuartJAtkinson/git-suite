@@ -12,6 +12,7 @@ feature annotations live in the `hub_order` and `hub_compat_tags` tables.
   POST /api/order/{session_id}/{hub}/compat-tags      set per-hub compat-tag vocabulary override
   POST /api/order/{session_id}/{hub}/annotate         set feature annotations for one repo
   POST /api/order/{session_id}/{hub}/align            Step 7: align design principles across absorbed repos
+  POST /api/order/{session_id}/{hub}/align-docs       One-click: rerun align + push ALIGNMENT.md to the hub repo
 """
 from __future__ import annotations
 
@@ -24,6 +25,7 @@ from pydantic import BaseModel
 import plan_store
 from database import get_db
 from routers.auth import require_session
+from routers.readme import push_alignment
 from routers.reconcile import reconcile
 from services import llm
 from services.columns import COLUMNS, COL_FLAGS, default_compat_tags
@@ -605,3 +607,18 @@ Reply with JSON only, no fences.
             "summary": (str(summary) if summary else None),
             "gap_by_repo": gap_by_repo,
             "members": members}
+
+
+@router.post("/order/{session_id}/{hub}/align-docs")
+async def align_docs(session_id: str, hub: str):
+    """One-click "align docs" across a hub: rerun the design-principles audit,
+    render the result as a hub-level ALIGNMENT.md, and push it to the hub
+    repo. Idempotent — re-running on an unchanged hub is a no-op push (the
+    Contents API's SHA check is what makes it safe; we short-circuit at
+    that point too so a no-change re-run costs nothing).
+    """
+    row = await require_session(session_id)
+    token, owner = row["github_token"], row["github_user"]
+    audit = await align_principles(session_id, hub)
+    pushed = await push_alignment(token, owner, hub, audit)
+    return {"hub": hub, **pushed, "audit": audit}

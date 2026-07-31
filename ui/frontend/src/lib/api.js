@@ -113,6 +113,8 @@ export const api = {
     req('POST', `/api/order/${session_id}/${hub}/annotate`, { repo, annotations }),
   alignPrinciples: (session_id, hub) =>
     req('POST', `/api/order/${session_id}/${hub}/align`, {}),
+  alignDocs: (session_id, hub) =>
+    req('POST', `/api/order/${session_id}/${hub}/align-docs`, {}),
 
   // Execute (plan -> real GitHub actions)
   executePreview: (session_id) => req('GET', `/api/execute/preview/${session_id}`),
