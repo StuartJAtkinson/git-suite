@@ -20,7 +20,7 @@ separate deliberate step against GitHub.
 ## Phase 2 — Execute ✅
 - [x] Apply decisions back to GitHub (archive, create hub, push README)
 - [x] Dry-run / diff before execution (Execute page preview)
-- [ ] Absorb flow: move a repo's *content* into a hub with history preserved —
+- [x] Absorb flow: move a repo's *content* into a hub with history preserved —
       still manual (git detach checklist); no automated transfer/rename
 
 ## Phase 3 — Hubs ✅
