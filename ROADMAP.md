@@ -37,5 +37,5 @@ a guided installer. Detailed steps + status: `ui/ROADMAP.md`'s
 "Architecture model" section and `ISSUES.md`'s Open list.
 
 ## Later
-- [ ] Scheduled portfolio drift checks
+- [x] Scheduled portfolio drift checks
 - [ ] One-click "align docs" across a hub (this sweep, automated)
