@@ -38,4 +38,4 @@ a guided installer. Detailed steps + status: `ui/ROADMAP.md`'s
 
 ## Later
 - [x] Scheduled portfolio drift checks
-- [ ] One-click "align docs" across a hub (this sweep, automated)
+- [x] One-click "align docs" across a hub (this sweep, automated)
