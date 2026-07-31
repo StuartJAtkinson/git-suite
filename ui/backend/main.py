@@ -9,7 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import init_db
 from routers import (auth, scan, hubs, config, reconcile,
                      plan, execute, migration, cluster, stars,
-                     order, promote, installer, absorb)
+                     order, promote, installer, absorb, drift)
+from services import drift as _drift
 
 _LOG_DIR = Path(__file__).parent / "logs"
 _LOG_DIR.mkdir(exist_ok=True)
@@ -33,7 +34,11 @@ async def lifespan(app: FastAPI):
     log.info("startup — initialising database")
     await init_db()
     log.info("database ready")
+    _drift.scheduler.start()
+    log.info("drift scheduler started")
     yield
+    log.info("shutdown — stopping drift scheduler")
+    await _drift.scheduler.stop()
     log.info("shutdown")
 
 
@@ -70,6 +75,7 @@ app.include_router(order.router,      prefix="/api",   tags=["order"])
 app.include_router(promote.router,    prefix="/api",   tags=["promote"])
 app.include_router(installer.router,  prefix="/api",   tags=["install"])
 app.include_router(absorb.router,     prefix="/api",   tags=["absorb"])
+app.include_router(drift.router,      prefix="/api",   tags=["drift"])
 
 
 @app.get("/health")

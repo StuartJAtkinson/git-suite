@@ -183,6 +183,19 @@ async def init_db() -> None:
                 PRIMARY KEY (hub, repo)
             );
 
+            -- Periodic reconcile snapshots — "portfolio drift" over time.
+            -- One row per scheduled snapshot; stats is the reconcile() stats
+            -- dict; hubs is the per-hub rollup. lets the UI show how the
+            -- portfolio has moved since the last manual scan.
+            CREATE TABLE IF NOT EXISTS drift_snapshot (
+                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                taken_at  TEXT DEFAULT (datetime('now')),
+                session_id TEXT,
+                stats     TEXT NOT NULL,    -- JSON
+                hubs      TEXT NOT NULL,    -- JSON
+                source    TEXT DEFAULT 'scheduled'  -- 'scheduled' | 'manual'
+            );
+
         """)
         await _migrate(db)
         await db.commit()
