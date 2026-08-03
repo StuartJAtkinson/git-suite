@@ -169,10 +169,4 @@ Follow-up to the second sweep, scoped to what NEW code introduced since (the Abs
 
 ## Needs input (Auto Continue)
 *Left by Auto Continue 2026-08-03 — decide these, then clear CONSIDERATIONS.md.*
-- **Real multi-provider LLM failover still needs a second configured provider:** `services/llm.py` retries transient errors on the same provider before failing over to another, which could have absorbed reported failures. To avoid silent hammering `localhost:11434`, you need to either provide another key via Setup → LLM Providers or explicitly opt into local Ollama.
-
-**Indigo accent on Order + Install vs brand blue:** The Order and Install pages use indigo while the rest of the app is blue. Decide whether indigo should be reserved for hub-related UI (option a) or drift to align with the rest of the app (option b).
-
-**Empty-state tone:** Several pages open with an emoji, while others use plain sentences. Choose between a mixed tone or a consistent approach based on your app's voice.
-
-**`align-docs` push button placement on Order:** The "Push ALIGNMENT.md" button is currently inline but destructive. Decide whether to keep it inline (option a) or move it to a small footer row under the align panel for better visual cohesion (option b).
+- Consider implementing failover for LLM providers in `services/llm.py` by adding another key or opting into local Ollama, rather than silently failing on exhaustion errors. Decide between a coherent indigo design system (reserving indigo for hub-related UI) or unifying with brand blue across the app. Choose an empty-state tone—emoji/cheers for "operations console" or plain sentences for a more encouraging feel. For the `align-docs` push button on Order, decide whether to keep it inline with the audit toolbar or move it to a footer row under the align panel for better visual cohesion.
