@@ -168,11 +168,11 @@ Follow-up to the second sweep, scoped to what NEW code introduced since (the Abs
 - [x] **All file paths hardcoded to H:\GitHub\\** — both scripts now use `Path(__file__).parent`; outputs live in the project folder *(resolved 2026-05-24)*
 
 ## Needs input (Auto Continue)
-*Left by Auto Continue 2026-08-02 — decide these, then clear CONSIDERATIONS.md.*
-- **Real multi-provider LLM failover requires a second configured provider in `~/.git-suite/config.json`.** Current implementation retries transient errors up to twice on the same provider before failing over, which would likely have absorbed reported failures. Options include adding another key via Setup → LLM Providers or opting into local Ollama.
+*Left by Auto Continue 2026-08-03 — decide these, then clear CONSIDERATIONS.md.*
+- **Real multi-provider LLM failover still needs a second configured provider:** `services/llm.py` retries transient errors on the same provider before failing over to another, which could have absorbed reported failures. To avoid silent hammering `localhost:11434`, you need to either provide another key via Setup → LLM Providers or explicitly opt into local Ollama.
 
-**Indigo accent direction inconsistency:** Order and Install pages use indigo `#4f46e5` while other pages are brand blue `#0057b7`. Decide on a consistent color scheme for the app: either reserve indigo for hub-related UI elements or adopt a unified blue across the board.
+**Indigo accent on Order + Install vs brand blue:** The Order and Install pages use indigo while the rest of the app is blue. Decide whether indigo should be reserved for hub-related UI (option a) or drift to align with the rest of the app (option b).
 
-**Empty-state tone preferences:** Some pages use emojis (🎉) to convey empty states, while others use plain sentences. If your app's voice is "operations console," consider using plain sentences. If it’s more "encouraging," opt for emojis and cheerful messages.
+**Empty-state tone:** Several pages open with an emoji, while others use plain sentences. Choose between a mixed tone or a consistent approach based on your app's voice.
 
-**`align-docs` push button placement on Order page:** The new "Push ALIGNMENT.md" button appears inline with the order toolbar after an audit and can be destructive (writing to a real repo). Decide between keeping it inline for easy access or moving it to a small footer row under the align panel for visual cohesion.
+**`align-docs` push button placement on Order:** The "Push ALIGNMENT.md" button is currently inline but destructive. Decide whether to keep it inline (option a) or move it to a small footer row under the align panel for better visual cohesion (option b).
