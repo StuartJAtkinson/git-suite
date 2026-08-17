@@ -2,6 +2,46 @@
 
 ## Open
 
+- [ ] **Enriched scan table — sorting + editable Notes column** — all of the clustering methods had been failing for the user (LLM clustering is non-deterministic on a 150+ repo portfolio and isn't worth retrying), so the enriched scan needed to become the *primary* refinement surface. Added: **sortable** records table (click any header — `Source / Repo / Purpose / Domain / Entities / Hub / ★ / Notes` — flip direction on second click; stable tiebreaker on name); **editable Notes column** with debounced 600ms autosave per row, a yellow `notes: N` badge in the count strip, and per-cell `⟳` saving indicator. Backend: new `repo_notes` table keyed `(session_id, repo)` — scoped to session so multi-session purge behaviour stays predictable, empty string = DELETE (no zombie rows); `GET /api/scan/notes/{sid}` returns `{repo: note}`, `POST /api/scan/notes/{sid}` upserts one. +5 tests (`test_scan_notes_router.py`: empty GET, round-trip + overwrite, empty-string-delete, cross-session isolation, missing-repo 400). 173 green (was 116 baseline + earlier round additions). Scan page now reads notes at rehydrate time and clears them on a fresh pull. The user goes through and fills notes themselves; later stages that read `repo_domain` (Order/Triage) are unchanged — Notes are an explicit *user* signal, not an LLM signal. *(found 2026-08-15)*
+
+### Walkthrough decisions 2026-08-17
+
+Auto-continue walkthrough (issues first, features second). Each bullet below is a *decision*, not a *fix* — the work still needs to happen. Grouped for clarity; per-bullet "decision" notes can be folded back into the original Open bullets when the work lands.
+
+**Closed decisions (open issues walked through).**
+- LLM failover — auto-opt-in to local Ollama (running on host.docker.internal:11434) as the last priority provider.
+- Indigo accent drift — fold everything to brand blue (`#0057b7`/`#1e40af`); drop indigo on Order + Install.
+- Empty-state voice — hybrid: emoji/cheer only on empty *queues* (Triage, Execute); plain sentences elsewhere.
+- `align-docs` push button — move to a footer row directly under the align panel (audit + push = one visual unit).
+- Setup page — consolidate local `.card`/`.btn-primary`/`.status-box`/`.ok-badge`/`.err-badge`/`.hint` onto `app.css` selectors.
+- Triage vs Execute tag vocabularies — keep Execute's newer `.tag.*` scheme (amber/green/indigo/green/grey); fold Triage onto it.
+- Loading messages — standardise on `Loading…` minimum; any descriptive loading stays a full sentence ending in `…`.
+- `reconcile.label` threading — wire it now (6 sites: Triage, Summary, Promote, Scan, readme, install); pre-work for Step 6.
+- Install page "absorbs (N)" — align to VERDICT_LABELS' "group into hub".
+- `.gap-pill` colour — replace with brand blue (closest fit in the badge family).
+- `.muted` drift (`#6b7280` vs `#9ca3af`) — pick one colour, one class.
+- Order hub picker — fill in the hub description; the chrome is right, the content was missing.
+- `.bar` chrome drift (Install boxed vs Order flat) — pick one shape, apply to both.
+- Install `#b45309` on "depends on:" informational — switch to muted grey.
+- Summary `.member-head` (the only dark-bg card header) — document as the allowed exception.
+- Align panel table padding/border weight — standardise on Scan's records-table chrome.
+- Align panel h2 colour — match the app's `.section-head h2` standard (`#374151`) + border-bottom.
+- Hub flag in align panel — add `HUB` badge + greyed background on the hub repo's column header.
+- Align panel chrome — wrap in `.section` / `.card`.
+- Align panel — add Accept/Discard affordance (matches the proposed-order card).
+- `.absorb-runbook` border — match `#e5e7eb` (the sibling `.bundle-info`/`.enrich-panel` pair).
+- Install's ad-hoc centred `info-msg` inline-style — lift to a reusable class.
+- Install `generated_at` — localise (currently raw `…Z` ISO).
+- `.field-label { shrink: 0 }` — fix to `flex-shrink: 0`.
+- `.lang-tag` ×3 — lift to `app.css`.
+- Ellipsis drift (`…` vs `...`) — single `…` everywhere.
+- `.absorb-cmds` — reuse existing `.preview-box`.
+- Install DAG framing — hybrid (Wikidata SPARQL DAG primary, local plan.json fallback).
+
+**New feature decisions.**
+- **Step 6 — Recommend feature-absorbs** *(priority: pipeline)* — fold into Triage card stream. Signals: Notes override Features (user-authored wins; LLM fills the gaps). Confidence: two tiers — `hint` (≥0.5) shows as a chip with no action, `recommend` (≥0.7) shows the one-click gated action. Action: extend existing `absorb` verdict to point at an owned repo (single mechanism, Execute pipeline unchanged). Unstar: copy GitHub URL to clipboard — git-suite never makes the unstar API call. *(designed 2026-08-17)*
+- **Wikidata-backed install DAG** *(priority: novelty)* — source: hybrid `query.wikidata.org` SPARQL with local plan.json fallback. Q-id mapping: manual in plan.json (`wikidata_id` per hub), optional autodiscover later. Cache: permanent, key = sorted Q-id set (changes invalidate naturally), plus manual refresh button per hub. Traversal: full transitive closure over `P279` + `P361` with a curated stop set of over-general Q-IDs (Q35120 etc.). Visualisation: D3-force bubble layout (reuses existing dep from Cluster page). Nodes: label + Q-id suffix + expand/collapse nav buttons. Edges: unstyled lines. Structure: per-hub DAG (hub at top, Q-ancestors below, member repos nested inside their concept node). Navigation: all on one page, tabs (one per hub). *(designed 2026-08-17)*
+
 
 _Pipeline gap — the built app implements "absorb = repo→hub"; the intended model is "absorb = features→owned repo". Steps 3, 5, 6, 7, 8 of the [architecture model](ui/ROADMAP.md#architecture-model--directed-grouping--analysis--promotion--planning) are unbuilt. See [[git-suite-pipeline-model]]._
 
@@ -168,8 +208,5 @@ Follow-up to the second sweep, scoped to what NEW code introduced since (the Abs
 - [x] **All file paths hardcoded to H:\GitHub\\** — both scripts now use `Path(__file__).parent`; outputs live in the project folder *(resolved 2026-05-24)*
 
 ## Needs input (Auto Continue)
-*Left by Auto Continue 2026-08-08 — decide these, then clear CONSIDERATIONS.md.*
-- **Real multi-provider LLM failover still needs a second configured provider.** `services/llm.py` now retries a transient error (DNS blip, 429, timeout, 5xx) on the *same* provider up to twice with backoff before failing over — this alone would very likely have absorbed both of the reported clustering-run failures. But with only `minimax` keyed in `~/.git-suite/config.json`'s `llm_keys`, there is still nothing to fail over to for a sustained outage or a real exhaustion error. The registry already supports Anthropic/OpenAI/DeepSeek/OpenRouter/xAI (need an API key from you) and a keyless local Ollama fallback (needs Ollama running and either added to `llm_priority_order` or given a model in `llm_models` — currently opt-in on purpose so git-suite never silently hammers `localhost:11434`). Adding a second provider means either supplying another key via Setup → LLM Providers, or explicitly opting into local Ollama — both are your call, not something to default silently.
-- **Indigo accent on Order + Install vs brand blue on the rest — pick a direction.** The Order page and Install page both use `#4f46e5` / `#4338ca` / `#5b21b6` indigos (hub badge, hub-name code, hub URL link, hub-title button). Every other page in the app uses brand blue `#0057b7` / `#1e40af`. Two coherent readings: (a) indigo is reserved for "hub-related" UI specifically and the rest of the app stays blue — needs a documented rule; (b) indigo is drift and the two pages should fall in line. Either is fine, but right now it reads as two separate design systems coexisting.
-- **Empty-state tone: emoji/cheers vs. plain sentences.** Several pages open empty rows with an emoji (`🎉 Nothing left to triage`) or a check mark (`Nothing to archive — all targets already archived or gone. ✓`); others (Summary, Cluster) use a plain sentence. Mixed tone is fine if you like it, but if the app's voice is "operations console" the emoji/cheers feel out of place; if the app's voice is "encouraging", the plain ones feel cold. Pick a direction.
-- **`align-docs` push button placement on Order.** The new "Push ALIGNMENT.md" button only appears after an audit is on screen and lives inline with the order toolbar (Save, Undo, Suggest order, Align principles). It's the only button whose effect is destructive-ish (writes a file to a real repo) and the only one that's hidden until a result exists. Two reasonable shapes: (a) keep it inline — minimal change, easy to find when the audit is on screen; (b) move it into a small footer row under the align panel itself, so the audit's result and its push action are visually one unit.
+*Left by Auto Continue 2026-08-17 — decide these, then clear CONSIDERATIONS.md.*
+- Real multi-provider LLM failover requires configuring another provider in `~/.git-suite/config.json` to handle sustained outages or exhaustion errors. The Order and Install pages use indigo (#4f46e5) for "hub-related" UI elements, while the rest of the app uses brand blue (#0057b7), leading to a mixed design system if not addressed. For empty states, choose either emoji/cheers or plain sentences to maintain consistency with the app's voice. Finally, consider moving the "Push ALIGNMENT.md" button from the order toolbar to a small footer row under the align panel for better visual coherence.

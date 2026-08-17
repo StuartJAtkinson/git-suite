@@ -39,6 +39,10 @@ export const api = {
     req('POST', `/api/scan/distill/${session_id}${limit ? `?limit=${limit}` : ''}`, {}),
   distillRecords: (session_id) =>
     req('GET', `/api/scan/distill/${session_id}/records`),
+  getNotes: (session_id) =>
+    req('GET', `/api/scan/notes/${session_id}`),
+  saveNote: (session_id, repo, note) =>
+    req('POST', `/api/scan/notes/${session_id}`, { repo, note }),
 
   // Config
   getConfig: () => req('GET', '/api/config'),

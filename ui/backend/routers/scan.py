@@ -341,3 +341,48 @@ async def distill_records(session_id: str):
     return out
 
 
+class NoteRequest(BaseModel):
+    repo: str
+    note: str
+
+
+@router.get("/scan/notes/{session_id}")
+async def get_notes(session_id: str):
+    """All notes for the given session — {repo: note}. Authored by the user
+    on the Scan page (LLM guesses wrong sometimes; this is the human override)."""
+    await require_session(session_id)
+    async for db in get_db():
+        rows = await db.execute_fetchall(
+            "SELECT repo, note FROM repo_notes WHERE session_id = ?",
+            (session_id,),
+        )
+    return {r["repo"]: r["note"] for r in rows}
+
+
+@router.post("/scan/notes/{session_id}")
+async def set_note(session_id: str, body: NoteRequest):
+    """Upsert one note. Empty string deletes the row — empty cell = no note."""
+    await require_session(session_id)
+    repo = (body.repo or "").strip()
+    if not repo:
+        raise HTTPException(status_code=400, detail="repo is required")
+    note = body.note or ""
+    async for db in get_db():
+        if note == "":
+            await db.execute(
+                "DELETE FROM repo_notes WHERE session_id = ? AND repo = ?",
+                (session_id, repo),
+            )
+        else:
+            await db.execute(
+                """INSERT INTO repo_notes (session_id, repo, note, updated_at)
+                   VALUES (?, ?, ?, datetime('now'))
+                   ON CONFLICT(session_id, repo) DO UPDATE SET
+                     note = excluded.note,
+                     updated_at = datetime('now')""",
+                (session_id, repo, note),
+            )
+        await db.commit()
+    return {"repo": repo, "note": note}
+
+

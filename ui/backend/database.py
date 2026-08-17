@@ -196,6 +196,20 @@ async def init_db() -> None:
                 source    TEXT DEFAULT 'scheduled'  -- 'scheduled' | 'manual'
             );
 
+            -- Per-(session, repo) free-text Notes. Authored by the user on
+            -- the Scan page's sortable records table (the LLM often guesses
+            -- purpose/domain wrong; the notes are the human correction the
+            -- later steps read). Scoped to session_id so multi-session
+            -- purge_other_sessions leaves the rows in place (notes are cheap,
+            -- per-session ownership avoids surprising deletes on relogin).
+            CREATE TABLE IF NOT EXISTS repo_notes (
+                session_id TEXT NOT NULL,
+                repo       TEXT NOT NULL,   -- full_name (or short name for stars)
+                note       TEXT NOT NULL DEFAULT '',
+                updated_at TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (session_id, repo)
+            );
+
         """)
         await _migrate(db)
         await db.commit()
