@@ -99,6 +99,12 @@
   // fill in the key / call URL / model and Save.
   function addProvider(p) {
     patchKey(p, '');
+    // Must ALSO join the priority order, or it turns "added" but never renders:
+    // `orderedConfigured` is drawn from llm_priority_order (when one is saved),
+    // so a provider that only lands in llm_keys is neither in a config box nor
+    // in the "+ Add provider" row — it silently disappears from the page.
+    const order = Array.from(new Set([...(config.llm_priority_order || []), p]));
+    config = { ...config, llm_priority_order: order };
     if (!meta[p] || meta[p].needs_key === false) fetchModels(p);  // keyless: list immediately
   }
   function patchKey(p, v) { config = { ...config, llm_keys: { ...(config.llm_keys||{}), [p]: v } }; saved = false; }
@@ -199,8 +205,20 @@
        ...Object.keys(llmKeys),
        ...(config.llm_priority_order || []),
      ])).filter(p => allIds.includes(p));
-  $: priorityOrder = (config.llm_priority_order?.length ? config.llm_priority_order : added);
-  $: orderedConfigured = priorityOrder.filter(p => added.includes(p));
+  // EVERY added provider renders, ordered by llm_priority_order when known,
+  // then (unorded ones) by registry order. The old code drew the list from
+  // llm_priority_order ALONE, so any provider with a key but not in the saved
+  // order silently vanished from the page (neither a config box nor a "+ Add"
+  // button) — the "providers keep disappearing / not all showing" bug.
+  $: orderedConfigured = (() => {
+    const idx = new Map((config.llm_priority_order || []).map((p, i) => [p, i]));
+    return [...added].sort((a, b) => {
+      const ia = idx.has(a) ? idx.get(a) : Number.MAX_SAFE_INTEGER;
+      const ib = idx.has(b) ? idx.get(b) : Number.MAX_SAFE_INTEGER;
+      if (ia !== ib) return ia - ib;
+      return allIds.indexOf(a) - allIds.indexOf(b);
+    });
+  })();
   $: unconfigured = allIds.filter(p => !added.includes(p));
   const dispName = (p) => (meta[p]?.display_name) || LLM_PROVIDERS[p] || p;
   const defModel = (p) => (meta[p]?.default_model) || LLM_DEFAULT_MODELS[p] || '';
@@ -213,19 +231,18 @@
       <p class="sub">GitHub session + provider config (~/.git-suite/config.json)</p>
     </div>
     <div class="header-actions">
-      {#if saved}<span class="ok-badge">Saved</span>{/if}
-      {#if error}<span class="err-badge">{error}</span>{/if}
-      <button on:click={save} disabled={saving} class="btn-primary">
-        {saving ? 'Saving...' : 'Save'}
+      {#if saved}<span class="ok-msg">Saved</span>{/if}
+      {#if error}<span class="error-msg">{error}</span>{/if}
+      <button on:click={save} disabled={saving}>
+        {saving ? 'Saving…' : 'Save'}
       </button>
     </div>
   </div>
 </div>
 
-{#if loading}<p class="loading">Loading...</p>
+{#if loading}<p class="loading">Loading…</p>
 {:else}
-<div class="two-col">
-  <div class="col">
+<div class="col">
     <div class="card">
       <h3 class="card-title">GitHub connection</h3>
       {#if $session}
@@ -251,7 +268,7 @@
             placeholder="ghp_…" autocomplete="off" />
         </div>
         {#if ghError}<div class="error-msg" style="margin-top:0.5rem">{ghError}</div>{/if}
-        <button class="btn-primary" style="margin-top:0.75rem"
+        <button style="margin-top:0.75rem"
           disabled={connecting || !ghToken} on:click={connect}>
           {connecting ? 'Connecting…' : 'Connect'}
         </button>
@@ -334,14 +351,14 @@
     </div>
 
     <div class="card">
-      <h3 class="card-title">Embeddings (semantic overlap)</h3>
-      <p class="hint">Powers the semantic venn + absorb suggestions. Off = keyword rules.</p>
+      <h3 class="card-title">Embeddings (provider config)</h3>
+      <p class="hint">Retained as a config surface only; no current stage consumes vectors (Cluster groups via the LLM).</p>
       {#if llmStatus?.embeddings}
         <div class="status-box" class:warn={!llmStatus.embeddings.configured}>
           {#if llmStatus.embeddings.configured}
             Active: {#each llmStatus.embeddings.chain as c}<span class="chain-item">{c.provider} <span class="chain-model">{c.model}</span></span>{/each}
           {:else}
-            Not configured — overlap uses keyword scoring.
+            Not configured — no embedding provider set.
           {/if}
         </div>
       {/if}
@@ -383,46 +400,16 @@
       {/if}
     </div>
   </div>
-
-  <div class="col">
-    <div class="card">
-      <h3 class="card-title">Where these are used</h3>
-      <p class="hint">The failover chains are only called at these stages. Without them, each stage degrades to deterministic rules.</p>
-      <div class="use-group">
-        <span class="use-tag llm">LLM (chat)</span>
-        <ul>
-          <li><b>Replan</b> — verdict proposals (categorisation)</li>
-          <li><b>Migration</b> — per-repo checklists</li>
-        </ul>
-      </div>
-      <div class="use-group">
-        <span class="use-tag emb">Embeddings</span>
-        <ul>
-          <li><b>Cluster</b> — group formation</li>
-          <li><b>Overlap</b> — semantic venn</li>
-          <li><b>Replan</b> — absorb suggestions (classification)</li>
-        </ul>
-      </div>
-    </div>
-  </div>
-</div>
 {/if}
 
 <style>
 .header-row { display: flex; justify-content: space-between; align-items: flex-start; }
 .header-actions { display: flex; align-items: center; gap: 0.75rem; }
-.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem; }
 .col { display: flex; flex-direction: column; gap: 1rem; }
-.card { background: #fff; border: 1px solid #dde1e9; border-radius: 10px; padding: 1.25rem; }
 .card-title { font-size: 0.875rem; font-weight: 600; color: #374151; margin: 0 0 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e5e7eb; }
 .hint { font-size: 0.78rem; color: #6b7280; margin: 0 0 1rem; }
 .status-box { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 7px; padding: 0.6rem 0.8rem; margin-bottom: 1rem; font-size: 0.78rem; color: #065f46; }
 .status-box.warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
-.use-group { margin-bottom: 0.9rem; }
-.use-tag { display: inline-block; font-size: 0.7rem; font-weight: 700; border-radius: 4px; padding: 0.15em 0.5em; margin-bottom: 0.3rem; }
-.use-tag.llm { background: #ddd6fe; color: #5b21b6; }
-.use-tag.emb { background: #cffafe; color: #155e75; }
-.use-group ul { margin: 0; padding-left: 1.2rem; font-size: 0.82rem; color: #374151; line-height: 1.55; }
 .status-label { font-weight: 600; }
 .chain-item { background: rgba(255,255,255,0.7); border-radius: 4px; padding: 0.1em 0.45em; font-family: monospace; }
 .chain-item.head { font-weight: 700; }
@@ -437,7 +424,7 @@
 .btn-icon:disabled { opacity: 0.3; cursor: not-allowed; }
 .btn-remove { background: none; border: none; color: #dc2626; font-size: 0.75rem; cursor: pointer; padding: 0.15rem 0.4rem; }
 .field-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.35rem 0; }
-.field-label { font-size: 0.8rem; color: #6b7280; width: 80px; shrink: 0; }
+.field-label { font-size: 0.8rem; color: #6b7280; width: 80px; flex-shrink: 0; }
 .field-input { flex: 1; padding: 0.35rem 0.6rem; border: 1px solid #d1d5db; border-radius: 5px; font-size: 0.875rem; font-family: monospace; }
 .field-input:focus { outline: none; border-color: #0057b7; box-shadow: 0 0 0 2px rgba(0,87,183,0.1); }
 .add-section { margin-top: 0.5rem; }
@@ -445,10 +432,6 @@
 .add-buttons { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .btn-add { background: none; border: 1px solid #d1d5db; border-radius: 6px; padding: 0.3rem 0.75rem; font-size: 0.8rem; color: #6b7280; cursor: pointer; }
 .btn-add:hover { border-color: #0057b7; color: #0057b7; }
-.btn-primary { background: #0057b7; color: #fff; border: none; border-radius: 6px; padding: 0.45rem 1rem; font-size: 0.875rem; cursor: pointer; }
-.btn-primary:disabled { opacity: 0.5; }
-.ok-badge { font-size: 0.8rem; color: #16a34a; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; padding: 0.2rem 0.6rem; }
-.err-badge { font-size: 0.8rem; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; padding: 0.2rem 0.6rem; }
 .gh-connected { display: flex; align-items: center; gap: 0.75rem; }
 .gh-avatar { width: 36px; height: 36px; border-radius: 50%; }
 .gh-id { display: flex; flex-direction: column; flex: 1; }

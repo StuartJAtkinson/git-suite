@@ -86,6 +86,7 @@ async def list_forks(session_id: str):
             "language": f.get("language") or "",
             "pushed_at": f.get("pushed_at") or "",
             "verdict": v.get("verdict", "orphan"),
+            "label": v.get("label") or plan_store.label_for(v.get("verdict", "orphan")),
             "hub": v.get("hub"),
             "cluster": clusters.get(name) or clusters.get(f.get("full_name") or "") or "",
             "parent_full_name": h.get("parent_full_name"),

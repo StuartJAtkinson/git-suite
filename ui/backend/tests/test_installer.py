@@ -155,3 +155,76 @@ def test_installer_validate_in_sync(temp_db, isolated_plan):
         body = r.json()
         assert body["in_sync"] is True
         assert body["missing_from_manifest"] == []
+
+
+# -- Step 7: install manifest embeds per-hub Wikidata DAGs ----------------
+
+
+def test_installer_manifest_embeds_dag_per_hub(temp_db, isolated_plan, monkeypatch):
+    """A hub with wikidata_id gets a 'dags[<hub>]' block sourced from
+    SPARQL (mocked). A hub without one gets a local fallback."""
+    from services import wikidata as wd
+
+    class _FakeResp:
+        def __init__(self, payload):
+            self.status_code = 200
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+    CANNED = {"results": {"bindings": [
+        {"qid": {"value": "http://www.wikidata.org/entity/Q1"},
+         "oQid": {"value": "http://www.wikidata.org/entity/Q2"},
+         "oLabel": {"value": "parent-of-Q1"}},
+    ]}}
+
+    async def fake_get(client, url, params=None):
+        return _FakeResp(CANNED)
+    monkeypatch.setattr(wd, "wd_get", fake_get)
+
+    db_path = database.DB_PATH
+    _session_in_db(db_path)
+    isolated_plan.clear()
+    isolated_plan.upsert_hub("map-suite", wikidata_id="Q1")
+    isolated_plan.upsert_hub("creative-hub")    # no wikidata_id
+
+    with _client(temp_db, isolated_plan) as c:
+        r = c.get("/api/install/s1")
+        assert r.status_code == 200, r.text
+        body = r.json()
+
+        # dags is present and keyed by hub name
+        assert "dags" in body
+        assert set(body["dags"].keys()) == {"map-suite", "creative-hub"}
+
+        # map-suite has a wikidata_id → sourced from SPARQL
+        m = body["dags"]["map-suite"]
+        assert m["source"] == "wikidata"
+        assert any(n["qid"] == "Q2" for n in m["nodes"])
+
+        # creative-hub has no wikidata_id → local fallback
+        c_dag = body["dags"]["creative-hub"]
+        assert c_dag["source"] == "local"
+        assert "no Wikidata id" in c_dag["note"]
+
+
+def test_installer_manifest_dags_empty_when_no_hubs(temp_db, isolated_plan, monkeypatch):
+    """Empty plan → dags is an empty dict, no SPARQL calls."""
+    from services import wikidata as wd
+
+    calls = []
+    async def fake_get(client, url, params=None):
+        calls.append("network")
+        return None
+    monkeypatch.setattr(wd, "wd_get", fake_get)
+
+    db_path = database.DB_PATH
+    _session_in_db(db_path)
+    isolated_plan.clear()
+
+    with _client(temp_db, isolated_plan) as c:
+        r = c.get("/api/install/s1")
+        assert r.status_code == 200, r.text
+        assert r.json()["dags"] == {}
+        assert calls == []

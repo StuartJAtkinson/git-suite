@@ -9,9 +9,13 @@ fragment) that a downstream agent — or the user — can consume and act on.
 git-suite does NOT build, download, or modify the hubs; it exports the
 shape. Composition lives in the hub's own repo. The Plan/DAG is the
 hand-off.
+
+Step 7 adds a per-hub Wikidata DAG (sourced from SPARQL, cached locally)
+embedded in the manifest as `dags[<hub_name>]`.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections import deque
@@ -24,6 +28,7 @@ from pydantic import BaseModel
 
 import plan_store
 from routers.auth import require_session
+from routers.wikidata import _build_hub_dag
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -43,6 +48,7 @@ def _hub_node(hub_name: str, hub: dict) -> dict:
         "priority": hub.get("priority"),
         "url": f"https://github.com/{hub_name}" if "/" not in hub_name else f"https://github.com/{hub_name}",
         "absorbs": list(hub.get("absorbs", []) or []),
+        "wikidata_id": hub.get("wikidata_id"),  # Step 7
     }
 
 
@@ -52,13 +58,9 @@ def _repo_url(repo: str) -> str:
     return f"https://github.com/{repo}"
 
 
-def _build_dag() -> dict:
-    """Turn plan.json hubs into a sorted top-down DAG (priority asc, then
-    alphabetical) with each hub's repo list and an 'install order' that
-    respects hub-on-hub absorption if a hub name contains '/'.
-
-    Order stable: deterministic across calls with the same plan.
-    """
+def _build_dag_sync() -> tuple[list[dict], list[dict], list[str]]:
+    """The sync inner part: nodes/edges/install_order. The async wrapper
+    adds the Wikidata DAGs (Step 7)."""
     plan = plan_store.get_plan()
     hubs = plan.get("hubs", {})
 
@@ -75,18 +77,13 @@ def _build_dag() -> dict:
     # Edge {from: prerequisite, to: dependent}: hub `to` is installed after
     # hub `from` — the dependent presupposes the prerequisite.
     id_for_name = {n["name"]: n["name"] for n in nodes}
-
     edges: list[dict] = []
-    # For each hub, the set of prerequisite hubs it must wait on.
     prereqs: dict[str, set[str]] = {n["name"]: set() for n in nodes}
-    # Reverse: a hub is a prereq for anyone who absorbs its name.
-    absorbs_targets: dict[str, set[str]] = {n["name"]: set() for n in nodes}
     for hub_node in nodes:
         for absorbed in hub_node["absorbs"]:
             if absorbed in id_for_name:
                 edges.append({"from": absorbed, "to": hub_node["name"]})
                 prereqs[hub_node["name"]].add(absorbed)
-                absorbs_targets[absorbed].add(hub_node["name"])
 
     # Kahn's algorithm: a hub is ready when its set of prereqs is empty
     # (every prereq either already installed or there were none).
@@ -106,10 +103,37 @@ def _build_dag() -> dict:
         log.warning("installer: cycle detected among hubs %s — appending tail", leftover)
         install_order.extend(leftover)
 
+    return nodes, edges, install_order
+
+
+def _build_dag() -> dict:
+    """Sync public entry point — preserves the old dict shape for callers
+    (notably the existing tests) that don't need the async Wikidata DAGs."""
+    nodes, edges, install_order = _build_dag_sync()
     return {
         "nodes": nodes,
         "edges": edges,
         "install_order": install_order,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "version": 1,
+    }
+
+
+async def _build_full_dag() -> dict:
+    """The full manifest: nodes + edges + install_order + Step 7 DAGs."""
+    plan = plan_store.get_plan()
+    hubs = plan.get("hubs", {})
+    nodes, edges, install_order = _build_dag_sync()
+    if hubs:
+        dags = await asyncio.gather(*[_build_hub_dag(n, m) for n, m in hubs.items()])
+        dag_by_hub = dict(zip(hubs.keys(), dags))
+    else:
+        dag_by_hub = {}
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "install_order": install_order,
+        "dags": dag_by_hub,  # Step 7: keyed by hub name
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
         "version": 1,
     }
@@ -124,8 +148,7 @@ async def installer_manifest(session_id: str):
     fetched by a downstream hub-standards agent, or saved by the user,
     never acted upon by git-suite directly."""
     await require_session(session_id)
-    dag = _build_dag()
-    return dag
+    return await _build_full_dag()
 
 
 @router.get("/install/{session_id}/text")
@@ -133,7 +156,7 @@ async def installer_text_route(session_id: str):
     """A human-readable install order, suitable for saving as a checklist
     or pasting into a hub-standards runbook."""
     await require_session(session_id)
-    dag = _build_dag()
+    dag = await _build_full_dag()
     lines: list[str] = []
     lines.append("# git-suite install plan")
     lines.append(f"# generated {dag['generated_at']} — version {dag['version']}")
@@ -173,7 +196,7 @@ async def installer_compose(session_id: str):
     mounts. The user (or a downstream agent) decides whether to actually
     run the file."""
     await require_session(session_id)
-    dag = _build_dag()
+    dag = await _build_full_dag()
     out: list[str] = ["# Hand-off only — git-suite did not write this file to disk.",
                       "# Generated by POST/GET /api/install/compose. Verify before applying.",
                       ""]
@@ -214,7 +237,7 @@ async def installer_validate_route(session_id: str, body: ValidateManifestReques
     fetch. A hub absent from the manifest is fatal — the agent must have
     re-fetched before running."""
     await require_session(session_id)
-    live = _build_dag()
+    live = await _build_full_dag()
     live_names = {n["name"] for n in live["nodes"]}
     manifest_hubs = {n["name"] for n in (body.manifest.get("nodes") or [])}
     missing = sorted(live_names - manifest_hubs)

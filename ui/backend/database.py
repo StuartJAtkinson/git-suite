@@ -210,6 +210,37 @@ async def init_db() -> None:
                 PRIMARY KEY (session_id, repo)
             );
 
+            -- Step 6: per-(session, orphan repo) best-hub recommendation.
+            -- Computed lazily by /api/recommend; upserted on each call.
+            -- `signal` records which input drove the row ('notes' | 'distill')
+            -- so the UI can show provenance. One row per source_repo within a
+            -- session — re-running replaces it. Scoped per-session because
+            -- stars (a primary input) live outside the scan rows.
+            CREATE TABLE IF NOT EXISTS feature_recommendations (
+                session_id   TEXT NOT NULL,
+                source_repo  TEXT NOT NULL,
+                target_hub   TEXT NOT NULL,
+                feature      TEXT NOT NULL,
+                confidence   REAL NOT NULL,
+                rationale    TEXT,
+                signal       TEXT NOT NULL,    -- 'notes' | 'distill'
+                computed_at  TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (session_id, source_repo)
+            );
+
+            -- Step 7: cache of per-hub Wikidata subgraphs (Install DAG).
+            -- Keyed by the sorted-set of Q-ids the SPARQL query was over
+            -- (root + members) — same set, same answer, cache hit. Permanent:
+            -- Wikidata concepts are stable; eviction is manual. `root_qid`
+            -- is denormalised so /api/wikidata/dag can locate a hub's row
+            -- by parent without re-parsing the key.
+            CREATE TABLE IF NOT EXISTS wikidata_subgraph (
+                cache_key   TEXT PRIMARY KEY,  -- ':'.join(sorted(qids))
+                root_qid    TEXT NOT NULL,
+                payload     TEXT NOT NULL,     -- JSON: {nodes, edges, root}
+                fetched_at  TEXT DEFAULT (datetime('now'))
+            );
+
         """)
         await _migrate(db)
         await db.commit()

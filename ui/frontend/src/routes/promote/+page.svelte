@@ -85,7 +85,7 @@
         <div class="fork-row">
           <span class="fork-name">{fork.name}</span>
           <span class="verdict {verdictClass(fork.verdict)}">
-            {fork.verdict}{#if fork.hub} → {fork.hub}{/if}
+            {fork.label || fork.verdict}{#if fork.hub} → {fork.hub}{/if}
           </span>
           {#if fork.parent_full_name}
             <span class="parent">forked from {fork.parent_full_name}</span>

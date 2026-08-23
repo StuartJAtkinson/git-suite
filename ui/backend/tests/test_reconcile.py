@@ -1,7 +1,7 @@
 """reconcile: intent (plan) vs reality (scan) diffing."""
 import asyncio
 
-from conftest import insert_scan
+from conftest import insert_scan, insert_stars
 
 
 def test_reconcile_classifies_every_repo(temp_db, isolated_plan):
@@ -88,3 +88,37 @@ def test_reconcile_splits_deleted_vs_external_ghosts(temp_db, isolated_plan):
     assert was_live.get("autoEdit_2") is False   # external absorb, never scanned
     assert r["stats"]["ghost_deletable"] >= 1
     assert r["stats"]["ghost_external"] >= 1
+
+
+def test_reconcile_includes_stars_as_orphan_with_is_star(temp_db, isolated_plan):
+    """Step 6: starred repos that aren't owned appear in the Triage orphan
+    stream so the card can render the ⭐ copy-URL row. verdict='orphan',
+    is_star=True, deduped against the owned scan rows."""
+    from routers.reconcile import reconcile
+    insert_scan(temp_db, repos=[
+        {"name": "quivr"},          # owned, absorb (already in sample plan)
+    ])
+    insert_stars(temp_db, stars=[
+        {"full_name": "octocat/hello-world", "name": "hello-world",
+         "description": "first repo on github", "url": "https://github.com/octocat/hello-world"},
+        # Same short name as an owned repo — must be deduped away (owned wins).
+        {"full_name": "someone-else/quivr", "name": "quivr",
+         "description": "external clone", "url": "https://github.com/someone-else/quivr"},
+    ])
+
+    r = asyncio.run(reconcile("s1"))
+    # The star that didn't collide must appear as an orphan with is_star=True.
+    star_row = next((x for x in r["repos"]
+                     if x["name"] == "hello-world"), None)
+    assert star_row is not None
+    assert star_row["verdict"] == "orphan"
+    assert star_row["is_star"] is True
+    assert star_row["hub"] is None
+    # The colliding star must NOT appear (owned quivr wins).
+    assert sum(1 for x in r["repos"] if x["name"] == "quivr") == 1
+    # Stars are in the Triage stream (repos) but EXCLUDED from `orphans` so
+    # the cluster pool doesn't double-count them (they come in separately
+    # via _star_member_dicts). See routers/reconcile.py filter on is_star.
+    assert not any(o["name"] == "hello-world" for o in r["orphans"])
+    # And the undecided stat counts owned orphans only, not stars.
+    assert "hello-world" not in {n for n in r["orphans"]}

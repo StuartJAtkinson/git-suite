@@ -125,6 +125,45 @@ async def reconcile(session_id: str):
             "archived": bool(r.get("archived")),
             "size": r.get("size") or 0,
             "stub_reason": _stub_reason(r),
+            "is_star": False,   # filled in the stars pass-through below
+        })
+
+    # --- stars: external repos the user starred. Same orphan queue so the
+    # Step 6 Triage card can render the ⭐ copy-URL row. Dedup against live
+    # owned repos by short name — a repo someone owns AND starred only appears
+    # once, as the owned row. Edge case: two different repos with the same
+    # short name would collide; not worth a full_name index for Step 6. -------
+    async for db in get_db():
+        star_rows = await db.execute_fetchall(
+            "SELECT name, full_name, description, topics, url "
+            "FROM starred_repo"
+        )
+    live_names_lower = {n.lower() for n in live_names}
+    for s in star_rows:
+        name = s["name"] or (s["full_name"] or "").rsplit("/", 1)[-1]
+        if not name or name.lower() in live_names_lower:
+            continue
+        try:
+            topics = json.loads(s["topics"] or "[]")
+        except (TypeError, ValueError):
+            topics = []
+        reconciled.append({
+            "name": name,
+            "verdict": "orphan",
+            "label": plan_store.label_for("orphan"),
+            "hub": None,
+            "aim": s["description"] or "",
+            "url": s["url"] or "",
+            "visibility": "public",
+            "done": None,
+            "stars": 0,
+            "is_fork": False,
+            "pushed_at": "",
+            "topics": topics,
+            "archived": False,
+            "size": 0,
+            "stub_reason": None,
+            "is_star": True,
         })
 
     # --- ghosts: planned repos that don't exist live --------------------
@@ -162,7 +201,8 @@ async def reconcile(session_id: str):
     hubs_roll.sort(key=lambda h: plan_store.hub_sort_key(
         h["priority"], h["absorb_total"], h["name"]))
 
-    orphans = [r for r in reconciled if r["verdict"] == "orphan"]
+    orphans = [r for r in reconciled
+          if r["verdict"] == "orphan" and not r.get("is_star")]
     stubs = [r for r in reconciled if r["stub_reason"]]
     ghost_deletable = sum(1 for g in ghosts if g["was_live"])
 

@@ -148,6 +148,46 @@ button.ghost:hover:not(:disabled) { background: #f3f4f6; }
 }
 .section-head h2 { margin: 0; font-size: 1rem; color: #374151; }
 
+/* ── Bar (shared control strip across Install + Order) ── */
+.bar {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  margin: 0.6rem 0 1rem;
+  font-size: 0.85rem;
+}
+
+/* ── Tags (row-level status chips, promoted from Execute) ── */
+.tag { font-size: 0.7rem; border-radius: 4px; padding: 0.1em 0.45em; font-family: monospace; }
+.tag.arch { background: #fef3c7; color: #92400e; }
+.tag.make { background: #dcfce7; color: #166534; }
+.tag.doc  { background: #e0e7ff; color: #3730a3; }
+.tag.ok   { background: #d1fae5; color: #065f46; }
+.tag.none { background: #f3f4f6; color: #9ca3af; }
+
+/* ── Language tag (shared by Order/Triage/Summary/Scan) ── */
+.lang-tag { font-size: 0.72rem; background: #eff6ff; color: #1e40af; border-radius: 4px; padding: 0.1em 0.4em; }
+
+/* ── Gap pill (align panel) — brand blue, not amber ── */
+.gap-pill {
+  display: inline-block;
+  margin-left: 0.4rem;
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 0 0.4em;
+  border-radius: 3px;
+  font-size: 0.66rem;
+  font-weight: 600;
+}
+
+/* ── Centred info message (Install/Cluster empty-state) ── */
+.info-msg.centered { max-width: 560px; margin: 2rem auto; text-align: center; }
+
 /* ── Repo rows ── */
 .repo-list { display: flex; flex-direction: column; gap: 0.4rem; }
 .repo-row {

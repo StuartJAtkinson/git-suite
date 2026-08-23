@@ -276,11 +276,11 @@
 
     <div class="canvas">
       {#if !data.available}
-        <div class="info-msg" style="margin:2rem auto;max-width:520px;text-align:center">
+        <div class="info-msg centered">
           {data.reason}
         </div>
       {:else if themes.length === 0}
-        <p class="empty">No themes — every repo was unplaced.</p>
+        <p class="empty">✓ No themes — every repo was unplaced.</p>
       {:else}
         <div class="stage">
           {#each themes as t (t.id)}
@@ -369,7 +369,6 @@
   .rail-stats { color: #374151; font-size: 0.86rem; line-height: 1.45;
     padding-bottom: 0.45rem; border-bottom: 1px solid #e5e7eb; }
   .stat-orphans { color: #b45309; font-weight: 600; }
-  .muted { color: #9ca3af; }
   .small { font-size: 0.74rem; }
   .margin-summary { margin-top: 0.3rem; font-size: 0.74rem; padding: 0.15rem 0.4rem;
     border-radius: 4px; display: inline-block; }
@@ -377,7 +376,7 @@
   .margin-summary.flag-ok { background: #fffbeb; color: #b45309; }
   .margin-summary.flag-wide { background: #ecfdf5; color: #047857; }
 
-  .primary { background: #4f46e5; color: #fff; border: none; border-radius: 6px;
+  .primary { background: #0057b7; color: #fff; border: none; border-radius: 6px;
     padding: 0.6rem 0.75rem; font-size: 0.88rem; font-weight: 700;
     cursor: pointer; width: 100%; }
   .primary:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -423,13 +422,13 @@
   .card-body { flex: 1; display: flex; flex-direction: column; min-width: 0; }
   .card-head { padding: 0.75rem 0.9rem 0.65rem; border-bottom: 1px solid #e5e7eb;
     background: rgba(255,255,255,0.6); }
-  .card-title { font-size: 1rem; font-weight: 800; color: #4338ca;
+  .card-title { font-size: 1rem; font-weight: 800; color: #1e40af;
     text-transform: lowercase; letter-spacing: 0.01em; background: none; border: none;
     padding: 0; cursor: pointer; text-align: left; width: 100%;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card-title:hover { text-decoration: underline; }
   .name-edit { font-size: 1rem; font-weight: 700; width: 100%; padding: 0.15rem 0.3rem;
-    border: 1px solid #4f46e5; border-radius: 4px; }
+    border: 1px solid #0057b7; border-radius: 4px; }
   .card-count { font-size: 0.74rem; color: #6b7280; margin-top: 0.25rem;
     display: flex; align-items: center; gap: 0.5rem; }
   .card-stars { color: #b45309; font-weight: 600; }
@@ -454,10 +453,10 @@
   .cell-title { font-family: monospace; font-size: 0.84rem; font-weight: 600;
     color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     text-decoration: none; display: block; margin-bottom: 0.3rem; }
-  .cell-title:hover { color: #4f46e5; text-decoration: underline; }
+  .cell-title:hover { color: #0057b7; text-decoration: underline; }
   .cell-sub { display: flex; gap: 0.55rem; align-items: center; font-size: 0.74rem;
     color: #4b5563; line-height: 1.4; }
-  .domain-pill { background: #eef2ff; color: #4338ca; padding: 0.05rem 0.45em;
+  .domain-pill { background: #e6effa; color: #1e40af; padding: 0.05rem 0.45em;
     border-radius: 3px; font-size: 0.7rem; }
   .cell-desc { font-size: 0.8rem; color: #4b5563; line-height: 1.4;
     margin-top: 0.3rem;

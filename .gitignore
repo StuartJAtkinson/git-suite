@@ -54,3 +54,6 @@ startStop.md
 
 .playwright-mcp/
 install_empty.png
+
+# uxsheet — generated worksheet (opened off disk, never committed)
+CONSIDERATIONS.html

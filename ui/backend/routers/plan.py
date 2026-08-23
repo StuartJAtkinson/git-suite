@@ -59,13 +59,15 @@ class HubUpsert(BaseModel):
     priority: int | None = None     # emergent ordering — unset by default
     description: str = ""
     boundary: str = ""
+    wikidata_id: str | None = None  # Step 7: optional Q-id for the DAG view
 
 
 @router.post("/plan/hub")
 async def upsert_hub(body: HubUpsert):
     try:
         return plan_store.upsert_hub(body.name, body.priority,
-                                     body.description, body.boundary)
+                                     body.description, body.boundary,
+                                     wikidata_id=body.wikidata_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

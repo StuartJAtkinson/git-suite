@@ -128,13 +128,39 @@
     refreshMeta();
   }
 
+  const STAR_TIMEOUT_MS = 90_000;
+  function withTimeout(promise, ms, what) {
+    let timer;
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`${what} timed out after ${ms / 1000}s`)),
+          ms,
+        );
+      }),
+    ]).finally(() => clearTimeout(timer));
+  }
+
   async function loadStars() {
     starsLoading = true;
     try {
-      starCount = (await api.refreshStars($session.session_id)).count ?? 0;
-      stars = (await api.getStars()).stars || [];
-    } catch (e) { pullErrors = [...pullErrors, `Stars pull failed: ${e.message}`]; }
-    finally { starsLoading = false; }
+      // GitHub's starred-list is paginated (~6 pages for a large account) and the
+      // token can hit the secondary rate limit mid-loop; without a timeout the
+      // "pulling stars…" spinner would spin until the tab is closed. Race it so
+      // it ALWAYS settles; a timeout is a recoverable error, not a hang.
+      const res = await withTimeout(
+        api.refreshStars($session.session_id),
+        STAR_TIMEOUT_MS, 'Stars refresh',
+      );
+      starCount = res.count ?? 0;
+      const get = await withTimeout(api.getStars(), STAR_TIMEOUT_MS, 'Stars lookup');
+      stars = (get.stars) || [];
+    } catch (e) {
+      pullErrors = [...pullErrors, `Stars pull failed: ${e.message}`];
+    } finally {
+      starsLoading = false;
+    }
   }
 
   // ✨ Enrich — LLM read of each repo (Purpose / Domain / Entities), looped in
@@ -302,7 +328,7 @@
       <span class="badge">{SOURCE_GLYPH.owned} owned: {counts.owned || 0}</span>
       <span class="badge">{SOURCE_GLYPH.fork} forks: {counts.fork || 0}</span>
       <span class="badge">{SOURCE_GLYPH.star} stars: {counts.star || 0}</span>
-      <span class="badge" style="background:#eef2ff;color:#4338ca">enriched: {Object.keys(records).length}</span>
+      <span class="badge" style="background:#e6effa;color:#1e40af">enriched: {Object.keys(records).length}</span>
       <span class="badge" style="background:#fef3c7;color:#92400e">notes: {noteCount}</span>
     </div>
     <table class="records">
@@ -381,7 +407,7 @@
   td.name a { color: #1e293b; font-family: monospace; }
   td.name a.readme { font-size: 0.66rem; color: #6b7280; margin-left: 0.3rem; }
   td.purpose { color: #1e293b; max-width: 280px; }
-  td.domain .domain-pill { background: #eef2ff; color: #4338ca; border-radius: 4px; padding: 0.1em 0.45em; font-size: 0.72rem; }
+  td.domain .domain-pill { background: #e6effa; color: #1e40af; border-radius: 4px; padding: 0.1em 0.45em; font-size: 0.72rem; }
   td.entities { color: #6b7280; max-width: 220px; }
   td.hub { color: #6b7280; }
   td.stars { color: #9ca3af; text-align: right; }
@@ -391,7 +417,7 @@
     border: 1px solid #e5e7eb; border-radius: 4px; font: inherit;
     background: #fff; color: #1e293b;
   }
-  td.note-cell .note-input:focus { outline: none; border-color: #4338ca; box-shadow: 0 0 0 2px #eef2ff; }
+  td.note-cell .note-input:focus { outline: none; border-color: #1e40af; box-shadow: 0 0 0 2px #e6effa; }
   td.note-cell .note-input::placeholder { color: #cbd5e1; }
   td.note-cell .note-saving { font-size: 0.7rem; color: #6b7280; margin-left: 0.3rem; }
   .muted-small { color: #9ca3af; font-size: 0.74rem; font-weight: 400; margin-left: 0.5rem; }
@@ -402,7 +428,7 @@
   .enrich-panel { margin-top: 0.6rem; padding: 0.6rem 0.8rem; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; }
   .enrich-head { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: #1e293b; }
   .ebar { height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; margin: 0.5rem 0; }
-  .efill { height: 100%; background: #4338ca; transition: width 0.25s; }
+  .efill { height: 100%; background: #1e40af; transition: width 0.25s; }
   .enrich-log { list-style: none; margin: 0.3rem 0 0; padding: 0; font-size: 0.78rem; max-height: 200px; overflow-y: auto; }
   .enrich-log li { padding: 0.12rem 0; color: #475569; }
   .enrich-log b { font-family: monospace; color: #1e293b; }

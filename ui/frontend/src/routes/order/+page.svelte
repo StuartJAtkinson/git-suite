@@ -305,12 +305,6 @@
       title="Audit each absorbed repo against the hub's design-principles baseline (Step 7)">
       {aligning ? 'Auditing…' : '✓ Align principles'}
     </button>
-    {#if alignResult}
-      <button class="ghost sm" on:click={runAlignDocs} disabled={aligningDocs}
-        title="One-click: rerun the audit and push ALIGNMENT.md to the hub repo">
-        {aligningDocs ? 'Pushing…' : '📤 Push ALIGNMENT.md'}
-      </button>
-    {/if}
     <button on:click={save} disabled={saving || loading}>
       {saving ? 'Saving…' : '💾 Save'}
     </button>
@@ -370,7 +364,7 @@
         <div class="body">
           <div class="title-line">
             <span class="repo">{r.repo}</span>
-            {#if r.language}<span class="lang">{r.language}</span>{/if}
+            {#if r.language}<span class="lang-tag">{r.language}</span>{/if}
             {#if r.stars}<span class="stars" title="stars on GitHub">★ {r.stars}</span>{/if}
             <span class="spacer"></span>
             <button class="ghost xs" on:click={() => suggestForRow(r)} disabled={suggesting === r.repo || r.is_hub_repo}
@@ -436,58 +430,75 @@
   </div>
 
   {#if alignResult}
-    <section class="align-panel">
-      <header>
+    <section class="section">
+      <div class="section-head">
         <h2>Design-principles alignment <span class="muted">(Step 7)</span></h2>
+        <button class="ghost sm" on:click={() => (alignResult = null)}>Discard</button>
+      </div>
+      <div class="card align-card">
         {#if alignResult.summary}<p class="align-summary">{alignResult.summary}</p>{/if}
         {#if alignPushResult}
           <p class="align-push" class:error={!alignPushResult.pushed && alignPushResult.reason !== 'up to date'}>
             {#if alignPushResult.pushed}Pushed ALIGNMENT.md to {alignPushResult.hub}.{:else if alignPushResult.reason === 'up to date'}ALIGNMENT.md already up to date.{:else}Push failed: {alignPushResult.detail || 'unknown error'}{/if}
           </p>
         {/if}
-      </header>
-      <table class="align-grid">
-        <thead>
-          <tr>
-            <th class="row-head">principle</th>
-            {#each alignResult.members as m}
-              <th class="repo-col">
-                {m}
-                <span class="gap-pill">{alignResult.gap_by_repo[m] ?? 0} gap{((alignResult.gap_by_repo[m] ?? 0) === 1) ? '' : 's'}</span>
-              </th>
-            {/each}
-          </tr>
-        </thead>
-        <tbody>
-          {#each alignResult.principles as p (p.name)}
+        <table class="align-grid">
+          <thead>
             <tr>
-              <td class="row-head">{p.name}</td>
-              {#each alignResult.members as m}
-                {@const cell = p.repos.find((r) => r.repo === m)}
-                <td class="cell {cell?.present ? 'present' : 'absent'}"
-                  title={cell?.note || ''}>
-                  {cell?.present ? '✓' : '✗'}
-                  {#if cell && !cell.present && cell.note}
-                    <span class="cell-note">{cell.note}</span>
-                  {/if}
-                </td>
+              <th class="row-head">principle</th>
+              {#each alignResult.members as m, mi}
+                <th class="repo-col" class:hub-col={mi === 0}>
+                  {#if mi === 0}<span class="hub-badge" title="Hub repo — pinned to position 0">HUB</span>{/if}
+                  {m}
+                  <span class="gap-pill">{alignResult.gap_by_repo[m] ?? 0} gap{((alignResult.gap_by_repo[m] ?? 0) === 1) ? '' : 's'}</span>
+                </th>
               {/each}
             </tr>
-          {/each}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {#each alignResult.principles as p (p.name)}
+              <tr>
+                <td class="row-head">{p.name}</td>
+                {#each alignResult.members as m}
+                  {@const cell = p.repos.find((r) => r.repo === m)}
+                  <td class="cell {cell?.present ? 'present' : 'absent'}"
+                    title={cell?.note || ''}>
+                    {cell?.present ? '✓' : '✗'}
+                    {#if cell && !cell.present && cell.note}
+                      <span class="cell-note">{cell.note}</span>
+                    {/if}
+                  </td>
+                {/each}
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+        <div class="align-footer">
+          <span class="align-footer-note">
+            Writes ALIGNMENT.md into the hub repo — the only action here that
+            touches a real repository.
+          </span>
+          <button class="ghost sm" on:click={runAlignDocs} disabled={aligningDocs}
+            title="Rerun the audit and push ALIGNMENT.md to the hub repo">
+            {aligningDocs ? 'Pushing…' : 'Push ALIGNMENT.md'}
+          </button>
+        </div>
+      </div>
     </section>
   {/if}
 {/if}
 
 <style>
+  .align-footer { display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; flex-wrap: wrap; padding: 0.7rem 0.9rem;
+    border-top: 1px solid #e5e7eb; }
+  .align-footer-note { color: #6b7280; font-size: 0.8rem; max-width: 46ch; }
   .hub-picker { margin-top: 1rem; }
   .hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5rem; margin-top: 0.6rem; }
   .hub-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.7rem 0.9rem; cursor: pointer; text-align: left; font-family: inherit; }
-  .hub-card:hover { border-color: #4f46e5; }
+  .hub-card:hover { border-color: #0057b7; }
   .hub-card h4 { margin: 0; font-family: monospace; }
 
-  .bar { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin: 0.6rem 0 1rem; font-size: 0.85rem; }
   .bar label { display: flex; align-items: center; gap: 0.35rem; }
   .bar .spacer { flex: 1; }
   .saved { color: #16a34a; font-size: 0.78rem; }
@@ -507,7 +518,7 @@
   .row.dim { opacity: 0.35; }
   .rank { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; min-width: 56px; }
   .pos { font-family: monospace; font-weight: 600; color: #6b7280; }
-  .hub-badge { font-size: 0.7rem; font-weight: 700; background: #ddd6fe; color: #5b21b6; padding: 0.15rem 0.45rem; border-radius: 4px; }
+  .hub-badge { font-size: 0.7rem; font-weight: 700; background: #dbeafe; color: #1e40af; padding: 0.15rem 0.45rem; border-radius: 4px; }
   .move-buttons { display: flex; flex-direction: column; gap: 0.15rem; }
   button.xs { padding: 0.1rem 0.4rem; font-size: 0.78rem; line-height: 1; }
 
@@ -515,12 +526,11 @@
   .title-line { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
   .title-line .spacer { flex: 1; }
   .repo { font-family: monospace; font-weight: 600; font-size: 0.95rem; }
-  .lang { font-size: 0.7rem; background: #eff6ff; color: #1e40af; border-radius: 4px; padding: 0.05em 0.35em; }
   .stars { font-size: 0.75rem; color: #6b7280; }
   .aim { color: #4b5563; font-size: 0.85rem; margin: 0.25rem 0 0.5rem; }
   .cols { display: flex; gap: 0.4rem; flex-wrap: wrap; }
   .col { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.78rem; padding: 0.1rem 0.5rem; border: 1px solid #e5e7eb; border-radius: 4px; background: #fff; cursor: pointer; }
-  .col.checked { background: #eef2ff; border-color: #6366f1; color: #3730a3; font-weight: 600; }
+  .col.checked { background: #e6effa; border-color: #6366f1; color: #3730a3; font-weight: 600; }
   .tags { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.4rem; }
   .tag { font-size: 0.72rem; padding: 0.1rem 0.45rem; border-radius: 12px; background: #f3f4f6; color: #4b5563; border: 1px solid transparent; cursor: pointer; }
   .tag.on { background: #ecfdf5; color: #065f46; border-color: #6ee7b7; }
@@ -531,22 +541,16 @@
 
   .suggest-card { flex-basis: 100%; margin-top: 0.4rem; background: #f5f3ff; border: 1px solid #c4b5fd; border-radius: 6px; padding: 0.5rem 0.7rem; }
 
-  .align-panel { margin-top: 1rem; border: 1px solid #e5e7eb; border-radius: 8px;
-    background: #fff; padding: 0.7rem 0.9rem 0.9rem; }
-  .align-panel h2 { font-size: 1rem; font-weight: 700; color: #111827;
-    margin: 0 0 0.35rem; display: flex; align-items: center; gap: 0.5rem; }
-  .align-panel h2 .muted { color: #6b7280; font-weight: 500; font-size: 0.85rem; }
+  .align-card { padding: 0.7rem 0.9rem 0.9rem; }
   .align-summary { font-size: 0.84rem; color: #4b5563; margin: 0 0 0.7rem; line-height: 1.45; }
   .align-grid { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-  .align-grid th, .align-grid td { padding: 0.4rem 0.55rem; border-bottom: 1px solid #f1f5f9;
+  .align-grid th, .align-grid td { padding: 0.28rem 0.5rem; border-bottom: 1px solid #f1f5f9;
     text-align: left; vertical-align: top; }
   .align-grid thead th { color: #6b7280; font-weight: 600; font-size: 0.74rem;
-    background: #f9fafb; border-bottom: 1px solid #e5e7eb; }
+    background: #f9fafb; border-bottom: 2px solid #e5e7eb; }
   .align-grid .row-head { font-weight: 600; color: #111827; min-width: 14rem; }
   .align-grid .repo-col { font-family: monospace; }
-  .align-grid .gap-pill { display: inline-block; margin-left: 0.4rem;
-    background: #fffbeb; color: #92400e; padding: 0 0.4em; border-radius: 3px;
-    font-size: 0.66rem; font-family: inherit; font-weight: 600; }
+  .align-grid .repo-col.hub-col { background: #f9fafb; }
   .align-grid .cell { font-family: monospace; font-weight: 700; text-align: center; }
   .align-grid .cell.present { color: #047857; }
   .align-grid .cell.absent { color: #b91c1c; }

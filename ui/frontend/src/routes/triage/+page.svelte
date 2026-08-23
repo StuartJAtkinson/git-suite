@@ -15,6 +15,7 @@
 
   let showDecided = false;  // default: only undecided (orphans)
   let activeIndex = 0;
+  let recommendations = {};   // Step 6: repo -> rec object or null (prefetched on load)
 
   $: queue = data
     ? (showDecided ? data.repos : data.repos.filter((r) => r.verdict === 'orphan'))
@@ -37,6 +38,17 @@
     try {
       data = await api.reconcile($session.session_id);
       hubs = data.hubs;     // reconcile already returns emergent order
+      // Step 6: prefetch recommendations for every orphan in parallel so the
+      // card is filled by the time the user clicks into it. One LLM hiccup
+      // mustn't break the queue load — allSettled + per-promise catch.
+      const orphans = data.repos.filter((r) => r.verdict === 'orphan');
+      await Promise.allSettled(orphans.map(async (r) => {
+        try {
+          const res = await api.getRecommendation($session.session_id, r.name);
+          recommendations[r.name] = res.recommendation || null;
+        } catch { recommendations[r.name] = null; }
+      }));
+      recommendations = recommendations;   // trigger reactivity
     } catch (e) {
       errorMsg = e.message;
     } finally {
@@ -111,7 +123,7 @@
   </label>
 
   {#if queue.length === 0}
-    <div class="ok-msg" style="margin-top:1rem;">🎉 Nothing left to triage — every repo has a verdict.</div>
+    <div class="ok-msg" style="margin-top:1rem;">✓ Nothing left to triage — every repo has a verdict.</div>
   {:else}
     <!-- Active card -->
     {#if active}
@@ -119,13 +131,46 @@
         <div class="active-head">
           <span class="repo-name big">{active.name}</span>
           {#if active.language}<span class="lang-tag">{active.language}</span>{/if}
-          <span class="badge cat-{active.verdict}">{active.verdict}{active.hub ? ` → ${active.hub}` : ''}</span>
+          <span class="badge cat-{active.verdict}">{active.label || active.verdict}{active.hub ? ` → ${active.hub}` : ''}</span>
           {#if active.stub_reason}<span class="badge stub-badge" title={active.stub_reason}>stub</span>{/if}
           {#if active.done}<span class="badge done-badge">{active.done}</span>{/if}
           <span class="counter">{activeIndex + 1} / {queue.length}</span>
         </div>
         <p class="active-aim">{active.aim || '(no description)'}</p>
         {#if active.url}<a class="active-url" href={active.url} target="_blank" rel="noreferrer">{active.url}</a>{/if}
+
+        <!-- Step 6: recommendation row. Only for orphan cards — once a
+             verdict is set the absorb action doesn't make sense. -->
+        {#if active.verdict === 'orphan'}
+          {@const rec = recommendations[active.name]}
+          {#if active.is_star}
+            <div class="recommend-row star-row">
+              <span class="rec-mark">⭐</span>
+              Starred repo — git-suite can't unstar on your behalf.
+              <input class="url-input" readonly value={active.url}
+                on:focus={(e) => e.target.select()} />
+              <button class="ghost sm" type="button"
+                on:click={() => navigator.clipboard?.writeText(active.url)}>Copy URL</button>
+            </div>
+          {:else if rec && rec.confidence >= 0.7}
+            <div class="recommend-row action-row">
+              <span class="rec-mark">✅</span>
+              <strong>{rec.feature}</strong> fits hub <strong>{rec.target_hub}</strong>
+              <span class="conf">confidence {rec.confidence.toFixed(2)}</span>
+              <button class="success sm" type="button" disabled={busy === active.name}
+                on:click={() => decide(active, 'absorb', rec.target_hub)}>
+                Absorb into {rec.target_hub}
+              </button>
+            </div>
+          {:else if rec && rec.confidence >= 0.5}
+            <div class="recommend-row hint-row">
+              <span class="rec-mark">💡</span>
+              <strong>{rec.feature}</strong> fits hub <strong>{rec.target_hub}</strong>
+              <span class="conf">confidence {rec.confidence.toFixed(2)}</span>
+              <span class="signal-tag">{rec.signal}</span>
+            </div>
+          {/if}
+        {/if}
 
         <div class="verdict-grid">
           {#each hubs as h, i}
@@ -158,7 +203,7 @@
           <div class="repo-row" class:active-row={i === activeIndex} on:click={() => (activeIndex = i)}>
             <span class="repo-name">{r.name}</span>
             {#if r.language}<span class="lang-tag">{r.language}</span>{/if}
-            <span class="badge cat-{r.verdict}">{r.verdict}{r.hub ? ` → ${r.hub}` : ''}</span>
+            <span class="badge cat-{r.verdict}">{r.label || r.verdict}{r.hub ? ` → ${r.hub}` : ''}</span>
             {#if r.stub_reason}<span class="badge stub-badge" title={r.stub_reason}>stub</span>{/if}
           </div>
         {/each}
@@ -193,6 +238,21 @@
 
   .repo-row { cursor: pointer; }
   .repo-row.active-row { border-color: #0057b7; background: #eff6ff; }
-  .lang-tag { font-size: 0.72rem; background: #eff6ff; color: #1e40af; border-radius: 4px; padding: 0.1em 0.4em; }
   kbd { font-family: monospace; background: #e5e7eb; border-radius: 3px; padding: 0 0.3em; font-size: 0.85em; }
+
+  /* Step 6: recommendation row (one of three) */
+  .recommend-row { display: flex; align-items: center; gap: 0.5rem;
+                   flex-wrap: wrap; margin-top: 0.6rem; padding: 0.45rem 0.6rem;
+                   border-radius: 6px; font-size: 0.85rem; }
+  .recommend-row.hint-row    { background: #fefce8; border: 1px solid #fde68a; color: #78350f; }
+  .recommend-row.action-row  { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+  .recommend-row.star-row    { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+  .rec-mark { font-size: 1rem; }
+  .conf    { font-size: 0.75rem; opacity: 0.7; margin-left: auto;
+             font-family: monospace; }
+  .signal-tag { font-size: 0.7rem; background: rgba(0,0,0,0.06); padding: 0 0.4em;
+                border-radius: 3px; }
+  .url-input { flex: 1; min-width: 12ch; font-size: 0.75rem;
+               background: #fff; border: 1px solid #d1d5db; border-radius: 4px;
+               padding: 0.2rem 0.4rem; }
 </style>

@@ -199,7 +199,7 @@
   <div class="section">
     <div class="section-head"><h2>Archive ({willList.length})</h2></div>
     {#if willList.length === 0}
-      <p class="empty">Nothing to archive — all targets already archived or gone. ✓</p>
+      <p class="empty">✓ Nothing to archive — all targets already archived or gone.</p>
     {:else}
       <div class="repo-list">
         {#each willList as i}
@@ -227,7 +227,7 @@
   <div class="section">
     <div class="section-head"><h2>Create missing hubs ({preview.create_hubs.length})</h2></div>
     {#if preview.create_hubs.length === 0}
-      <p class="empty">All plan hubs exist on GitHub. ✓</p>
+      <p class="empty">All plan hubs exist on GitHub.</p>
     {:else}
       <div class="repo-list">
         {#each preview.create_hubs as h}
@@ -332,7 +332,7 @@
                   <button class="sm" style="margin:0.3rem 0 0.4rem;" on:click={() => copyRunbook(hub, a.repo)}>
                     {absorbCopied === absorbKey ? '✓ Copied' : 'Copy runbook'}
                   </button>
-                  <pre class="absorb-cmds">{p.commands.join('\n')}</pre>
+                  <pre class="preview-box">{p.commands.join('\n')}</pre>
                 </details>
                 {#if p.checklist?.length}
                   <details>
@@ -390,12 +390,6 @@
   .repo-row.sel { cursor: pointer; gap: 0.6rem; }
   .repo-row.sel input { width: auto; }
   .repo-row.dim { opacity: 0.55; }
-  .tag { font-size: 0.7rem; border-radius: 4px; padding: 0.1em 0.45em; font-family: monospace; }
-  .tag.arch { background: #fef3c7; color: #92400e; }
-  .tag.make { background: #dcfce7; color: #166534; }
-  .tag.doc { background: #e0e7ff; color: #3730a3; }
-  .tag.ok { background: #d1fae5; color: #065f46; }
-  .tag.none { background: #f3f4f6; color: #9ca3af; }
   .aim { font-size: 0.78rem; color: #6b7280; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45%; }
   .confirm-box { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; padding: 0.9rem 1.1rem; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; }
   .confirm { flex-direction: row; align-items: center; gap: 0.5rem; font-weight: 500; color: #92400e; }
@@ -404,9 +398,8 @@
   .hub-life-actions { margin-left: auto; display: flex; gap: 0.3rem; }
   .mig-hub { margin-bottom: 0.9rem; }
   .mig-hub-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; }
-  .absorb-runbook { margin: 0.4rem 0 0.6rem 1.1rem; padding: 0.7rem 0.9rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.82rem; }
+  .absorb-runbook { margin: 0.4rem 0 0.6rem 1.1rem; padding: 0.7rem 0.9rem; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.82rem; }
   .absorb-meta { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
-  .absorb-cmds { background: #0f172a; color: #e2e8f0; padding: 0.6rem 0.8rem; border-radius: 5px; font-size: 0.75rem; line-height: 1.4; overflow-x: auto; margin: 0.4rem 0 0; }
   .absorb-notes { margin: 0.2rem 0 0.5rem 1.1rem; color: #475569; }
   .absorb-checklist { margin: 0.3rem 0 0 1.3rem; }
   .absorb-url { padding: 0.18rem 0.4rem; border: 1px solid #e5e7eb; border-radius: 4px; font-family: monospace; background: #fafafa; }

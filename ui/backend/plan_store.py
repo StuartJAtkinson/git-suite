@@ -87,6 +87,7 @@ def _heal(plan: dict) -> dict:
         hub.setdefault("boundary", "")
         hub.setdefault("alternatives", {"oss": [], "commercial": []})
         hub.setdefault("absorbs", [])
+        hub.setdefault("wikidata_id", None)  # Step 7: optional Q-id for the DAG view
     return plan
 
 
@@ -236,11 +237,16 @@ def clear() -> dict:
 
 def upsert_hub(name: str, priority: int | None = None,
                description: str = "", boundary: str = "",
-               alternatives: dict | None = None) -> dict:
+               alternatives: dict | None = None,
+               wikidata_id: str | None = None) -> dict:
     """Create or update a hub definition. Preserves existing absorbs.
 
     priority is optional — None means 'unassigned' (emergent ordering by hub
-    size), stored as null rather than coerced to a hardcoded number."""
+    size), stored as null rather than coerced to a hardcoded number.
+
+    wikidata_id is an optional Q-id (e.g. "Q1194641") used by the Install
+    DAG to fetch the transitive concept closure above the hub. Passing None
+    preserves any existing value; pass the empty string to clear it."""
     if not name or not name.strip():
         raise ValueError("hub name required")
     with _LOCK:
@@ -251,6 +257,8 @@ def upsert_hub(name: str, priority: int | None = None,
             "description": description, "boundary": boundary,
             "alternatives": alternatives or hub.get("alternatives") or {"oss": [], "commercial": []},
         })
+        if wikidata_id is not None:
+            hub["wikidata_id"] = wikidata_id or None
         hub.setdefault("absorbs", [])
         plan["hubs"][name] = hub
         _write(plan)
@@ -278,6 +286,19 @@ def set_hub_boundary(hub: str, boundary: str) -> dict:
         plan["hubs"][hub]["boundary"] = boundary
         _write(plan)
         return {"hub": hub, "boundary": boundary}
+
+
+def set_hub_wikidata_id(hub: str, wikidata_id: str | None) -> dict:
+    """Set or clear a hub's Wikidata Q-id. Empty string and None both clear.
+    Distinct from upsert_hub(wikidata_id=...) which preserves on None —
+    this is the explicit setter the Wikidata router uses."""
+    with _LOCK:
+        plan = _load()
+        if hub not in plan.get("hubs", {}):
+            raise ValueError(f"unknown hub {hub!r}")
+        plan["hubs"][hub]["wikidata_id"] = wikidata_id or None
+        _write(plan)
+        return {"hub": hub, "wikidata_id": plan["hubs"][hub]["wikidata_id"]}
 
 
 def set_verdict(repo: str, verdict: str, hub: str | None = None) -> dict:

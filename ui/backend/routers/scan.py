@@ -382,6 +382,11 @@ async def set_note(session_id: str, body: NoteRequest):
                      updated_at = datetime('now')""",
                 (session_id, repo, note),
             )
+        # Step 6: a new note supersedes the old recommendation (Notes > Distill).
+        await db.execute(
+            "DELETE FROM feature_recommendations WHERE session_id = ? AND source_repo = ?",
+            (session_id, repo),
+        )
         await db.commit()
     return {"repo": repo, "note": note}
 

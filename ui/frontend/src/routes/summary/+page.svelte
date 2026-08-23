@@ -118,7 +118,7 @@
 <div class="section">
   <div class="section-head"><h2>Hub members</h2></div>
   {#if hubs.length === 0}
-    <p class="empty">No hubs yet — form them on the Cluster step.</p>
+    <p class="empty">✓ No hubs yet — form them on the Cluster step.</p>
   {:else}
     <div class="members-grid">
       {#each hubs as hub}
@@ -143,7 +143,7 @@
 <div class="section">
   <div class="section-head"><h2>Orphan repos ({orphans.length})</h2></div>
   {#if orphans.length === 0}
-    <p class="empty">No orphans — every repo has a verdict.</p>
+    <p class="empty">✓ No orphans — every repo has a verdict.</p>
   {:else}
     <div class="orphan-list">
       {#each orphans as r}
@@ -242,6 +242,8 @@
 .action-num { width: 24px; height: 24px; background: #e5e7eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600; color: #374151; flex-shrink: 0; }
 .members-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
 .member-col { background: #fff; border: 1px solid #dde1e9; border-radius: 10px; overflow: hidden; }
+  /* member-head is intentionally dark: a header strip on the card, distinct
+     from the global .card chrome (light surface). Matches nav. */
 .member-head { background: #1a1a2e; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
 .member-head .hub-name { color: #fff; }
 .member-count { margin-left: auto; font-size: 0.68rem; font-family: monospace; color: #9fb3d8; }
@@ -249,7 +251,6 @@
 .repo-chip { font-size: 0.75rem; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; padding: 0.2rem 0.5rem; font-family: monospace; }
 .orphan-list { display: flex; flex-direction: column; gap: 0.25rem; }
 .orphan-row { display: flex; gap: 0.6rem; align-items: baseline; padding: 0.25rem 0; }
-.lang-tag { font-size: 0.72rem; background: #eff6ff; color: #1e40af; border-radius: 4px; padding: 0.1em 0.4em; }
 .orphan-desc { font-size: 0.78rem; color: #6b7280; }
 .empty, .empty-small { color: #9ca3af; font-size: 0.85rem; }
 </style>

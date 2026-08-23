@@ -9,7 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import init_db
 from routers import (auth, scan, hubs, config, reconcile,
                      plan, execute, migration, cluster, stars,
-                     order, promote, installer, absorb, drift)
+                     order, promote, installer, absorb, drift, recommend,
+                     wikidata)
 from services import drift as _drift
 
 _LOG_DIR = Path(__file__).parent / "logs"
@@ -66,6 +67,7 @@ app.include_router(scan.router,       prefix="/api",   tags=["scan"])
 app.include_router(hubs.router,       prefix="/api",   tags=["hubs"])
 app.include_router(config.router,     prefix="/api",   tags=["config"])
 app.include_router(reconcile.router,  prefix="/api",   tags=["reconcile"])
+app.include_router(wikidata.router,   prefix="/api",   tags=["wikidata"])
 app.include_router(plan.router,       prefix="/api",   tags=["plan"])
 app.include_router(execute.router,    prefix="/api",   tags=["execute"])
 app.include_router(migration.router,  prefix="/api",   tags=["migration"])
@@ -76,6 +78,7 @@ app.include_router(promote.router,    prefix="/api",   tags=["promote"])
 app.include_router(installer.router,  prefix="/api",   tags=["install"])
 app.include_router(absorb.router,     prefix="/api",   tags=["absorb"])
 app.include_router(drift.router,      prefix="/api",   tags=["drift"])
+app.include_router(recommend.router,  prefix="/api",   tags=["recommend"])
 
 
 @app.get("/health")

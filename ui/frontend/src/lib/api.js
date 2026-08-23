@@ -44,6 +44,10 @@ export const api = {
   saveNote: (session_id, repo, note) =>
     req('POST', `/api/scan/notes/${session_id}`, { repo, note }),
 
+  // Step 6: best-hub recommendation for an orphan repo (Notes > Distill).
+  getRecommendation: (session_id, repo) =>
+    req('GET', `/api/recommend/${session_id}/${encodeURIComponent(repo)}`),
+
   // Config
   getConfig: () => req('GET', '/api/config'),
   saveConfig: (body) => req('POST', '/api/config', body),
@@ -150,6 +154,15 @@ export const api = {
     req('POST', `/api/absorb/plan/${session_id}`, body),
   getAbsorbPlan: (hub, repo, session_id) =>
     req('GET', `/api/absorb/plan/${hub}/${repo}/${session_id}`),
+
+  // Step 7: Wikidata-backed DAG for the Install page. The per-hub DAG
+  // comes pre-embedded in the manifest's `dags[<hub>]` block; this convenience
+  // endpoint re-fetches one hub's DAG after a wikidata_id annotation.
+  getWikidataDag: (session_id, hub) =>
+    req('GET', `/api/wikidata/dag/${session_id}/${encodeURIComponent(hub)}`),
+  setHubWikidataId: (session_id, hub, wikidata_id) =>
+    req('POST', `/api/wikidata/hub/${session_id}`,
+        { hub, wikidata_id: wikidata_id || null }),
 };
 
 export function scanWs(scan_id, onRepo, onDone, onError) {
