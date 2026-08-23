@@ -129,3 +129,9 @@ dev only); this doc's Architecture/Running-it sections were describing routers
 (`replan`/`overlap`/`commercial`) removed in an earlier pass — corrected the doc and
 deleted the last unused leftover, `services/cluster.py` (the pre-LLM k-means module,
 imported nowhere).*
+
+## MCP
+
+No MCP server yet. [MCP.md](MCP.md) specs the one this repo should have — the
+tools, the route or module behind each, and what deliberately stays out of an
+agent's reach.
