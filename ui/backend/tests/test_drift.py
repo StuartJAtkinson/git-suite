@@ -1,7 +1,7 @@
 """drift: periodic reconcile snapshots."""
 import asyncio
 
-from conftest import insert_scan
+from tests.conftest import insert_scan
 
 
 def test_snapshot_writes_a_row(temp_db, isolated_plan):

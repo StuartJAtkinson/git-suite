@@ -14,7 +14,7 @@ intact.
 import asyncio
 import json
 
-from conftest import insert_scan
+from tests.conftest import insert_scan
 
 
 # --- service --------------------------------------------------------------

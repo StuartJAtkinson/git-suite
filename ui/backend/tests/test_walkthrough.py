@@ -18,7 +18,7 @@ Run:  python -m pytest tests/test_walkthrough.py -v
 """
 import asyncio
 
-from conftest import insert_scan
+from tests.conftest import insert_scan
 
 
 # Routes the nav actually calls. Each entry is (path, name) where the path

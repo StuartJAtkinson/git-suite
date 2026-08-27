@@ -1,7 +1,7 @@
 """reconcile: intent (plan) vs reality (scan) diffing."""
 import asyncio
 
-from conftest import insert_scan, insert_stars
+from tests.conftest import insert_scan, insert_stars
 
 
 def test_reconcile_classifies_every_repo(temp_db, isolated_plan):

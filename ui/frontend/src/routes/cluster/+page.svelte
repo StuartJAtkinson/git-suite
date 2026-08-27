@@ -369,7 +369,6 @@
   .rail-stats { color: #374151; font-size: 0.86rem; line-height: 1.45;
     padding-bottom: 0.45rem; border-bottom: 1px solid #e5e7eb; }
   .stat-orphans { color: #b45309; font-weight: 600; }
-  .small { font-size: 0.74rem; }
   .margin-summary { margin-top: 0.3rem; font-size: 0.74rem; padding: 0.15rem 0.4rem;
     border-radius: 4px; display: inline-block; }
   .margin-summary.flag-thin { background: #fef2f2; color: #b91c1c; }

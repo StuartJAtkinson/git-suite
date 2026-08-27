@@ -71,9 +71,11 @@ def build_chain() -> list[tuple[str, str, str]]:
             if not key:
                 continue
         else:
-            # Keyless providers (Ollama) require explicit opt-in so we never
-            # hammer localhost when the user hasn't configured them.
-            if name not in explicit and name not in models:
+            # Ollama is the keyless failsafe: auto-opt-in as the TAIL of an
+            # otherwise-configured chain, but never the sole provider of a
+            # fresh machine — an unconfigured app degrades honestly instead
+            # of hammering localhost. Explicit ordering still forces it in.
+            if name not in explicit and name not in models and not chain:
                 continue
         model = models.get(name) or meta["default_model"]
         chain.append((name, key, model))

@@ -1,7 +1,7 @@
 """Step 3 'Own': promote service (detach checklist) + router (decide/list)."""
 import asyncio
 
-from conftest import insert_scan
+from tests.conftest import insert_scan
 
 
 def _insert_fork(database, name, full_name, language="Python", scan_id="sc1"):

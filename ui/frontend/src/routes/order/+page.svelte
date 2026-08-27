@@ -277,9 +277,10 @@
       <p class="empty">No hubs yet — form one on the <a href="/cluster">Cluster</a> page first.</p>
     {:else}
       <div class="hub-grid">
-        {#each hubs as h}
-          <button class="hub-card" on:click={() => selectHub(h)}>
-            <h4>{h}</h4>
+        {#each hubs as {name, description}}
+          <button class="hub-card" on:click={() => selectHub(name)}>
+            <h4>{name}</h4>
+            {#if description}<p class="desc">{description}</p>{/if}
           </button>
         {/each}
       </div>
@@ -289,7 +290,7 @@
   <div class="bar">
     <label>Hub
       <select bind:value={hub} on:change={() => selectHub(hub)}>
-        {#each hubs as h}<option value={h}>{h}</option>{/each}
+        {#each hubs as {name}}<option value={name}>{name}</option>{/each}
       </select>
     </label>
     <label>Filter

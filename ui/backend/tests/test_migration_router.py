@@ -8,7 +8,7 @@ import asyncio
 import json
 from unittest.mock import AsyncMock, patch
 
-from conftest import insert_scan
+from tests.conftest import insert_scan
 
 
 def test_get_migration_status_unknown_hub_404(temp_db, isolated_plan):

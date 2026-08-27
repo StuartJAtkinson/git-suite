@@ -31,14 +31,22 @@ def test_build_chain_respects_priority_and_keys(monkeypatch):
     assert chain[1][0] == "anthropic"
 
 
-def test_build_chain_excludes_ollama_unless_opted_in(monkeypatch):
+def test_build_chain_appends_ollama_as_failsafe_tail(monkeypatch):
+    """Ollama auto-opts-in as the LAST provider of an otherwise-configured
+    chain, so a dead cloud provider degrades to local instead of failing.
+    But an unconfigured machine still gets an empty chain — never hammer
+    localhost as the sole provider."""
     from services import llm
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr(llm, "_config", lambda: {"llm_keys": {"anthropic": "k1"}})
-    assert "ollama" not in [n for n, _, _ in llm.build_chain()]
+    chain = [n for n, _, _ in llm.build_chain()]
+    assert "ollama" in chain
+    assert chain[-1] == "ollama"
+    # Explicit ordering still honours whatever position the user set.
     monkeypatch.setattr(llm, "_config", lambda: {
-        "llm_keys": {"anthropic": "k1"}, "llm_priority_order": ["anthropic", "ollama"]})
-    assert "ollama" in [n for n, _, _ in llm.build_chain()]
+        "llm_keys": {"anthropic": "k1"}, "llm_priority_order": ["ollama", "anthropic"]})
+    chain = [n for n, _, _ in llm.build_chain()]
+    assert chain[0] == "ollama"
 
 
 def test_build_chain_empty_without_config(monkeypatch):

@@ -1,7 +1,7 @@
 """execute: dry-run preview + idempotent batch archive (GitHub mocked)."""
 import asyncio
 
-from conftest import insert_scan
+from tests.conftest import insert_scan
 
 
 def _mock_github(monkeypatch, state):

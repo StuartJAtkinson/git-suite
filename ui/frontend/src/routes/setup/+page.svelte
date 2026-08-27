@@ -407,7 +407,6 @@
 .header-actions { display: flex; align-items: center; gap: 0.75rem; }
 .col { display: flex; flex-direction: column; gap: 1rem; }
 .card-title { font-size: 0.875rem; font-weight: 600; color: #374151; margin: 0 0 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e5e7eb; }
-.hint { font-size: 0.78rem; color: #6b7280; margin: 0 0 1rem; }
 .status-box { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 7px; padding: 0.6rem 0.8rem; margin-bottom: 1rem; font-size: 0.78rem; color: #065f46; }
 .status-box.warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
 .status-label { font-weight: 600; }

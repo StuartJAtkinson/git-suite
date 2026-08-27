@@ -6,7 +6,7 @@ session so multi-session cleanup behaviour stays predictable.
 """
 import asyncio
 
-from conftest import insert_scan
+from tests.conftest import insert_scan
 
 
 def test_get_notes_empty_when_none_set(temp_db, isolated_plan):

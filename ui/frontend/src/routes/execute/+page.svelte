@@ -394,8 +394,7 @@
   .confirm-box { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; padding: 0.9rem 1.1rem; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; }
   .confirm { flex-direction: row; align-items: center; gap: 0.5rem; font-weight: 500; color: #92400e; }
   .confirm input { width: auto; }
-  .hint { font-size: 0.8rem; color: #6b7280; margin: 0 0 0.75rem; }
-  .hub-life-actions { margin-left: auto; display: flex; gap: 0.3rem; }
+    .hub-life-actions { margin-left: auto; display: flex; gap: 0.3rem; }
   .mig-hub { margin-bottom: 0.9rem; }
   .mig-hub-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.3rem; }
   .absorb-runbook { margin: 0.4rem 0 0.6rem 1.1rem; padding: 0.7rem 0.9rem; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.82rem; }
