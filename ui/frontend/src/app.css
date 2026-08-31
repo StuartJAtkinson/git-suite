@@ -168,7 +168,7 @@ button.ghost:hover:not(:disabled) { background: #f3f4f6; }
 .tag.make { background: #dcfce7; color: #166534; }
 .tag.doc  { background: #e0e7ff; color: #3730a3; }
 .tag.ok   { background: #d1fae5; color: #065f46; }
-.tag.none { background: #f3f4f6; color: #9ca3af; }
+.tag.none { background: #f3f4f6; color: var(--quiet-text); }
 
 /* ── Language tag (shared by Order/Triage/Summary/Scan) ── */
 .lang-tag { font-size: 0.72rem; background: #eff6ff; color: #1e40af; border-radius: 4px; padding: 0.1em 0.4em; }
@@ -252,7 +252,7 @@ button.ghost:hover:not(:disabled) { background: #f3f4f6; }
 .page-header .crumb { font-size: 0.85rem; color: #6b7280; margin-bottom: 0.4rem; }
 .sub { color: #6b7280; font-size: 0.9rem; margin-top: 0.25rem; }
 .actions-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
-.empty { color: #9ca3af; font-style: italic; font-size: 0.875rem; }
+.empty { color: var(--quiet-text); font-style: italic; font-size: 0.875rem; }
 .loading { color: #6b7280; font-style: italic; }
 .spinner { display: inline-block; animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -261,6 +261,8 @@ button.ghost:hover:not(:disabled) { background: #f3f4f6; }
 .progress-fill { height: 100%; background: #0057b7; transition: width 0.3s; }
 
 /* ── Shared text utilities ── */
+:root { --quiet-text: #9ca3af; }
 .muted { color: #6b7280; }
+.quiet { color: var(--quiet-text); }
 .small { font-size: 0.74rem; }
 .hint { font-size: 0.8rem; color: #6b7280; margin: 0 0 0.75rem; }

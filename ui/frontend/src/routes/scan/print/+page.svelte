@@ -141,10 +141,10 @@
     overflow: hidden; text-overflow: ellipsis;
   }
   .full-name {
-    font-size: 0.6em; color: #9ca3af;
+    font-size: 0.6em; color: var(--quiet-text);
     overflow: hidden; text-overflow: ellipsis;
   }
-  .stars { flex: 0 0 auto; font-size: 0.65em; color: #9ca3af; white-space: nowrap; }
+  .stars { flex: 0 0 auto; font-size: 0.65em; color: var(--quiet-text); white-space: nowrap; }
 
   .tag-row { display: flex; flex-wrap: wrap; gap: 0.2em; }
   /* app.css sets .tag/.lang-tag in rem (root-relative) — override to em here

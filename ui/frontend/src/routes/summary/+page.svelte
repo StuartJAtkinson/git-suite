@@ -235,8 +235,8 @@
 .mini-fill.absorb { background: #0057b7; height: 100%; }
 .mini-fill.archive { background: #d97706; height: 100%; }
 .mini-count { font-size: 0.72rem; color: #6b7280; width: 36px; text-align: right; }
-.ghost-note { font-size: 0.72rem; color: #9ca3af; }
-.empty-small { color: #9ca3af; font-size: 0.85rem; }
+.ghost-note { font-size: 0.72rem; color: var(--quiet-text); }
+.empty-small { color: var(--quiet-text); font-size: 0.85rem; }
 .actions-list { display: flex; flex-direction: column; gap: 0.6rem; }
 .action-item { display: flex; align-items: center; gap: 0.75rem; font-size: 0.875rem; }
 .action-num { width: 24px; height: 24px; background: #e5e7eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600; color: #374151; flex-shrink: 0; }
@@ -252,5 +252,5 @@
 .orphan-list { display: flex; flex-direction: column; gap: 0.25rem; }
 .orphan-row { display: flex; gap: 0.6rem; align-items: baseline; padding: 0.25rem 0; }
 .orphan-desc { font-size: 0.78rem; color: #6b7280; }
-.empty, .empty-small { color: #9ca3af; font-size: 0.85rem; }
+.empty, .empty-small { color: var(--quiet-text); font-size: 0.85rem; }
 </style>

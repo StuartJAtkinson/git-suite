@@ -223,7 +223,7 @@
   .active-card { background: #fff; border: 2px solid #0057b7; border-radius: 12px; padding: 1.25rem 1.4rem; margin-top: 1rem; box-shadow: 0 4px 18px rgba(0,87,183,0.12); }
   .active-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
   .repo-name.big { font-size: 1.15rem; font-weight: 700; flex: none; }
-  .counter { margin-left: auto; font-size: 0.8rem; color: #9ca3af; }
+  .counter { margin-left: auto; font-size: 0.8rem; color: var(--quiet-text); }
   .active-aim { color: #4b5563; font-size: 0.9rem; margin: 0.6rem 0 0.3rem; }
   .active-url { font-size: 0.78rem; word-break: break-all; }
   .done-badge { background: #1a1a2e; color: #fff; }

@@ -136,6 +136,6 @@
 .fork-actions { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.55rem; }
 .fork-actions select { font-size: 0.8rem; padding: 0.2rem 0.4rem; }
 .checklist { margin: 0.6rem 0 0.2rem; padding-left: 1.3rem; font-size: 0.85rem; line-height: 1.5; }
-.src { font-size: 0.68rem; color: #9ca3af; }
+.src { font-size: 0.68rem; color: var(--quiet-text); }
 .loading.sm { font-size: 0.8rem; }
 </style>

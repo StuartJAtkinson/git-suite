@@ -397,7 +397,7 @@
   table.records th { text-align: left; color: #6b7280; font-weight: 600; border-bottom: 2px solid #e5e7eb; padding: 0.3rem 0.5rem; }
   table.records th.sortable { cursor: pointer; user-select: none; }
   table.records th.sortable:hover { background: #f1f5f9; color: #1e293b; }
-  table.records th .caret { color: #9ca3af; font-size: 0.7rem; margin-left: 0.15rem; font-weight: 400; }
+  table.records th .caret { color: var(--quiet-text); font-size: 0.7rem; margin-left: 0.15rem; font-weight: 400; }
   table.records th.num { text-align: right; }
   table.records th.note-col { width: 22rem; min-width: 14rem; }
   table.records td { border-bottom: 1px solid #f1f5f9; padding: 0.28rem 0.5rem; vertical-align: top; }
@@ -411,7 +411,7 @@
   td.domain .domain-pill { background: #e6effa; color: #1e40af; border-radius: 4px; padding: 0.1em 0.45em; font-size: 0.72rem; }
   td.entities { color: #6b7280; max-width: 220px; }
   td.hub { color: #6b7280; }
-  td.stars { color: #9ca3af; text-align: right; }
+  td.stars { color: var(--quiet-text); text-align: right; }
   td.note-cell { padding: 0.18rem 0.5rem; }
   td.note-cell .note-input {
     width: 100%; box-sizing: border-box; padding: 0.25rem 0.4rem;
@@ -421,7 +421,7 @@
   td.note-cell .note-input:focus { outline: none; border-color: #1e40af; box-shadow: 0 0 0 2px #e6effa; }
   td.note-cell .note-input::placeholder { color: #cbd5e1; }
   td.note-cell .note-saving { font-size: 0.7rem; color: #6b7280; margin-left: 0.3rem; }
-  .muted-small { color: #9ca3af; font-size: 0.74rem; font-weight: 400; margin-left: 0.5rem; }
+  .muted-small { color: var(--quiet-text); font-size: 0.74rem; font-weight: 400; margin-left: 0.5rem; }
   ul.warnlist { list-style: none; padding: 0; margin: 0; }
   ul.warnlist li { padding: 0.35rem 0.5rem; border-bottom: 1px solid #f1f5f9; display: flex; gap: 0.6rem; align-items: baseline; }
   .warn-reason { color: #b45309; font-size: 0.8rem; }
@@ -434,5 +434,5 @@
   .enrich-log li { padding: 0.12rem 0; color: #475569; }
   .enrich-log b { font-family: monospace; color: #1e293b; }
   .enrich-log .ok { color: #16a34a; }
-  .enrich-log .arrow { color: #9ca3af; }
+  .enrich-log .arrow { color: var(--quiet-text); }
 </style>
