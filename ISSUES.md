@@ -175,5 +175,6 @@ _Pipeline gap — the built app implements "absorb = repo→hub"; the intended m
 - [x] **All file paths hardcoded to H:\GitHub\\** — both scripts now use `Path(__file__).parent`; outputs live in the project folder *(resolved 2026-05-24)*
 
 ## Needs input (Auto Continue)
-*Left by Auto Continue 2026-08-17 — decide these, then clear CONSIDERATIONS.md.*
-- Real multi-provider LLM failover requires configuring another provider in `~/.git-suite/config.json` to handle sustained outages or exhaustion errors. The Order and Install pages use indigo (#4f46e5) for "hub-related" UI elements, while the rest of the app uses brand blue (#0057b7), leading to a mixed design system if not addressed. For empty states, choose either emoji/cheers or plain sentences to maintain consistency with the app's voice. Finally, consider moving the "Push ALIGNMENT.md" button from the order toolbar to a small footer row under the align panel for better visual coherence.
+*Left by Auto Continue 2026-08-31 — decide these, then clear CONSIDERATIONS.md.*
+- 1. Two hex values are used interchangeably for the same "card/panel border" role: `#dde1e9` (app.css's `.card`/`.hub-card`, plus `promote`'s `.fork` and `summary`'s stat box/`.member-col`) vs `#e5e7eb` (used in 9 of 11 route files for the same semantic border). Which one becomes the single token?
+- 2. Three hex values are used for the same "warn/highlight amber text" role: `#92400e` (execute, order, scan, setup), `#b45309` (cluster, promote, scan), `#78350f` (triage only). Which one becomes the single token?
