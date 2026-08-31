@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Repo category dividers</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; margin: 0; }
+  .toolbar { padding: 1rem; }
+  .toolbar button { padding: 0.5rem 1rem; font-size: 1rem; }
+  /* Screen preview: plain 3x2 grid, not rotated — easier to read on screen. */
+  .sheet {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 0.3cm;
+    width: 27.7cm;
+    height: 19cm;
+    margin: 0 auto 1cm;
+    border: 1px solid #ddd;
+  }
+  .card {
+    border: 2px dashed #999;
+    border-radius: 10px;
+    padding: 0.5cm;
+    position: relative;
+    overflow: hidden;
+  }
+  /* left->bottom, right->top: rotate(-90deg) (counter-clockwise) */
+  .card-inner {
+    position: absolute;
+    inset: 0.5cm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    text-align: center;
+    transform: rotate(-90deg);
+  }
+  .card .name { font-size: 1.4rem; font-weight: 700; color: #111; }
+  .card .count { font-size: 1rem; color: #666; }
+
+  @media print {
+    .no-print { display: none !important; }
+    /* Printer can't be switched to landscape from this dialog, so print on
+       portrait A4 and rotate each landscape-shaped sheet 90deg to fill it.
+       Sheet dimensions (27.7cm x 19cm) are portrait's printable area
+       (29.7/21cm minus 1cm margins) with width/height swapped, so after
+       rotation it fills the page exactly and each card lands at 1/6 A4. */
+    @page { size: A4 portrait; margin: 1cm; }
+    body { margin: 0; }
+    .sheet {
+      border: none;
+      margin: 0;
+      transform-origin: top left;
+      transform: rotate(90deg) translateY(-100%);
+      page-break-after: always;
+    }
+    .sheet:last-of-type { page-break-after: auto; }
+    .card { border-style: dashed; }
+  }
+</style>
+</head>
+<body>
+<div class="toolbar no-print">
+  <button onclick="window.print()">Print / Save as PDF</button>
+</div>
+<div id="pages"></div>
+<script>
+  const categories = [["Ai", 147], ["Arr", 17], ["Authentication", 15], ["Business", 13], ["Civic & Public Affairs", 8], ["Code & Build Tooling", 68], ["Container", 17], ["Dashboards", 39], ["Data & Systems Management", 26], ["Database", 19], ["Documents", 35], ["Education & Research", 14], ["Email", 1], ["Finance", 4], ["Games", 127], ["Geospatial & Mapping", 3], ["Health", 32], ["Hobbies & Crafts", 2], ["Home Automation", 15], ["Homelab & Server Administration", 49], ["IT Support & Device Management", 21], ["Knowledge Base", 40], ["Monitoring", 24], ["Music", 5], ["Networking", 15], ["Photos", 5], ["Productivity", 87], ["Social Media", 28], ["Storage", 9], ["Travel", 16], ["Video", 38], ["Web & API Tooling", 69]];
+  const perPage = 6;
+  const container = document.getElementById('pages');
+  for (let i = 0; i < categories.length; i += perPage) {
+    const sheet = document.createElement('div');
+    sheet.className = 'sheet';
+    for (const [name, count] of categories.slice(i, i + perPage)) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `<div class="card-inner"><div class="name">${name}</div><div class="count">${count} repos</div></div>`;
+      sheet.appendChild(card);
+    }
+    // pad last page's grid so cards don't stretch oddly
+    const remainder = categories.slice(i, i + perPage).length;
+    for (let p = remainder; p < perPage; p++) {
+      const blank = document.createElement('div');
+      sheet.appendChild(blank);
+    }
+    container.appendChild(sheet);
+  }
+</script>
+</body>
+</html>

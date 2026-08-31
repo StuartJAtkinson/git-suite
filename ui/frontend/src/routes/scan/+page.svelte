@@ -322,6 +322,7 @@
     <div class="section-head">
       <h2>Records ({records_view.length})</h2>
       <span class="muted-small">click any column header to sort</span>
+      <button class="secondary sm" type="button" on:click={() => goto('/scan/print')}>&#128438; Print preview</button>
     </div>
     <p class="sub">Hub is read-only here — it fills in once you form hubs on the Cluster step. The <b>Notes</b> column is yours to author; it persists per session and isn't read by the LLM.</p>
     <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.6rem;">

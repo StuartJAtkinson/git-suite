@@ -3,6 +3,9 @@
 ## Open
 
 
+## Resolved
+- [x] **Manually enriched the 84 distill records the LLM loop left blank/wrong + normalised domain casing** — the automated `/scan/distill` loop had already run to completion (0 uncached against prompt v2 on the full 856-repo pool), but 84 rows had empty `purpose`/`domain` (LLM soft-fails on thin-description repos) and 4 more were outright hallucinated (`nouns-ai-sd-server` → "generates names of people, places, and things"; `agent-zero` → "generates synthetic human-like responses"; `OpenDevin` → "DIY electronics prototyping"). Wrote all 88 by hand using each repo's real description/topics (plus general knowledge for well-known ones), same `repo_domain` cache schema so downstream cluster/order code sees no difference. Also found 3 dead orphan rows keyed by bare name instead of `full_name` (pre-dated `repos.full_name` backfill) — deleted, since `distill_svc._key()` always prefers `full_name` now. Lowercased `domain` on 481 rows to kill `Gaming`/`gaming`-style casing splits that would fragment clustering. *(resolved 2026-08-29)*
+- [x] **Added a print-preview page for the scan record set** — `/scan/print` (linked from the Scan page's Records header). Renders every owned/fork/star repo as a card (name, purpose, domain/hub tags, language, entities, stars, repo path) in a 3-column CSS grid sized for A4, with `@page { size: A4 }` + `break-inside: avoid` so the browser's native Print / Save-as-PDF (button on the page) paginates cleanly. No new dependency — pure CSS print, reuses `latestScan`/`getStars`/`distillRecords`/`reconcile`. *(resolved 2026-08-29)*
 
 ### Walkthrough decisions 2026-08-17
 
