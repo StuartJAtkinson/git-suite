@@ -1,6 +1,7 @@
 # Issues — git-suite (GitHub Index Builder)
 
 ## Open
+- [ ] **Two different monospace font stacks are used for the same "code/path text" role** — `app.css:203` (`.repo-name`) and `app.css:230` (`.preview-box`) use `font-family: 'Consolas', 'Fira Code', monospace`, while every other monospace rule in the app — `app.css:166` (`.tag`) plus rules in `cluster`, `execute`, `order`, `promote`, `scan`, `setup`, `summary`, `triage` `+page.svelte` (repo names, hashes, code snippets, commands) — is bare `font-family: monospace`, which falls back to whatever generic monospace font the OS/browser picks rather than the nicer named stack. Pick one stack and apply it everywhere monospace is used for this role.
 
 ## Resolved
 - [x] **The "quiet/de-emphasized text" colour `#9ca3af` is redefined ad hoc in 6+ route files instead of one shared class** — `promote/+page.svelte:139` (`.src`), `scan/+page.svelte:400,414,424,437` (`.caret`, `td.stars`, `.muted-small`, `.enrich-log .arrow`), `summary/+page.svelte:238-239,255` (`.ghost-note`, `.empty-small`, `.empty`), `triage/+page.svelte:226` (`.counter`), `scan/print/+page.svelte:144,147`, plus `app.css:171,255` (`.tag.none`, `.empty`) all hand-roll the same hex for the same "quieter than `.muted`" role. `app.css` already centralizes the darker tier as `.muted` (`#6b7280`); add a matching `.quiet`/`.subtle` class there for `#9ca3af` and point these local selectors at it instead of repeating the literal hex. — auto-continue *(resolved 2026-08-31)*
