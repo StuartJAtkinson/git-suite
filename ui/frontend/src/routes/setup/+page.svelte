@@ -410,7 +410,7 @@
 .status-box { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 7px; padding: 0.6rem 0.8rem; margin-bottom: 1rem; font-size: 0.78rem; color: #065f46; }
 .status-box.warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
 .status-label { font-weight: 600; }
-.chain-item { background: rgba(255,255,255,0.7); border-radius: 4px; padding: 0.1em 0.45em; font-family: monospace; }
+.chain-item { background: rgba(255,255,255,0.7); border-radius: 4px; padding: 0.1em 0.45em; font-family: var(--mono); }
 .chain-item.head { font-weight: 700; }
 .chain-model { color: #6b7280; font-size: 0.92em; }
 .provider-box { border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; }
@@ -424,7 +424,7 @@
 .btn-remove { background: none; border: none; color: #dc2626; font-size: 0.75rem; cursor: pointer; padding: 0.15rem 0.4rem; }
 .field-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.35rem 0; }
 .field-label { font-size: 0.8rem; color: #6b7280; width: 80px; flex-shrink: 0; }
-.field-input { flex: 1; padding: 0.35rem 0.6rem; border: 1px solid #d1d5db; border-radius: 5px; font-size: 0.875rem; font-family: monospace; }
+.field-input { flex: 1; padding: 0.35rem 0.6rem; border: 1px solid #d1d5db; border-radius: 5px; font-size: 0.875rem; font-family: var(--mono); }
 .field-input:focus { outline: none; border-color: #0057b7; box-shadow: 0 0 0 2px rgba(0,87,183,0.1); }
 .add-section { margin-top: 0.5rem; }
 .add-label { font-size: 0.78rem; color: #6b7280; margin-bottom: 0.5rem; }

@@ -234,11 +234,11 @@
   .hub-btn:hover:not(:disabled) { background: #dbeafe; }
   .archive-btn { background: #f59e0b; }
   .archive-btn:hover:not(:disabled) { background: #d97706; }
-  .key { display: inline-block; min-width: 1.1em; text-align: center; font-family: monospace; font-weight: 700; background: rgba(0,0,0,0.12); border-radius: 3px; padding: 0 0.25em; margin-right: 0.35em; font-size: 0.8em; }
+  .key { display: inline-block; min-width: 1.1em; text-align: center; font-family: var(--mono); font-weight: 700; background: rgba(0,0,0,0.12); border-radius: 3px; padding: 0 0.25em; margin-right: 0.35em; font-size: 0.8em; }
 
   .repo-row { cursor: pointer; }
   .repo-row.active-row { border-color: #0057b7; background: #eff6ff; }
-  kbd { font-family: monospace; background: #e5e7eb; border-radius: 3px; padding: 0 0.3em; font-size: 0.85em; }
+  kbd { font-family: var(--mono); background: #e5e7eb; border-radius: 3px; padding: 0 0.3em; font-size: 0.85em; }
 
   /* Step 6: recommendation row (one of three) */
   .recommend-row { display: flex; align-items: center; gap: 0.5rem;
@@ -249,7 +249,7 @@
   .recommend-row.star-row    { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
   .rec-mark { font-size: 1rem; }
   .conf    { font-size: 0.75rem; opacity: 0.7; margin-left: auto;
-             font-family: monospace; }
+             font-family: var(--mono); }
   .signal-tag { font-size: 0.7rem; background: rgba(0,0,0,0.06); padding: 0 0.4em;
                 border-radius: 3px; }
   .url-input { flex: 1; min-width: 12ch; font-size: 0.75rem;

@@ -498,7 +498,7 @@
   .hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5rem; margin-top: 0.6rem; }
   .hub-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.7rem 0.9rem; cursor: pointer; text-align: left; font-family: inherit; }
   .hub-card:hover { border-color: #0057b7; }
-  .hub-card h4 { margin: 0; font-family: monospace; }
+  .hub-card h4 { margin: 0; font-family: var(--mono); }
 
   .bar label { display: flex; align-items: center; gap: 0.35rem; }
   .bar .spacer { flex: 1; }
@@ -508,9 +508,9 @@
   .propose { background: #faf5ff; border-color: #c4b5fd; margin-bottom: 1rem; }
   .propose h4 { margin: 0 0 0.4rem; }
   .propose .rationale { color: #4b5563; font-style: italic; margin: 0.2rem 0 0.6rem; }
-  .proposed { margin: 0.2rem 0 0.6rem; padding-left: 1.2rem; font-family: monospace; font-size: 0.85rem; }
+  .proposed { margin: 0.2rem 0 0.6rem; padding-left: 1.2rem; font-family: var(--mono); font-size: 0.85rem; }
   .moves { margin: 0.2rem 0 0.6rem; padding-left: 1.2rem; font-size: 0.82rem; color: #374151; }
-  .moves code { font-family: monospace; background: #f3f4f6; padding: 0 0.25rem; border-radius: 3px; }
+  .moves code { font-family: var(--mono); background: #f3f4f6; padding: 0 0.25rem; border-radius: 3px; }
   .propose-actions { display: flex; gap: 0.5rem; }
 
   .order-list { display: flex; flex-direction: column; gap: 0.4rem; }
@@ -518,7 +518,7 @@
   .row.hub-row { background: #f9fafb; }
   .row.dim { opacity: 0.35; }
   .rank { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; min-width: 56px; }
-  .pos { font-family: monospace; font-weight: 600; color: #6b7280; }
+  .pos { font-family: var(--mono); font-weight: 600; color: #6b7280; }
   .hub-badge { font-size: 0.7rem; font-weight: 700; background: #dbeafe; color: #1e40af; padding: 0.15rem 0.45rem; border-radius: 4px; }
   .move-buttons { display: flex; flex-direction: column; gap: 0.15rem; }
   button.xs { padding: 0.1rem 0.4rem; font-size: 0.78rem; line-height: 1; }
@@ -526,7 +526,7 @@
   .body { flex: 1; min-width: 0; }
   .title-line { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
   .title-line .spacer { flex: 1; }
-  .repo { font-family: monospace; font-weight: 600; font-size: 0.95rem; }
+  .repo { font-family: var(--mono); font-weight: 600; font-size: 0.95rem; }
   .stars { font-size: 0.75rem; color: #6b7280; }
   .aim { color: #4b5563; font-size: 0.85rem; margin: 0.25rem 0 0.5rem; }
   .cols { display: flex; gap: 0.4rem; flex-wrap: wrap; }
@@ -550,9 +550,9 @@
   .align-grid thead th { color: #6b7280; font-weight: 600; font-size: 0.74rem;
     background: #f9fafb; border-bottom: 2px solid #e5e7eb; }
   .align-grid .row-head { font-weight: 600; color: #111827; min-width: 14rem; }
-  .align-grid .repo-col { font-family: monospace; }
+  .align-grid .repo-col { font-family: var(--mono); }
   .align-grid .repo-col.hub-col { background: #f9fafb; }
-  .align-grid .cell { font-family: monospace; font-weight: 700; text-align: center; }
+  .align-grid .cell { font-family: var(--mono); font-weight: 700; text-align: center; }
   .align-grid .cell.present { color: #047857; }
   .align-grid .cell.absent { color: #b91c1c; }
   .align-grid .cell-note { display: block; font-family: inherit; font-weight: 400;

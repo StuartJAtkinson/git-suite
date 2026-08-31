@@ -401,5 +401,5 @@
   .absorb-meta { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
   .absorb-notes { margin: 0.2rem 0 0.5rem 1.1rem; color: #475569; }
   .absorb-checklist { margin: 0.3rem 0 0 1.3rem; }
-  .absorb-url { padding: 0.18rem 0.4rem; border: 1px solid #e5e7eb; border-radius: 4px; font-family: monospace; background: #fafafa; }
+  .absorb-url { padding: 0.18rem 0.4rem; border: 1px solid #e5e7eb; border-radius: 4px; font-family: var(--mono); background: #fafafa; }
 </style>

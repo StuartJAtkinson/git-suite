@@ -405,7 +405,7 @@
   tr.warn td { background: #fff7ed; }
   tr.warn:hover td { background: #ffedd5; }
   td.src { text-align: center; }
-  td.name a { color: #1e293b; font-family: monospace; }
+  td.name a { color: #1e293b; font-family: var(--mono); }
   td.name a.readme { font-size: 0.66rem; color: #6b7280; margin-left: 0.3rem; }
   td.purpose { color: #1e293b; max-width: 280px; }
   td.domain .domain-pill { background: #e6effa; color: #1e40af; border-radius: 4px; padding: 0.1em 0.45em; font-size: 0.72rem; }
@@ -432,7 +432,7 @@
   .efill { height: 100%; background: #1e40af; transition: width 0.25s; }
   .enrich-log { list-style: none; margin: 0.3rem 0 0; padding: 0; font-size: 0.78rem; max-height: 200px; overflow-y: auto; }
   .enrich-log li { padding: 0.12rem 0; color: #475569; }
-  .enrich-log b { font-family: monospace; color: #1e293b; }
+  .enrich-log b { font-family: var(--mono); color: #1e293b; }
   .enrich-log .ok { color: #16a34a; }
   .enrich-log .arrow { color: var(--quiet-text); }
 </style>

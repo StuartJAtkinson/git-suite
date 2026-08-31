@@ -383,14 +383,14 @@
     font-size: 0.82rem; font-weight: 600; }
 
   .import-box { display: flex; flex-direction: column; gap: 0.4rem; }
-  .import-box textarea { width: 100%; font-family: monospace; font-size: 0.72rem;
+  .import-box textarea { width: 100%; font-family: var(--mono); font-size: 0.72rem;
     padding: 0.4rem; border: 1px solid #e5e7eb; border-radius: 6px; resize: vertical; }
   .import-box .primary { padding: 0.4rem 0.6rem; font-size: 0.8rem; }
 
   .bundle-info { background: #f8fafc; border: 1px solid #e5e7eb;
     border-radius: 6px; padding: 0.5rem 0.6rem; font-size: 0.76rem;
     color: #374151; display: flex; flex-direction: column; gap: 0.18rem; }
-  .bundle-info .muted { font-family: monospace; font-size: 0.66rem;
+  .bundle-info .muted { font-family: var(--mono); font-size: 0.66rem;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .saved-pill { font-size: 0.72rem; background: #ecfdf5; color: #047857;
@@ -402,7 +402,7 @@
   .orphans-head { font-size: 0.76rem; font-weight: 700; color: #b45309; }
   .orphan-row { display: flex; align-items: center; justify-content: space-between;
     gap: 0.3rem; font-size: 0.74rem; }
-  .orphan-name { font-family: monospace; overflow: hidden; text-overflow: ellipsis;
+  .orphan-name { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis;
     white-space: nowrap; max-width: 130px; }
   .orphan-row select { font-size: 0.68rem; max-width: 90px; }
 
@@ -449,7 +449,7 @@
     border: 2px solid #111827; overflow: hidden; }
   .split-check { margin-top: 0.25rem; flex-shrink: 0; }
   .cell-main { min-width: 0; flex: 1; }
-  .cell-title { font-family: monospace; font-size: 0.84rem; font-weight: 600;
+  .cell-title { font-family: var(--mono); font-size: 0.84rem; font-weight: 600;
     color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     text-decoration: none; display: block; margin-bottom: 0.3rem; }
   .cell-title:hover { color: #0057b7; text-decoration: underline; }

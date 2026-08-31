@@ -226,7 +226,7 @@
   border-radius: 6px;
 }
 .hub-info { display: flex; align-items: center; gap: 0.5rem; min-width: 160px; }
-.hub-name { font-size: 0.875rem; font-weight: 500; font-family: monospace; }
+.hub-name { font-size: 0.875rem; font-weight: 500; font-family: var(--mono); }
 .hub-tag-sm { font-size: 0.68rem; background: #eff6ff; color: #1e40af; border-radius: 4px; padding: 0.1em 0.4em; }
 .hub-bars { flex: 1; display: flex; gap: 1rem; align-items: center; }
 .mini-bar-group { display: flex; align-items: center; gap: 0.35rem; flex: 1; }
@@ -246,9 +246,9 @@
      from the global .card chrome (light surface). Matches nav. */
 .member-head { background: #1a1a2e; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
 .member-head .hub-name { color: #fff; }
-.member-count { margin-left: auto; font-size: 0.68rem; font-family: monospace; color: #9fb3d8; }
+.member-count { margin-left: auto; font-size: 0.68rem; font-family: var(--mono); color: #9fb3d8; }
 .member-repos { padding: 0.6rem; display: flex; flex-direction: column; gap: 0.25rem; min-height: 50px; }
-.repo-chip { font-size: 0.75rem; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; padding: 0.2rem 0.5rem; font-family: monospace; }
+.repo-chip { font-size: 0.75rem; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; padding: 0.2rem 0.5rem; font-family: var(--mono); }
 .orphan-list { display: flex; flex-direction: column; gap: 0.25rem; }
 .orphan-row { display: flex; gap: 0.6rem; align-items: baseline; padding: 0.25rem 0; }
 .orphan-desc { font-size: 0.78rem; color: #6b7280; }
