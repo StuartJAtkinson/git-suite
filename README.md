@@ -112,7 +112,7 @@ Open `http://localhost:2173` and configure everything from the **Setup** page.
 ### Tests
 
 ```bash
-cd ui/backend && python -m pytest        # 122 tests
+cd ui/backend && python -m pytest        # 195 tests
 ```
 
 ---
@@ -123,9 +123,10 @@ cd ui/backend && python -m pytest        # 122 tests
 
 ---
 
-*Last updated: 2026-07-23 — Cluster page rewritten as one-shot LLM theme grouping with
-.txt prompt export + JSON re-import for external LLMs; Docker deployment removed (local
-dev only); this doc's Architecture/Running-it sections were describing routers
+*Last updated: 2026-07-23 — Cluster page rewritten as LLM theme grouping (since extended
+with iterative merge/split/move/rename/delete refinement — see the Cluster row above)
+with .txt prompt export + JSON re-import for external LLMs; Docker deployment removed
+(local dev only); this doc's Architecture/Running-it sections were describing routers
 (`replan`/`overlap`/`commercial`) removed in an earlier pass — corrected the doc and
 deleted the last unused leftover, `services/cluster.py` (the pre-LLM k-means module,
 imported nowhere).*

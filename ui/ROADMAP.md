@@ -33,7 +33,7 @@ npm run dev          # http://localhost:2173
 ### Tests
 
 ```bash
-cd ui/backend && python -m pytest        # 122 tests
+cd ui/backend && python -m pytest        # 195 tests
 ```
 
 Health: `http://localhost:2801/health`. API docs: `/docs`.
@@ -119,7 +119,7 @@ Steps 6–8 are the unbuilt half; they're tracked as Open items in
 | Page | What it does |
 |------|--------------|
 | **Setup** | First step — GitHub connection (PAT); LLM provider config (API key + failover priority; call URLs are hardcoded per provider, models are fetched live from each provider's own listing endpoint and filtered to completion-capable ones); embedding provider + live-listed embedding models; chain readout showing where each is used |
-| **Scan** | Streams the live portfolio (incl. private repos) over a same-origin WebSocket; enriched fields (topics, stars, fork, pushed_at, archived, size) |
+| **Scan** | Streams the live portfolio (incl. private repos) over a same-origin WebSocket; enriched fields (topics, stars, fork, pushed_at, archived, size); **Print preview** (`/scan/print`) renders every owned/fork/star repo as an A4-ready card grid (name, purpose, domain/hub tags, language, entities, stars) for printing/PDF |
 | **Cluster** ("Themes") | An **iterative refinement surface**, not a one-shot render. **✨ Group by themes** bundles **owned repos AND starred repos** (every repo's distilled purpose/entities/domain + the full README, iteratively summarised to fit the active model's context budget) and asks the configured LLM chain to name each theme after the *human activity* the repos serve, never a tech-stack bucket (no "python", "data", "tools"). Stars are identified to the LLM by full `owner/repo` (owned repos by bare name) so same-named stars from different orgs never collide. **⬇ Download prompt (.txt)** exports the identical system+user prompt as a file for pasting into any external chat LLM; **↥ Import result** parses that LLM's JSON reply back into the same theme cards. Each theme card shows a **margin bar** (1 − Jaccard token overlap vs. its nearest neighbour; thin/ok/wide) and supports **merge with nearest**, **split** (checkbox-select members → peel into a new card), **move** a single member to another card or to unplaced, **rename** (click the title), and **delete** (members return to unplaced). All five mutate the saved `cluster_result` in place via `POST /cluster/{sid}/merge\|split\|move\|rename\|delete`. Themes are cached per-session; promoting a theme into a real hub happens on **Promote**/**Hubs**, not here |
 | **Own** | Step 3 — owned forks with upstream status (parent, private-upstream flag), current verdict + cluster; per-fork decide promote (→ keep / absorb into a hub) or drop (→ archive), and generate a git detach checklist (GitHub has no de-fork API, so the move is yours to run) |
 | **Order** | Per-hub Tree-of-Knowledge layout — one ordered list of a hub's members (foundational first, presentation last); three classification checkboxes (Gather / Analyse / Display) act as filters; per-row arrow reordering + per-row and per-hub LLM Suggest; **✨ Features** per row asks the LLM to identify the repo's concrete features (architecture Step 5), saved immediately into `feature_annotations`; per-hub compat-tag vocabulary override |
