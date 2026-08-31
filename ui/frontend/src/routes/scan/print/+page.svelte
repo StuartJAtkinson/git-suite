@@ -59,9 +59,12 @@
     || (a.name || '').localeCompare(b.name || ''));
 </script>
 
+<div class="no-print page-header">
+  <h1>Print preview</h1>
+  <p class="crumb"><a href="/scan">&larr; Back to Scan</a> · {cards.length} repos</p>
+</div>
+
 <div class="no-print toolbar">
-  <a href="/scan">&larr; Back to Scan</a>
-  <h2>Print preview — {cards.length} repos</h2>
   <label class="cols-field">
     Columns
     <input type="number" min="1" max="6" bind:value={cols} />
@@ -107,7 +110,6 @@
   .toolbar {
     display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;
   }
-  .toolbar h2 { margin: 0; flex: 1; font-size: 1rem; color: #374151; }
   .cols-field {
     display: flex; align-items: center; gap: 0.4em;
     font-size: 0.85rem; color: #374151;
