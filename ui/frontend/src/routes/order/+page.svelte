@@ -531,7 +531,7 @@
   .aim { color: #4b5563; font-size: 0.85rem; margin: 0.25rem 0 0.5rem; }
   .cols { display: flex; gap: 0.4rem; flex-wrap: wrap; }
   .col { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.78rem; padding: 0.1rem 0.5rem; border: 1px solid #e5e7eb; border-radius: 4px; background: #fff; cursor: pointer; }
-  .col.checked { background: #e6effa; border-color: #6366f1; color: #3730a3; font-weight: 600; }
+  .col.checked { background: #e6effa; border-color: #0057b7; color: #1e40af; font-weight: 600; }
   .tags { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.4rem; }
   .tag { font-size: 0.72rem; padding: 0.1rem 0.45rem; border-radius: 12px; background: #f3f4f6; color: #4b5563; border: 1px solid transparent; cursor: pointer; }
   .tag.on { background: #ecfdf5; color: #065f46; border-color: #6ee7b7; }
