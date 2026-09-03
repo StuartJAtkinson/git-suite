@@ -1,6 +1,8 @@
 # Issues — git-suite (GitHub Index Builder)
 
 ## Open
+- [ ] **Install DAG edge colour bypasses the `--quiet-text` token** — `ui/frontend/src/routes/install/+page.svelte:249` hardcodes `stroke="#9ca3af"` on the inline SVG `<line>`, the exact value the 2026-08-31 auto-continue pass centralized into `--quiet-text` (`app.css:264`) and pointed every other `#9ca3af` usage at (`.tag.none`, `.empty`, `.quiet`, plus 8+ route-file selectors). Change the inline SVG to `stroke="var(--quiet-text)"` (or the resolved colour once Considerations Q1/Q2/Q3 land) so this one spot doesn't drift from the token again. *(found 2026-09-03)*
+- [ ] **Masked API key uses a literal `...` instead of the standardized `…`** — `ui/frontend/src/routes/setup/+page.svelte:20` (`obfuscate()`) builds the masked key display with `key.slice(0, 10) + '...' + key.slice(-4)`, a three-period ellipsis. The 2026-08-17 walkthrough decision "Ellipsis drift (`…` vs `...`) — single `…` everywhere" was resolved elsewhere but missed this spot. Replace `'...'` with `'…'`. *(found 2026-09-03)*
 
 ## Resolved
 - [x] **Two different monospace font stacks are used for the same "code/path text" role** — `app.css:203` (`.repo-name`) and `app.css:230` (`.preview-box`) use `font-family: 'Consolas', 'Fira Code', monospace`, while every other monospace rule in the app — `app.css:166` (`.tag`) plus rules in `cluster`, `execute`, `order`, `promote`, `scan`, `setup`, `summary`, `triage` `+page.svelte` (repo names, hashes, code snippets, commands) — is bare `font-family: monospace`, which falls back to whatever generic monospace font the OS/browser picks rather than the nicer named stack. Pick one stack and apply it everywhere monospace is used for this role. — auto-continue *(resolved 2026-08-31)*
