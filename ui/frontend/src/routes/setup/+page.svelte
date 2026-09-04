@@ -17,7 +17,7 @@
   function obfuscate(key) {
     if (!key) return '';
     if (key.length < 12) return '••••••••';
-    return key.slice(0, 10) + '...' + key.slice(-4);
+    return key.slice(0, 10) + '…' + key.slice(-4);
   }
 
   let config = {};
@@ -406,14 +406,14 @@
 .header-row { display: flex; justify-content: space-between; align-items: flex-start; }
 .header-actions { display: flex; align-items: center; gap: 0.75rem; }
 .col { display: flex; flex-direction: column; gap: 1rem; }
-.card-title { font-size: 0.875rem; font-weight: 600; color: #374151; margin: 0 0 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e5e7eb; }
+.card-title { font-size: 0.875rem; font-weight: 600; color: #374151; margin: 0 0 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
 .status-box { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 7px; padding: 0.6rem 0.8rem; margin-bottom: 1rem; font-size: 0.78rem; color: #065f46; }
 .status-box.warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
 .status-label { font-weight: 600; }
 .chain-item { background: rgba(255,255,255,0.7); border-radius: 4px; padding: 0.1em 0.45em; font-family: var(--mono); }
 .chain-item.head { font-weight: 700; }
 .chain-model { color: #6b7280; font-size: 0.92em; }
-.provider-box { border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; }
+.provider-box { border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; }
 .provider-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
 .provider-num { font-size: 0.7rem; font-weight: 700; color: #6b7280; width: 20px; text-align: right; }
 .provider-name { font-size: 0.875rem; font-weight: 500; }

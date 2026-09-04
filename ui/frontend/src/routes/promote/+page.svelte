@@ -122,7 +122,7 @@
 {/if}
 
 <style>
-.fork { border: 1px solid #dde1e9; border-radius: 10px; padding: 0.7rem 0.85rem; margin-bottom: 0.7rem; background: #fff; }
+.fork { border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.85rem; margin-bottom: 0.7rem; background: #fff; }
 .fork-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
 .fork-name { font-weight: 600; font-family: var(--mono); }
 .verdict { font-size: 0.7rem; border-radius: 4px; padding: 0.1em 0.45em; text-transform: uppercase; letter-spacing: 0.04em; }

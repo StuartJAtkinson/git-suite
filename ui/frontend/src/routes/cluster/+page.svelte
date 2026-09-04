@@ -362,12 +362,12 @@
   .layout { display: grid; grid-template-columns: 260px 1fr; gap: 1rem;
     margin-top: 0.7rem; align-items: start; }
 
-  .rail { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+  .rail { background: #fff; border: 1px solid var(--border); border-radius: 8px;
     padding: 0.7rem 0.75rem; position: sticky; top: 0.5rem;
     max-height: calc(100vh - 1rem); overflow-y: auto;
     display: flex; flex-direction: column; gap: 0.55rem; }
   .rail-stats { color: #374151; font-size: 0.86rem; line-height: 1.45;
-    padding-bottom: 0.45rem; border-bottom: 1px solid #e5e7eb; }
+    padding-bottom: 0.45rem; border-bottom: 1px solid var(--border); }
   .stat-orphans { color: #b45309; font-weight: 600; }
   .margin-summary { margin-top: 0.3rem; font-size: 0.74rem; padding: 0.15rem 0.4rem;
     border-radius: 4px; display: inline-block; }
@@ -384,10 +384,10 @@
 
   .import-box { display: flex; flex-direction: column; gap: 0.4rem; }
   .import-box textarea { width: 100%; font-family: var(--mono); font-size: 0.72rem;
-    padding: 0.4rem; border: 1px solid #e5e7eb; border-radius: 6px; resize: vertical; }
+    padding: 0.4rem; border: 1px solid var(--border); border-radius: 6px; resize: vertical; }
   .import-box .primary { padding: 0.4rem 0.6rem; font-size: 0.8rem; }
 
-  .bundle-info { background: #f8fafc; border: 1px solid #e5e7eb;
+  .bundle-info { background: #f8fafc; border: 1px solid var(--border);
     border-radius: 6px; padding: 0.5rem 0.6rem; font-size: 0.76rem;
     color: #374151; display: flex; flex-direction: column; gap: 0.18rem; }
   .bundle-info .muted { font-family: var(--mono); font-size: 0.66rem;
@@ -397,7 +397,7 @@
     border: 1px solid #a7f3d0; border-radius: 4px; padding: 0.1rem 0.5rem;
     align-self: flex-start; }
 
-  .orphans-box { border-top: 1px solid #e5e7eb; padding-top: 0.5rem;
+  .orphans-box { border-top: 1px solid var(--border); padding-top: 0.5rem;
     display: flex; flex-direction: column; gap: 0.3rem; max-height: 260px; overflow-y: auto; }
   .orphans-head { font-size: 0.76rem; font-weight: 700; color: #b45309; }
   .orphan-row { display: flex; align-items: center; justify-content: space-between;
@@ -406,20 +406,20 @@
     white-space: nowrap; max-width: 130px; }
   .orphan-row select { font-size: 0.68rem; max-width: 90px; }
 
-  .stage { border: 1px solid #e5e7eb; border-radius: 10px;
+  .stage { border: 1px solid var(--border); border-radius: 10px;
     background: radial-gradient(circle at 1px 1px, #f1f5f9 1px, transparent 0) 0 0 / 22px 22px;
     padding: 1rem; display: flex; flex-direction: column; gap: 1.1rem;
     align-items: stretch; min-height: 12rem; }
   .card { width: 100%;
     display: flex; background: rgba(255,255,255,0.5); border-radius: 10px;
-    border: 1px solid #e5e7eb; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    border: 1px solid var(--border); overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
   .margin-bar { width: 7px; flex-shrink: 0; }
   .margin-bar.flag-thin { background: #ef4444; }
   .margin-bar.flag-ok { background: #f59e0b; }
   .margin-bar.flag-wide { background: #10b981; }
 
   .card-body { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-  .card-head { padding: 0.75rem 0.9rem 0.65rem; border-bottom: 1px solid #e5e7eb;
+  .card-head { padding: 0.75rem 0.9rem 0.65rem; border-bottom: 1px solid var(--border);
     background: rgba(255,255,255,0.6); }
   .card-title { font-size: 1rem; font-weight: 800; color: #1e40af;
     text-transform: lowercase; letter-spacing: 0.01em; background: none; border: none;
@@ -436,7 +436,7 @@
   .card-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0.5rem 0.9rem;
     border-bottom: 1px solid #f1f5f9; }
   .chip { font-size: 0.72rem; padding: 0.22rem 0.65rem; border-radius: 999px;
-    border: 1px solid #e5e7eb; background: #f8fafc; cursor: pointer; }
+    border: 1px solid var(--border); background: #f8fafc; cursor: pointer; }
   .chip:disabled { opacity: 0.5; cursor: not-allowed; }
   .chip.danger { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
 

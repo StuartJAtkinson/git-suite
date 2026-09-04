@@ -90,15 +90,17 @@ The full pipeline (✅ built · ◻ not yet):
    visualise** *(the Order page's Gather/Analyse/Display ToK layout)*.
 5. ✅ **Feature-identify** — feed the ordered+typed context to an LLM to identify each
    repo's concrete features. *(the Order page's ✨ Features button)*
-6. ◻ **Recommend absorbs** — recommend which *features* (from stars/forks) to absorb
-   into the owned repos; own-the-fork-and-delete; **unstar** stars whose features are
-   unwanted or already covered more fully by an owned repo.
-7. ◻ **Align** — align the projects' design principles across the owned library.
-8. ◻ **Guided installer** — git-suite becomes a guided installer; the hub DAG points at
-   modular hub apps/info. git-suite is the planning/analysis/recommendation/install
-   brain — it does **not** build the hub apps themselves (that's the portfolio's shape).
+6. ✅ **Recommend absorbs** — per-orphan best-hub recommendation with two-tier
+   confidence, folded into the **Triage** card stream: `💡` hint, `✅` one-click
+   "Absorb into Z", or `⭐` copy-URL row for stars you unstar yourself on github.com.
+7. ✅ **Align** — the **Order** page's align panel audits design principles
+   (structure/docs/tests) across a hub's owned repos and pushes `ALIGNMENT.md`.
+8. ✅ **Guided installer** — the **Install** page renders the hub DAG (Wikidata SPARQL
+   over `P279`/`P361`, local `plan.json` fallback) as a per-hub d3-force bubble layout.
+   git-suite is the planning/analysis/recommendation/install brain — it does **not**
+   build the hub apps themselves (that's the portfolio's shape).
 
-Steps 6–8 are the unbuilt half; they're tracked as Open items in
+All eight steps are built. Remaining work is tracked in
 [`../ISSUES.md`](../ISSUES.md).
 
 ---

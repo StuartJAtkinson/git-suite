@@ -124,7 +124,7 @@
   .repo-card {
     flex: 1 1 calc((100% - (var(--cols, 3) - 1) * 0.3cm) / var(--cols, 3));
     min-width: 0;
-    border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.25cm 0.3cm;
+    border: 1px solid var(--border); border-radius: 6px; padding: 0.25cm 0.3cm;
     break-inside: avoid; page-break-inside: avoid;
     display: flex; flex-direction: column; gap: 0.1cm;
   }

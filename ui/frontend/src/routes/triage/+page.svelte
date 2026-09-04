@@ -238,7 +238,7 @@
 
   .repo-row { cursor: pointer; }
   .repo-row.active-row { border-color: #0057b7; background: #eff6ff; }
-  kbd { font-family: var(--mono); background: #e5e7eb; border-radius: 3px; padding: 0 0.3em; font-size: 0.85em; }
+  kbd { font-family: var(--mono); background: var(--border); border-radius: 3px; padding: 0 0.3em; font-size: 0.85em; }
 
   /* Step 6: recommendation row (one of three) */
   .recommend-row { display: flex; align-items: center; gap: 0.5rem;

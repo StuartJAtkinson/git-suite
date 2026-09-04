@@ -394,7 +394,7 @@
 
 <style>
   table.records { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
-  table.records th { text-align: left; color: #6b7280; font-weight: 600; border-bottom: 2px solid #e5e7eb; padding: 0.3rem 0.5rem; }
+  table.records th { text-align: left; color: #6b7280; font-weight: 600; border-bottom: 2px solid var(--border); padding: 0.3rem 0.5rem; }
   table.records th.sortable { cursor: pointer; user-select: none; }
   table.records th.sortable:hover { background: #f1f5f9; color: #1e293b; }
   table.records th .caret { color: var(--quiet-text); font-size: 0.7rem; margin-left: 0.15rem; font-weight: 400; }
@@ -415,7 +415,7 @@
   td.note-cell { padding: 0.18rem 0.5rem; }
   td.note-cell .note-input {
     width: 100%; box-sizing: border-box; padding: 0.25rem 0.4rem;
-    border: 1px solid #e5e7eb; border-radius: 4px; font: inherit;
+    border: 1px solid var(--border); border-radius: 4px; font: inherit;
     background: #fff; color: #1e293b;
   }
   td.note-cell .note-input:focus { outline: none; border-color: #1e40af; box-shadow: 0 0 0 2px #e6effa; }
@@ -426,9 +426,9 @@
   ul.warnlist li { padding: 0.35rem 0.5rem; border-bottom: 1px solid #f1f5f9; display: flex; gap: 0.6rem; align-items: baseline; }
   .warn-reason { color: #b45309; font-size: 0.8rem; }
 
-  .enrich-panel { margin-top: 0.6rem; padding: 0.6rem 0.8rem; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; }
+  .enrich-panel { margin-top: 0.6rem; padding: 0.6rem 0.8rem; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; }
   .enrich-head { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: #1e293b; }
-  .ebar { height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; margin: 0.5rem 0; }
+  .ebar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin: 0.5rem 0; }
   .efill { height: 100%; background: #1e40af; transition: width 0.25s; }
   .enrich-log { list-style: none; margin: 0.3rem 0 0; padding: 0; font-size: 0.78rem; max-height: 200px; overflow-y: auto; }
   .enrich-log li { padding: 0.12rem 0; color: #475569; }

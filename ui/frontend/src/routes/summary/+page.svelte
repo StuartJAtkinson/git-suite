@@ -207,13 +207,13 @@
 }
 .stat-card {
   background: #fff;
-  border: 1px solid #dde1e9;
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 1.25rem;
 }
 .stat-value { font-size: 2rem; font-weight: 700; color: #1a1a2e; }
 .stat-label { font-size: 0.8rem; color: #6b7280; margin-top: 0.2rem; }
-.progress-bar { height: 4px; background: #e5e7eb; border-radius: 2px; overflow: hidden; margin-top: 0.5rem; }
+.progress-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 0.5rem; }
 .progress-fill { height: 100%; background: #0057b7; transition: width 0.3s; }
 .hub-progress-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .hub-progress-row {
@@ -222,7 +222,7 @@
   gap: 1rem;
   padding: 0.6rem 0.875rem;
   background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 6px;
 }
 .hub-info { display: flex; align-items: center; gap: 0.5rem; min-width: 160px; }
@@ -231,7 +231,7 @@
 .hub-bars { flex: 1; display: flex; gap: 1rem; align-items: center; }
 .mini-bar-group { display: flex; align-items: center; gap: 0.35rem; flex: 1; }
 .mini-label { font-size: 0.7rem; color: #6b7280; width: 38px; }
-.mini-bar { flex: 1; height: 4px; background: #e5e7eb; border-radius: 2px; overflow: hidden; }
+.mini-bar { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
 .mini-fill.absorb { background: #0057b7; height: 100%; }
 .mini-fill.archive { background: #d97706; height: 100%; }
 .mini-count { font-size: 0.72rem; color: #6b7280; width: 36px; text-align: right; }
@@ -239,16 +239,16 @@
 .empty-small { color: var(--quiet-text); font-size: 0.85rem; }
 .actions-list { display: flex; flex-direction: column; gap: 0.6rem; }
 .action-item { display: flex; align-items: center; gap: 0.75rem; font-size: 0.875rem; }
-.action-num { width: 24px; height: 24px; background: #e5e7eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600; color: #374151; flex-shrink: 0; }
+.action-num { width: 24px; height: 24px; background: var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600; color: #374151; flex-shrink: 0; }
 .members-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
-.member-col { background: #fff; border: 1px solid #dde1e9; border-radius: 10px; overflow: hidden; }
+.member-col { background: #fff; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
   /* member-head is intentionally dark: a header strip on the card, distinct
      from the global .card chrome (light surface). Matches nav. */
 .member-head { background: #1a1a2e; padding: 0.5rem 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
 .member-head .hub-name { color: #fff; }
 .member-count { margin-left: auto; font-size: 0.68rem; font-family: var(--mono); color: #9fb3d8; }
 .member-repos { padding: 0.6rem; display: flex; flex-direction: column; gap: 0.25rem; min-height: 50px; }
-.repo-chip { font-size: 0.75rem; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; padding: 0.2rem 0.5rem; font-family: var(--mono); }
+.repo-chip { font-size: 0.75rem; background: #f3f4f6; border: 1px solid var(--border); border-radius: 4px; padding: 0.2rem 0.5rem; font-family: var(--mono); }
 .orphan-list { display: flex; flex-direction: column; gap: 0.25rem; }
 .orphan-row { display: flex; gap: 0.6rem; align-items: baseline; padding: 0.25rem 0; }
 .orphan-desc { font-size: 0.78rem; color: #6b7280; }

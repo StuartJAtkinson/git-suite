@@ -246,7 +246,7 @@
                 {@const sy = (e.source && e.source.y) ?? 0}
                 {@const tx = (e.target && e.target.x) ?? 0}
                 {@const ty = (e.target && e.target.y) ?? 0}
-                <line x1={sx} y1={sy} x2={tx} y2={ty} stroke="#9ca3af" stroke-width="1" />
+                <line x1={sx} y1={sy} x2={tx} y2={ty} stroke="var(--quiet-text)" stroke-width="1" />
               {/each}
             </g>
             <g class="nodes">
@@ -297,7 +297,7 @@
 
 <style>
   .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem;
-    background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+    background: #fff; border: 1px solid var(--border); border-radius: 8px;
     padding: 0.65rem 0.85rem; margin-bottom: 1rem;
     font-size: 0.85rem; }
   .meta { font-size: 0.84rem; color: #4b5563; flex: 1 1 240px; min-width: 0; }
@@ -306,8 +306,8 @@
 
   /* Tab strip — one per hub. */
   .hub-tabs { display: flex; flex-wrap: wrap; gap: 0.25rem;
-    border-bottom: 1px solid #e5e7eb; margin-bottom: 1rem; }
-  .hub-tab { background: #fff; border: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
+  .hub-tab { background: #fff; border: 1px solid var(--border);
     border-bottom: none; border-radius: 6px 6px 0 0;
     padding: 0.4rem 0.9rem; font-size: 0.85rem; cursor: pointer;
     color: #4b5563; display: inline-flex; align-items: center; gap: 0.35rem; }
@@ -320,7 +320,7 @@
 
   .install-order { list-style: none; padding: 0; margin: 0;
     display: flex; flex-direction: column; gap: 0.7rem; }
-  .install-order li { background: #fff; border: 1px solid #e5e7eb;
+  .install-order li { background: #fff; border: 1px solid var(--border);
     border-radius: 8px; padding: 0.7rem 0.9rem; }
   .step-head { display: flex; align-items: center; gap: 0.5rem; }
   .step-num { font-weight: 700; color: #111827; min-width: 1.7rem; }
@@ -343,7 +343,7 @@
     color: #0057b7; font-size: 0.78rem; text-decoration: underline; }
 
   /* DAG canvas. */
-  .hub-dag { background: #fff; border: 1px solid #e5e7eb;
+  .hub-dag { background: #fff; border: 1px solid var(--border);
     border-radius: 8px; height: 540px; overflow: hidden; }
   .hub-dag svg { width: 100%; height: 100%; display: block; }
   .hub-dag text { user-select: none; pointer-events: none; }
