@@ -183,6 +183,5 @@ _Pipeline gap — the built app implements "absorb = repo→hub"; the intended m
 - [x] **All file paths hardcoded to H:\GitHub\\** — both scripts now use `Path(__file__).parent`; outputs live in the project folder *(resolved 2026-05-24)*
 
 ## Needs input (Auto Continue)
-*Left by Auto Continue 2026-08-31 — decide these, then clear CONSIDERATIONS.md.*
-- 1. Two hex values are used interchangeably for the same "card/panel border" role: `#dde1e9` (app.css's `.card`/`.hub-card`, plus `promote`'s `.fork` and `summary`'s stat box/`.member-col`) vs `#e5e7eb` (used in 9 of 11 route files for the same semantic border). Which one becomes the single token?
-- 2. Three hex values are used for the same "warn/highlight amber text" role: `#92400e` (execute, order, scan, setup), `#b45309` (cluster, promote, scan), `#78350f` (triage only). Which one becomes the single token?
+*Left by Auto Continue 2026-09-05 — decide these, then clear CONSIDERATIONS.md.*
+- Which hex value will serve as the single token for the "warn/highlight amber text" role (`#92400e`, `#b45309`, `#78350f`) and for the "light-blue info tag" role (`#eff6ff`, `#dbeafe`, `#e6effa`), considering their current interchangeable usage?
