@@ -59,9 +59,10 @@ writes back to `plan.json`; nothing reaches GitHub until **Execute**.
 | **Scan** | Pulls every owned repo (public + private) over a live WebSocket, capturing topics, stars, fork/archived flags, `pushed_at`. |
 | **Cluster** ("Themes") | Iterative refinement, not a one-shot render. Bundles owned repos AND starred repos — every one's distilled purpose/entities/domain plus its full README — and asks the LLM to name each theme after the *human activity* the repos serve, never a tech-stack bucket. Can't reach an LLM directly? Download the identical prompt as a `.txt` file, run it through any chat LLM, and paste the JSON reply back in. Each theme card shows a margin bar against its nearest neighbour and supports merge / split / move-a-member / rename / delete, so boundaries converge before you promote. Promoting a theme into a real hub happens on **Own**/**Hubs**, not here. |
 | **Own** | Step 3 — review owned forks (parent/upstream status), decide promote (→ keep / absorb into a hub) or drop (→ archive), and generate a git detach checklist. GitHub has no de-fork API, so the actual move is yours to run. |
-| **Order** | Per-hub Tree-of-Knowledge layout — arranges a hub's members from foundational (Gather) through Analyse to Display; per-row reorder + LLM Suggest; feeds the hub README's ordering section. |
-| **Triage** | Keyboard-fast verdict queue over remaining repos (absorb / keep / archive / orphan). |
-| **Execute** | Dry-run preview diffed against **live** GitHub state, then idempotent batch actions: archive repos, create missing hubs, push composed hub READMEs + MIGRATION.md. |
+| **Order** | Per-hub Tree-of-Knowledge layout — arranges a hub's members from foundational (Gather) through Analyse to Display; per-row reorder + LLM Suggest, a ✨ Features pass that names each repo's concrete features, and an align panel that audits structure/docs/tests across the hub's owned repos and pushes `ALIGNMENT.md`. Feeds the hub README's ordering section. |
+| **Triage** | Keyboard-fast verdict queue over remaining repos (absorb / keep / archive / orphan), with per-orphan best-hub recommendations folded into the card stream — a `💡` hint, a one-click "Absorb into …", or a copy-URL row for starred repos you unstar yourself on github.com. |
+| **Execute** | Dry-run preview diffed against **live** GitHub state, then idempotent batch actions: archive repos, create missing hubs, push composed hub READMEs + MIGRATION.md. Also carries the per-absorb runbook (copy the git steps, run them locally, mark the row absorbed — git-suite never runs git for you) and hub lifecycle (archive / return / delete, delete gated on archived). |
+| **Install** | Read-only hand-off. Renders the per-hub install DAG (Wikidata SPARQL over `P279`/`P361`, with a local `plan.json` fallback) and exports it as an install-order `.txt`, a Docker compose fragment, or the raw manifest JSON. git-suite is the install *brain*, not the installer — nothing on this page pushes to GitHub or mutates `plan.json`. |
 | **Summary** | Reconciliation dashboard: live / absorbed / archived / undecided / ghost counts, per-hub progress, hub members + orphan repos (the former Hub Audit), and the next-action list. |
 
 ---
@@ -73,14 +74,18 @@ SvelteKit frontend (:2173) ──► FastAPI backend (:2801) ──► SQLite (s
                                       │
                                       ├── GitHub API   (scan / archive / create / READMEs)
                                       ├── LLM chain     (failover: themes, migration)
-                                      └── Embeddings    (failover: cache)
+                                      ├── Embeddings    (failover: cache)
+                                      └── Wikidata      (SPARQL: install DAG)
 ```
 
-- **Backend** (`ui/backend`) — FastAPI. Routers under `/api` (`scan`, `stars`, `cluster`,
-  `hubs`, `plan`, `order`, `reconcile`, `execute`, `migration`, `readme`, `promote`,
-  `config`) and `/auth`. Services: `github`, `llm`, `embeddings`, `distill`,
-  `themes_bundle`, `topic_llm`, `stars`, `migration`, `promote`, `models`, `columns`.
-  Plan persistence in `plan_store.py`; provider registry in `llm_providers.py`.
+- **Backend** (`ui/backend`) — FastAPI. Routers mounted under `/api` (`scan`, `hubs`,
+  `config`, `reconcile`, `wikidata`, `plan`, `execute`, `migration`, `cluster`,
+  `stars`, `order`, `promote`, `installer`, `absorb`, `drift`, `recommend`) plus
+  `auth` under `/auth`. `routers/readme.py` is not mounted — `execute` imports its
+  helpers directly. Services: `github`, `llm`, `embeddings`, `distill`,
+  `themes_bundle`, `topic_llm`, `migration`, `promote`, `absorb`, `drift`,
+  `wikidata`, `models`, `columns`. Plan persistence in `plan_store.py`; SQLite
+  access in `database.py`; provider registry in `llm_providers.py`.
 - **Frontend** (`ui/frontend`) — SvelteKit, one route per workflow stage.
 - **Config** — no env files for app config; everything is set through the Setup page and
   stored in `config.json` under `GIT_SUITE_HOME` (defaults to `~/.git-suite`). All
@@ -119,17 +124,26 @@ cd ui/backend && python -m pytest        # 195 tests
 
 ## Documentation
 
+- [ui/ROADMAP.md](./ui/ROADMAP.md) — the live architecture and page-by-page
+  behaviour. Kept current as the app changes; read this one first.
+- [ROADMAP.md](./ROADMAP.md) — terse phase-completion summary.
 - [ISSUES.md](./ISSUES.md) — running open/resolved issue log.
+- [UX.md](./UX.md) — the UI's actual visual conventions: design tokens, colour
+  roles, spacing/type scale, page skeleton, control placement, vocabulary.
 
 ---
 
-*Last updated: 2026-07-23 — Cluster page rewritten as LLM theme grouping (since extended
+*Last updated: 2026-09-06 — the workflow table was missing the **Install** stage
+(the ninth nav link, built as pipeline step 8) and the Order/Triage/Execute rows
+predated the feature-analysis, absorb-recommendation, align and absorb-runbook work;
+the Architecture section still listed the pre-`installer`/`absorb`/`drift`/`recommend`/
+`wikidata` router set and named `stars` as a service it never was. Corrected all of
+the above and pointed the Documentation list at the roadmaps and the new UX.md.*
+
+*Before that, 2026-07-23 — Cluster page rewritten as LLM theme grouping (since extended
 with iterative merge/split/move/rename/delete refinement — see the Cluster row above)
 with .txt prompt export + JSON re-import for external LLMs; Docker deployment removed
-(local dev only); this doc's Architecture/Running-it sections were describing routers
-(`replan`/`overlap`/`commercial`) removed in an earlier pass — corrected the doc and
-deleted the last unused leftover, `services/cluster.py` (the pre-LLM k-means module,
-imported nowhere).*
+(local dev only).*
 
 ## MCP
 
