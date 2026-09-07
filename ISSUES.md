@@ -2,6 +2,13 @@
 
 ## Open
 
+### Taxonomy
+- [ ] **Classifier scores tags by string length, not relevance** — `classify_repos.py:99` votes `len(tag) * boost`, so the longest matching tag wins regardless of meaning. Verified consequences: `docyx/pc-part-dataset` → Storage because its purpose says "**Stores** PC parts" (`storage`, 7) beats `parts` (5); `simklExporter` → Storage on `file` (4) beating `tv` (2); `googleapis/gcloud-mcp` → Storage because `cloud storage` (13×2=26) beats `infrastructure` (14); `TagStudio` → Storage on `file management` (30) over `photos` (6). Needs relevance weighting (domain-field priority, IDF, or LLM adjudication) rather than character count. *(found 2026-09-06)*
+- [ ] **Tag vocabulary describes a different corpus** — `category_tags.json` is, per `classify_repos.py:2-4`, a one-time snapshot of a vocabulary curated in homelab-designer; it enumerates self-hosted app names that largely don't exist in git-suite's corpus. E.g. Storage carries 86 tags (Borg, restic, Duplicati, Syncthing, ArchiveBox, IPFS, Storj…) while the corpus contains no such repos — only minio and nextcloud. Tag-pool size is therefore not evidence of category size and must not be used to justify splitting a category. *(found 2026-09-06)*
+- [ ] **Classifier treats packaging/delivery tags as domain signal** — `docker`, `docker-compose`, `container`, `helm`, `snap` etc. describe how a repo *ships*, not what it *does*, and nearly every repo in the corpus ships as an image. Result: `docker-kepler.gl` (geospatial), `gluetun` (VPN), `zabbix-docker-monitoring` (monitoring), `rag-from-scratch` and `omnigent` (AI) all landed in Container. Packaging tags need demoting to near-zero weight so the domain tags decide. *(found 2026-09-06)*
+- [ ] **Same repo appears under multiple keys with conflicting categories** — `repo_categories.json` keys are inconsistent (bare name, `owner/name`, and `StuartJAtkinson/name` fork all coexist) and each copy gets classified independently. `windows95`→Games vs `StuartJAtkinson/windows95`→Homelab; `chromeos-apk`→Productivity vs `vladikoff/chromeos-apk`→Homelab vs `StuartJAtkinson/chromeos-apk`→Web & API Tooling; `linutil`/`winutil` ×3 each. Needs key normalisation before any category count can be trusted. *(found 2026-09-06)*
+- [ ] **Individual tag→group assignments are visibly wrong** — spot-checked from `category_tags.json`: `3d Printing`→Music, `Adblocking`→Storage, `Alexa`→Video, `Airdcpp`→Ai, `Acquia`/`Adminer`→Container, `Crawler`/`Graph`→Monitoring, `Acct`→Monitoring. Independent of the length-weighting bug above: these are wrong in the map itself, so even correct scoring routes them to the wrong category. *(found 2026-09-06)*
+
 <!-- All paths below are relative to ui/frontend/src/ -->
 
 ### Terminology / labelling
