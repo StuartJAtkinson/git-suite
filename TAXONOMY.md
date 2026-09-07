@@ -3,9 +3,9 @@
 Working state of the theme/category ontology. Supersedes the flat 32-category
 list in `category_dividers.html` as it gets walked theme by theme.
 
-**Status 2026-09-07:** Single Computer rung closed. Access rung walked —
-leaves drafted and membership recovered, but four calls are Stuart's and the
-rung is **not closed** until they land (open questions 7–11).
+**Status 2026-09-07:** Single Computer rung closed. Access rung walked but
+not closed (questions 7–11). Substrate rung walked but not closed (questions
+1, 6, 9, 12, 13, 14 still hold).
 
 ## The ordering principle
 
@@ -108,6 +108,144 @@ Dashboards; sparql.anything → Ontology
 
 Graph stays inside Database — a storage model, not a semantic commitment. RDF
 is where edges carry meaning, and that's the specialisation threshold.
+
+## Rung 3 — Substrate *(WALKED, not closed)*
+
+Leaves: **Homelab & Server Administration · IT Support & Device Management**
+
+Rung 1 was one box. Rung 2 was the wire between boxes. This rung is **the
+fleet**: the systems that turn one box into a place you can run, manage and
+support many boxes. Ascending inside the rung — stand up the box (Homelab),
+then keep the user's hands on the box (IT Support).
+
+Substrate-wins, as decided in rung 1: anything whose function is *creating and
+running more boxes* belongs here, regardless of the host OS or hypervisor
+underneath.
+
+### Homelab & Server Administration
+Provision, orchestrate, observe, dashboard a fleet of self-hosted or
+infrastructure-class systems. Domain-agnostic at the box level — the leaf
+doesn't care what's *running on* the boxes, only that the boxes are running.
+
+**Hypervisor** — already decided (rung 1, footnote on Containerization): a
+hypervisor is substrate regardless of node count. The corpus currently has
+**three real hypervisor members** + one close neighbour:
+
+- **Corsinvest/awesome-proxmox-ve** (rung 2 walk landed it correctly) — meta
+  index, file by subject per question 2
+- **community-scripts/ProxmoxVE** — Proxmox helpers. Open question 1
+  (the Containerization call) was deferred; resolving it pulls this one way
+  or the other.
+- **cozystack/cozystack** — Kubernetes + KubeVirt + Talos as a self-hosted
+  *platform*. It is two layers down at once (Kubernetes is container
+  orchestration; KubeVirt is virtualization) — substrate-wins keeps it in
+  Homelab on the same shape as Proxmox.
+- **jetkvm/kvm** — *hardware IP-KVM*. Not a software hypervisor, but its
+  function is "drive any machine remotely over IP" — that is remote access
+  substrate, and currently it's the only hardware KVM in the corpus. Keep in
+  Homelab unless a Remote Hardware leaf emerges later.
+
+**Orchestration & container platform** — `homelab-core` is fleet
+orchestration; `komodo` is fleet deployment; `Olares` is an "always-on AI
+agent home server" — substrate on the platform axis. `cozystack` covers
+Kubernetes-side orchestration. The rest of the container-management repos
+(runtimes, lifecycle) already live in Containerization.
+
+**Self-hosted dashboards & aggregators** — `Heimdall`, `Organizr`,
+`homebutler`, `homelable`, `lg-washer-dryer-card` (Home-Assistant-card
+specialised to laundry). `homebutler`/`homelable` are observability-dashboard
+repos; the Access walk deferred them as open question 9 (Monitoring vs
+Homelab). Substrate-wins + the *what-it-acts-on* test lands them here — they
+act on the homelab itself.
+
+**IaC** — none of the corpus today matches the desired-state signatures
+(Ansible, Terraform, Puppet, Chef). Open question 12.
+
+**Evictions from current Homelab (63 → ~25 staying):**
+
+- `glances` → Monitoring (it is observability of a single machine)
+- `Pulse` → Monitoring (observability of a fleet is still observability)
+- `linutil`, `winutil` × 3 → Operating Systems (rung 1: single-machine
+  debloat/tweak tooling)
+- `Windows-MCP` → Operating Systems (rung 1; the `Windows administration`
+  domain string is what scored it wrong here)
+- `mRemoteNG`, `neko`, `tigervnc` → Remote Access (rung 2 — currently still
+  in Authentication, but the Remote Access leaf pulls them up)
+- `headscale`, `zoraxy`, `traefik` → Networking (rung 2)
+- `infisical`, `desktop-app` (ivpn), `awesome-scapy`, `unbound` → already
+  moved in rung 2
+- `homebutler`, `homelable` → *stays* — substrate-wins for dashboards
+- `gsmarena-scraper` → *out*: device specs scraping, function is
+  data-aggregation about phones. Open question 13 (Devices? Webscrawl? or
+  Data & Systems Management for now).
+- `free-for-dev` → Code & Build Tooling (developer cloud-service index;
+  function is developer productivity, not infrastructure)
+- `playwright-tampermonkey-mcp` → Web & API Tooling (userscript
+  management, per its domain)
+- `twenty` → Business (CRM)
+- `astral` → Code & Build Tooling (GitHub starred-repo manager)
+- `democracy-watcher` → Civic & Public Affairs (already a leaf)
+- `crewAI-examples`, `federated-api-model` (the *other* copy), `graphhopper`
+  → already in Homelab but misclassified by their domain strings; `graphhopper`
+  is OSM *routing* — its function is geospatial, its `it support` match is
+  from the entities list. Should land on Geospatial & Mapping.
+- `ZohoAPI` → Business (Zoho sync)
+- `bloop` → Code & Build Tooling (codebase search)
+- `ossapps` → Wearables/Home Automation (Fitbit clock faces; per its domain
+  `wearable technology` — already a rung-1 eviction target)
+- `chromeos-apk` → Operating Systems (rung 1: it's an OS compat layer)
+- `pc-part-dataset` → IT Support (device specs, see rung-2 discussion; the
+  dataset function beats the Storage misclassification)
+- `windows95` → Operating Systems (rung 1)
+- `proxmox-vm-autoscale`, `proxmox-lxc-autoscale` (Container) → Homelab per
+  open question 1 once decided; held here under "stays in current bucket
+  until question 1 is answered"
+- `3d-printed-nas` → Hardware (open question 13)
+- `openhaystack` → Hardware (Find My network; per its domain `hardware
+  hacking` — open question 13)
+- `nodejs-portable` → IT Support (single-tool portable installer)
+- `awesome-clean-tech`, `awesome-open-source-supporters` → Civic & Public
+  Affairs / Code & Build Tooling (awesome-list-by-subject per question 2)
+- `xpipe` → Code & Build Tooling (server connection manager, function is
+  developer tooling)
+- `kvm` (jetkvm) → *stays in Homelab* per the substrate argument above
+
+### IT Support & Device Management
+End-user IT and per-device tooling. The rung's "user-facing" band:
+*help-desk, install, configure, repair, find*. The corpus here is mostly
+sysadmin resource lists and small utilities, and that is exactly what the
+leaf is.
+
+**In (after eviction):**
+
+- `awesome-sysadmin` — resource index, file by subject
+- `UniGetUI` — Windows package-manager GUI; function is software
+  management, fits
+- `nerd-fonts` — dev font/icon aggregation. Function is *developer
+  experience*; **open question 14**: developer tooling or device-side
+  tooling? It's both.
+- `Install-Git`, `GitPortable`, `nodejs-portable` — single-tool installers,
+  function is end-user IT
+- `scrcpy` — *mobile device management* on Android, function beats the
+  Networking misclassification; this is the only non-mobile-management
+  member of a non-existent MDM leaf, so it's IT Support for now
+- `timelinize` — Lifelogging (rung 2)
+- `ThesauRex`, `ontologies` → Ontology (rung 4, not yet walked)
+- `IAO`, `aw-import-ical`, `EMailParseAI` × 2, `ClickTheseThings`,
+  `all-repos`, `lobehub`, `jira`, `atlassian-python-api`, `portia`,
+  `DoIHaveEverything` — small per-user IT utilities, stay
+- `federated-api-model` (the public-sector copy) → Civic & Public Affairs
+
+**Out:**
+
+- `federated-api-model` (gov copy) → Civic & Public Affairs
+- `pc-part-dataset` → IT Support (per above)
+- The 17 misclassifications that landed here purely because their
+  `it support`/`government it`/`public sector it` keywords matched —
+  resolved by function, not by the keyword.
+
+After this walk, IT Support & Device Management holds ~20 members. Still
+small, still real.
 
 ## Rung 2 — Access *(WALKED, not closed)*
 
@@ -274,6 +412,20 @@ to have repos already scattered across unrelated categories.
     home in the current 32 — it isn't Authentication. Either a Security leaf
     gets earned, or scanners file under the thing they scan (Jira-Lens → Code &
     Build Tooling / IT Support).
+12. **Does IaC earn a leaf?** The corpus has *zero* matches for desired-state
+    signatures (Ansible, Terraform, Pulumi, Puppet, Chef, Salt, Nix). When
+    they arrive, they go Homelab per substrate-wins — but if a fleet-scale
+    "platform config" theme emerges (cross-machine state, declarative
+    orchestration distinct from one-shot installers), it may split.
+13. **Does Hardware earn a leaf?** `jetkvm/kvm` (IP-KVM), `openhaystack`
+    (Find My), `3d-printed-nas`, `gsmarena-scraper` (device data) — each is a
+    one-off in Homelab today. If three more arrive, a Hardware leaf becomes
+    worth earning; until then they file by function (Networking for KVM, Home
+    Automation for Find-My-style trackers, IT Support for specs scrapers).
+14. **Where does nerd-fonts go?** Developer tooling (function: glyph/icons
+    used in dev work) or device-side tooling (function: installed on the user's
+    machine to *make every application look better*)? Same leaf, two
+    framings.
 
 ## Caveat on all counts
 
@@ -285,12 +437,17 @@ Treat app placements as suggestions to overrule, not evidence.
 
 ## Next
 
-**Rung 2 — Access** is walked but open on questions 7–11; those are Stuart's
-calls, not derivable from the corpus.
+**Rung 3 — Substrate** is walked but not closed: open questions 1, 6, 9, 12,
+13, 14 still hold. The structural one is question 6 — Homelab will still
+balloon once the deferred substrate categories (hypervisors already in,
+IaC/Hardware pending, status dashboards staying) all land. Likely target
+size after this walk: ~25 members, not 80+, because much of what *was* in
+Homelab was misclassified single-machine tooling that rung 1 evicts.
 
-**Rung 3 — Substrate** *(proposed)*: Homelab & Server Administration · IT
-Support & Device Management. Earned by default — both rungs so far have been
-deferring things into Homelab (hypervisors, orchestration, IaC, and now
-possibly the status dashboards), and open question 6 says that leaf has to be
-faced eventually. It is the natural next step up the axis: rung 1 was one box,
-rung 2 was the wire between boxes, rung 3 is the fleet.
+**Rung 4 — Data & Content** *(proposed)*: Knowledge Base · Dashboards ·
+Data & Systems Management · AI · Photos · Music · Video · Documents. The
+substrate runs out here and the rung turns to *what lives on the box*, not
+the box itself. This is also where the tag-pool issue logged in ISSUES.md
+hurts most — the "Analysis" / "Tracking" / "Manager" tags send nearly every
+one of these to Monitoring right now, so the rung is likely to be the loudest
+single correction in the whole walk.
