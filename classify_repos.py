@@ -80,8 +80,26 @@ INFRA_SUBGROUPS = [
     ("Data & Systems Management", r"\b(data management|database administration|devops|business process automation|api management|event management|diabetes management|healthcare|codebases|urban planning)\b"),
 ]
 
+# Relevance weighting. A tag matching the LLM's one-line `domain` field is a
+# deliberate classification of the repo; the same word buried in `purpose`
+# prose is weaker evidence, and one appearing in `entities` — a bare noun list
+# — is weakest. Multi-word tags are genuinely more specific than single words
+# (that's what `boost` carries). Character count is NOT specificity:
+# "cloud storage" is not more relevant to gcloud-mcp than "infrastructure",
+# and "file management" is not more relevant to simklExporter than "tv".
+FIELD_WEIGHT = {"domain": 4, "purpose": 2, "entities": 1}
+
+
+def _fields(rec):
+    return {
+        "domain": (rec.get("domain") or "").lower(),
+        "purpose": (rec.get("purpose") or "").lower(),
+        "entities": " ".join(rec.get("entities") or []).lower(),
+    }
+
+
 def _text(rec):
-    return " ".join([rec.get("domain", ""), rec.get("purpose", ""), " ".join(rec.get("entities", []))]).lower()
+    return " ".join(_fields(rec).values())
 
 def _sub(text, domain, subgroups, fallback):
     for label, pat in subgroups:
@@ -92,11 +110,14 @@ def _sub(text, domain, subgroups, fallback):
     return fallback
 
 def classify(rec):
-    text = _text(rec)
+    fields = _fields(rec)
+    text = " ".join(fields.values())
     votes = Counter()
     for tag, pat, boost in tag_patterns:
-        if pat.search(text):
-            votes[tag_to_group[tag]] += len(tag) * boost
+        # A tag scores once, at the weight of the strongest field it appears in.
+        weight = max((w for f, w in FIELD_WEIGHT.items() if pat.search(fields[f])), default=0)
+        if weight:
+            votes[tag_to_group[tag]] += weight * boost
     label = votes.most_common(1)[0][0] if votes else None
     if label is None:
         domain = rec.get("domain", "").lower().strip()
