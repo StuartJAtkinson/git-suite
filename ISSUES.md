@@ -219,5 +219,5 @@ _Pipeline gap — the built app implements "absorb = repo→hub"; the intended m
 - [x] **All file paths hardcoded to H:\GitHub\\** — both scripts now use `Path(__file__).parent`; outputs live in the project folder *(resolved 2026-05-24)*
 
 ## Needs input (Auto Continue)
-*Left by Auto Continue 2026-09-05 — decide these, then clear CONSIDERATIONS.md.*
-- Which hex value will serve as the single token for the "warn/highlight amber text" role (`#92400e`, `#b45309`, `#78350f`) and for the "light-blue info tag" role (`#eff6ff`, `#dbeafe`, `#e6effa`), considering their current interchangeable usage?
+*Left by Auto Continue 2026-09-08 — decide these, then clear CONSIDERATIONS.md.*
+- Which hex value becomes the single token for "warn/highlight amber text" (options: `#92400e`, `#b45309`, `#78350f`)? Which hex value becomes the single token for "light-blue info tag" (options: `#eff6ff`, `#dbeafe`, `#e6effa`)?
