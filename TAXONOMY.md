@@ -27,9 +27,12 @@ Applied in this order when placing a repo:
 2. **File by what it does, not what it's packaged in.** Docker is delivery,
    not domain. Nearly everything ships as an image; treating that as signal
    makes Container swallow the corpus.
-3. **File by function, not by object.** `ansible-linux-docker` is an Ansible
-   role that installs Docker — it's configuration management, not
-   containerization. An Ansible role that installs Postgres isn't a database.
+3. **File by function, not by object.** `ansible-linux-docker` ships Ansible
+   *inside* a container so it can manage Linux/Windows/macOS hosts — it's
+   configuration management, not containerization. (Earlier drafts of this
+   line described it as "an Ansible role that installs Docker"; that was
+   wrong about the repo, right about the conclusion.) An Ansible role that
+   installs Postgres isn't a database either.
 4. **Engine vs dataset.** Software that stores and queries → Database.
    Content that happens to be stored → its subject's leaf. Test: *does it
    know what the data means?* `anime-offline-database`, `pc-part-dataset` and
@@ -158,8 +161,64 @@ repos; the Access walk deferred them as open question 9 (Monitoring vs
 Homelab). Substrate-wins + the *what-it-acts-on* test lands them here — they
 act on the homelab itself.
 
-**IaC** — none of the corpus today matches the desired-state signatures
-(Ansible, Terraform, Puppet, Chef). Open question 12.
+**IaC** — the corpus *does* have declarative desired-state members:
+`ansible-linux-docker`, `home-ops` (GitOps), `khuedoan/homelab` (bare disk →
+cluster), and `homelab-mcp`'s Ansible inventory. Discriminator 6 separates
+them from the one-shot imperative installers (`ProxmoxVE`, `Deployrr`).
+Open question 12.
+
+### Walked against Stuart's actual Homelab list *(2026-09-07)*
+
+Fifteen repos checked one at a time. Eleven hold, four don't.
+
+**Confirmed Homelab — already there:** `community-scripts/ProxmoxVE` ·
+`cozystack` · `homebutler` · `homelable` · `homelab-mcp` ·
+`proxmox-vm-autoscale` · `khuedoan/homelab` · `mortennordbye/homelab` ·
+`homelab-core` · `homelab-designer`
+
+**Confirmed Homelab — moved in by this walk:**
+
+- **`Peco602/ansible-linux-docker`** ← Container. Discriminator 2 and 3 both
+  fire: the container is *delivery*, the function is config management across
+  Linux/Windows/macOS hosts. This is the repo the discriminator-3 example is
+  named after, and it was in the wrong leaf the whole time.
+- **`mirceanton/home-ops`** ← Container. "Manage a home Kubernetes cluster
+  using GitOps principles" — declarative desired state (discriminator 6),
+  substrate (5). Not containerization.
+- **`awesome-selfhosted`** ← **Business**. Plainly wrong before; its domain
+  is literally `self-hosting`. Files by subject per open question 2.
+- **`homelab-discovery`** ← Home Automation. Documents/manages home server
+  infrastructure; the smart-home entities pulled it sideways.
+
+**Do NOT hold — these four are in the list but fail the discriminators:**
+
+- **`nevalang/neva`** → **Code & Build Tooling**. It's a dataflow
+  *programming language* (`domain='programming'`, Go). Nothing about it is
+  substrate. This looks like a homelab repo only because it's self-hosted
+  infrastructure-adjacent in spirit; by "what does it act upon", it acts on
+  source code.
+- **`zabbix-docker-monitoring`** → **Monitoring**. Rung 2 already claimed it.
+  Discriminator 2: Docker is the *target*, not the domain; the function is
+  observability. Keeping it in Homelab would re-open question 9 in the
+  opposite direction from `homebutler`/`homelable` — those *are* the homelab,
+  this *watches* one.
+- **`11notes/docker-netbird`** → **Networking**. Rung 2 claimed it. A VPN
+  overlay client that happens to ship as an image (discriminator 2).
+- **`awesome-open-source-supporters`** → **Code & Build Tooling**. "Curates
+  companies offering free services to open-source projects" — the subject is
+  OSS funding, not infrastructure. Its `it support` domain string is the
+  classifier's doing, not the repo's.
+
+**Still open: `jetkvm/kvm`.** Substrate (out-of-band fleet management) vs
+Remote Access (rung 2's proposed leaf — its function is literally "remotely
+control any computer's keyboard, video and mouse"). It's the strongest case
+for Remote Access earning a leaf, and the strongest case against. Folded into
+open question 8.
+
+**Also surfaced: `SimpleHomelab/Deployrr`** sits in Containerization but
+"automates the setup of home servers using Docker Compose". Discriminator 6
+calls it imperative (so not IaC); discriminator 5 calls it substrate (so
+Homelab). Those two disagree — open question 15.
 
 **Evictions from current Homelab (63 → ~25 staying):**
 
@@ -412,11 +471,15 @@ to have repos already scattered across unrelated categories.
     home in the current 32 — it isn't Authentication. Either a Security leaf
     gets earned, or scanners file under the thing they scan (Jira-Lens → Code &
     Build Tooling / IT Support).
-12. **Does IaC earn a leaf?** The corpus has *zero* matches for desired-state
-    signatures (Ansible, Terraform, Pulumi, Puppet, Chef, Salt, Nix). When
-    they arrive, they go Homelab per substrate-wins — but if a fleet-scale
-    "platform config" theme emerges (cross-machine state, declarative
-    orchestration distinct from one-shot installers), it may split.
+12. **Does IaC earn a leaf?** *(corrected 2026-09-07 — an earlier draft of
+    this question claimed the corpus had zero IaC. It doesn't.)* Real
+    desired-state members exist: `Peco602/ansible-linux-docker` (Ansible),
+    `mirceanton/home-ops` (Kubernetes via GitOps), `khuedoan/homelab`
+    (bare disk → cluster), and `bjeans/homelab-mcp` carries an Ansible
+    inventory. Discriminator 6 cleanly separates these from the one-shot
+    imperative installers (`community-scripts/ProxmoxVE`, `Deployrr`). So the
+    question is live, not hypothetical: does declarative fleet config split
+    off from Homelab, or stay as a within-leaf ordering?
 13. **Does Hardware earn a leaf?** `jetkvm/kvm` (IP-KVM), `openhaystack`
     (Find My), `3d-printed-nas`, `gsmarena-scraper` (device data) — each is a
     one-off in Homelab today. If three more arrive, a Hardware leaf becomes
@@ -426,6 +489,12 @@ to have repos already scattered across unrelated categories.
     used in dev work) or device-side tooling (function: installed on the user's
     machine to *make every application look better*)? Same leaf, two
     framings.
+15. **`Deployrr` — imperative installer or substrate?** It automates home
+    server setup via Docker Compose. Discriminator 6 says imperative (so not
+    IaC, stays out of the declarative group); discriminator 5 says substrate
+    (so Homelab, not Containerization). First clean disagreement between those
+    two discriminators. Same shape as question 1 (`ProxmoxVE`), so both should
+    probably be answered together.
 
 ## Caveat on all counts
 
