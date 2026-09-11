@@ -289,9 +289,9 @@
   <div class="actions-row">
     <button on:click={startPull} class="secondary">⤓ Re-pull</button>
     {#if enrichStatus === 'running'}
-      <button on:click={stopEnrich} class="primary">⏸ Stop enriching</button>
+      <button on:click={stopEnrich}>⏸ Stop enriching</button>
     {:else}
-      <button on:click={enrich} class="primary">✨ Enrich</button>
+      <button on:click={enrich}>✨ Enrich</button>
     {/if}
     </div>
   {#if enrichMsg || enrichLog.length}

@@ -3,9 +3,21 @@
 Working state of the theme/category ontology. Supersedes the flat 32-category
 list in `category_dividers.html` as it gets walked theme by theme.
 
-**Status 2026-09-07:** Single Computer rung closed. Access rung walked but
-not closed (questions 7–11). Substrate rung walked but not closed (questions
-1, 6, 9, 12, 13, 14 still hold).
+**Status 2026-09-11:** Single Computer rung closed — the single-node,
+bare-metal material is done. Currently walking the device / homelab material:
+Access rung walked but not closed (questions 7–11), Substrate rung walked but
+not closed (questions 1, 6, 9, 12, 13, 14 still hold).
+
+**This is a manual walk, and stays one.** The scripted classifier
+(`classify_repos.py`) and its borrowed tag vocabulary (`category_tags.json`,
+lifted wholesale from homelab-designer and describing a different corpus) were
+removed on 2026-09-11 along with their outputs `repo_categories.json` and
+`repo_domain_dump.json`. They were producing confident nonsense — `3d Printing`
+into Music, `Adblocking` into Storage, the whole remote-access vocabulary into
+Authentication — and every count they emitted had to be overruled by hand
+anyway. Nothing replaces them. This document is the record of the alignment,
+rung by rung, and the discriminators below are the criteria to apply by hand
+when placing a repo. Do not re-script this.
 
 ## The ordering principle
 
@@ -375,10 +387,11 @@ Members: **mRemoteNG**, **tigervnc**, **neko**
 
 This is the single largest block currently inside Authentication and it isn't
 authentication: the function is *transporting a session*, not *proving an
-identity*. The mechanism is visible in `category_tags.json` — the Authentication
-pool carries ten remote-access tags (`Rdp`, `Vnc`, `Ssh`, `Novnc`, `Guacd`,
-`Putty`, `Teamviewer`, `Remote Desktop`, `Remote Access`, `Remote Management`),
-so anything mentioning RDP or VNC is routed to identity management.
+identity*. The cause was mechanical — the removed tag vocabulary put ten
+remote-access terms (`Rdp`, `Vnc`, `Ssh`, `Novnc`, `Guacd`, `Putty`,
+`Teamviewer`, `Remote Desktop`, `Remote Access`, `Remote Management`) in the
+Authentication pool, so anything mentioning RDP or VNC was routed to identity
+management. Placed by hand, these three go to session transport.
 
 Three members is thin, and it has two plausible homes instead. Open question 8.
 
@@ -426,9 +439,10 @@ to have repos already scattered across unrelated categories.
 
 ## Leaves being dissolved
 
-- **Data & Systems Management (26)** — not a theme, a residue. It's the
-  fallback for `classify_repos.py`'s coarse Development/Infrastructure labels
-  (lines 70, 80). Nothing in it shares a domain with anything else in it.
+- **Data & Systems Management (26)** — not a theme, a residue. It was the
+  fallback bucket for the removed classifier's coarse Development /
+  Infrastructure labels. Nothing in it shares a domain with anything else in
+  it; the members need placing by hand as the walk reaches them.
 - **Arr (17)** — a suffix, not a domain, and it names software not in the
   corpus (no Sonarr/Radarr/Prowlarr anywhere). Real content is acquisition
   (yt-dlp, qBittorrent) + watch-state sync (Simkl/Trakt tooling). Rename.
@@ -498,11 +512,17 @@ to have repos already scattered across unrelated categories.
 
 ## Caveat on all counts
 
-Every category count here is the output of length-weighted keyword voting over
-LLM-written prose (`classify_repos.py:99`). See ISSUES.md — assignments are
-close to arbitrary for any repo whose description lacks a long matching tag,
-and the tag vocabulary describes a *different corpus* (homelab-designer's).
-Treat app placements as suggestions to overrule, not evidence.
+**Every count below the closed rungs is a historical number from a tool that no
+longer exists.** They came out of length-weighted keyword voting over LLM-written
+prose, against a tag vocabulary describing homelab-designer's corpus rather than
+this one. Assignments were close to arbitrary for any repo whose description
+lacked a long matching tag.
+
+Treat them as a rough sense of volume — "Homelab is too big", "Monitoring has
+eaten things it shouldn't" — and nothing more. A count is not evidence that a
+repo belongs where it currently sits. Each rung's real membership is settled by
+hand, by applying the discriminators above, and recorded here as the rung closes.
+The counts disappear from this document rung by rung as that happens.
 
 ## Next
 

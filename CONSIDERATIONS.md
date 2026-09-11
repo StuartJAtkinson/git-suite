@@ -20,3 +20,12 @@ See `TAXONOMY.md` for the decided structure and the discriminators these follow 
    Documents) — charting or maths-teaching?
 6. **Homelab & Server Administration will balloon** to ~80+ once hypervisors,
    orchestration and IaC land. Split it now, or after the whole tree is walked?
+
+## Moved from STYLE.md (2026-09-09 — one question file now)
+
+## Open questions for Auto Continue
+
+One line per question, `- ` prefixed — that is the only shape
+`consideration_items` (atelier-harness `meta/markdown.rs:280`) recognises.
+Answer them inline when atelier interviews this project.
+
