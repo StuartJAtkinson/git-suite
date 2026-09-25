@@ -1,8 +1,9 @@
 # UX conventions — git-suite
 
 Reference document for the SvelteKit UI in `ui/frontend/src/`. It records what
-the code **actually does today**, not what it should do. Open questions live in
-`STYLE.md`; fixable drift from these conventions lives in `ISSUES.md`.
+the code **actually does today**, not what it should do. Open design questions
+live in `CONSIDERATIONS.md`; fixable drift from these conventions lives in
+`ISSUES.md`.
 
 Everything global is in `ui/frontend/src/app.css` (268 lines). Route files carry
 only styles genuinely local to that page — anything used by two or more pages
@@ -56,9 +57,10 @@ families, and are used consistently for these meanings:
 Priority badges `.p1`–`.p4` run red → orange → blue → grey.
 
 > Two of these roles currently have more than one hex in circulation (the
-> amber text and the light-blue info background). Which value wins is an open
-> question in `STYLE.md`, not a convention — don't treat the table above as
-> settled for those two rows.
+> amber text and the light-blue info background). Decisions exist in
+> `ISSUES.md` (Q2 amber → `#b45309`, Q3 light-blue bg → `#1e40af`) but were
+> closed as cosmetic drift with no migration, so the codebase still carries
+> both hexes. Don't treat the table above as settled for those two rows.
 
 ## Shape and spacing
 
