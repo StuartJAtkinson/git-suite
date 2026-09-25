@@ -6,7 +6,8 @@ list in `category_dividers.html` as it gets walked theme by theme.
 **Status 2026-09-11:** Single Computer rung closed — the single-node,
 bare-metal material is done. Currently walking the device / homelab material:
 Access rung walked but not closed (questions 7–11), Substrate rung walked but
-not closed (questions 1, 6, 9, 12, 13, 14 still hold).
+not closed (questions 1, 9, 12, 13, 14, 15 still hold; question 6 resolved
+on 2026-09-11 by the Homelab split below).
 
 **This is a manual walk, and stays one.** The scripted classifier
 (`classify_repos.py`) and its borrowed tag vocabulary (`category_tags.json`,
@@ -50,7 +51,9 @@ Applied in this order when placing a repo:
    know what the data means?* `anime-offline-database`, `pc-part-dataset` and
    `multitudes` all failed this.
 5. **Substrate vs application.** Hypervisors, orchestrators and config
-   management are substrate → Homelab. Applications go to their domain leaf.
+   management are substrate → the Rung 3 substrate leaves
+   (Virtualization & Server Platforms, Orchestration & Infrastructure as
+   Code, Self-Hosted Dashboards). Applications go to their domain leaf.
 6. **Declarative desired-state** distinguishes real IaC (Ansible, Terraform)
    from one-shot imperative installers (ProxmoxVE helper scripts, Deployrr).
 
@@ -70,8 +73,8 @@ compat layers.
 Members: windows95, winutil, linutil, GoAwayEdge, chromeos-apk, puter,
 Windows11-3.0, dotnet9x, Windows-MCP, runwhenidle, netboot.xyz
 
-Absorbs single-machine tooling currently misfiled in Homelab & Server
-Administration.
+Absorbs single-machine tooling currently misfiled in the Homelab leaves
+(Rung 3 substrate).
 
 ### Containerization *(was "Container")*
 Container runtimes and container lifecycle management.
@@ -79,7 +82,8 @@ Container runtimes and container lifecycle management.
 Members: portainer, rancher¹, dockge, podman, watchtower, awesome-docker,
 komodo, proxmox-lxc-autoscale², community-scripts/ProxmoxVE², Deployrr
 
-¹ rancher is orchestration → Homelab.
+¹ rancher is orchestration → Rung 3 substrate (Orchestration &
+   Infrastructure as Code).
 ² Open: does "runs on Proxmox" pull these to Homelab? Substrate-wins says yes.
 
 Latent fault line, not split (leaf too thin): **runtimes** (docker, podman,
@@ -126,58 +130,86 @@ is where edges carry meaning, and that's the specialisation threshold.
 
 ## Rung 3 — Substrate *(WALKED, not closed)*
 
-Leaves: **Homelab & Server Administration · IT Support & Device Management**
+Leaves: **Virtualization & Server Platforms · Orchestration & Infrastructure as Code · Self-Hosted Dashboards · IT Support & Device Management**
 
 Rung 1 was one box. Rung 2 was the wire between boxes. This rung is **the
 fleet**: the systems that turn one box into a place you can run, manage and
-support many boxes. Ascending inside the rung — stand up the box (Homelab),
-then keep the user's hands on the box (IT Support).
+support many boxes. Ascending inside the rung — stand up the box
+(Virtualization), then automate the box (Orchestration & IaC), then put a
+face on the box (Self-Hosted Dashboards), then keep the user's hands on the
+box (IT Support).
 
 Substrate-wins, as decided in rung 1: anything whose function is *creating and
 running more boxes* belongs here, regardless of the host OS or hypervisor
 underneath.
 
-### Homelab & Server Administration
-Provision, orchestrate, observe, dashboard a fleet of self-hosted or
-infrastructure-class systems. Domain-agnostic at the box level — the leaf
-doesn't care what's *running on* the boxes, only that the boxes are running.
+This rung was walked on 2026-09-07 as a single Homelab & Server
+Administration leaf holding ~25 repos; the leaf split into three on
+2026-09-11 once it was clear that hypervisors, orchestration, IaC and
+self-hosted dashboards were four distinct sub-axes that would each grow
+past 20 members on their own (open question 6). Splitting now keeps each
+leaf at rung-3's natural granularity — stand up / automate / face — and
+removes the "wait for the corpus to grow" risk.
 
-**Hypervisor** — already decided (rung 1, footnote on Containerization): a
-hypervisor is substrate regardless of node count. The corpus currently has
-**three real hypervisor members** + one close neighbour:
+### Virtualization & Server Platforms
 
-- **Corsinvest/awesome-proxmox-ve** (rung 2 walk landed it correctly) — meta
-  index, file by subject per question 2
-- **community-scripts/ProxmoxVE** — Proxmox helpers. Open question 1
-  (the Containerization call) was deferred; resolving it pulls this one way
-  or the other.
-- **cozystack/cozystack** — Kubernetes + KubeVirt + Talos as a self-hosted
-  *platform*. It is two layers down at once (Kubernetes is container
-  orchestration; KubeVirt is virtualization) — substrate-wins keeps it in
-  Homelab on the same shape as Proxmox.
-- **jetkvm/kvm** — *hardware IP-KVM*. Not a software hypervisor, but its
-  function is "drive any machine remotely over IP" — that is remote access
-  substrate, and currently it's the only hardware KVM in the corpus. Keep in
-  Homelab unless a Remote Hardware leaf emerges later.
+Provision substrate: hypervisors and the platforms that *stand up the box*.
+What runs *on* the box is out of scope for this leaf; only the platform
+itself counts.
 
-**Orchestration & container platform** — `homelab-core` is fleet
-orchestration; `komodo` is fleet deployment; `Olares` is an "always-on AI
-agent home server" — substrate on the platform axis. `cozystack` covers
-Kubernetes-side orchestration. The rest of the container-management repos
-(runtimes, lifecycle) already live in Containerization.
+Members: community-scripts/ProxmoxVE, cozystack/cozystack, jetkvm/kvm,
+Corsinvest/awesome-proxmox-ve (meta index, file by subject per question 2)
 
-**Self-hosted dashboards & aggregators** — `Heimdall`, `Organizr`,
-`homebutler`, `homelable`, `lg-washer-dryer-card` (Home-Assistant-card
-specialised to laundry). `homebutler`/`homelable` are observability-dashboard
-repos; the Access walk deferred them as open question 9 (Monitoring vs
-Homelab). Substrate-wins + the *what-it-acts-on* test lands them here — they
-act on the homelab itself.
+`jetkvm/kvm` is a hardware IP-KVM, not a software hypervisor — kept here on
+the *what-it-acts-on* test (it is how you reach a box once stood up) and
+the rung's natural ordering. Rung 1's footnote already settled that a
+hypervisor is substrate regardless of node count; `cozystack` is two layers
+down at once (Kubernetes is container orchestration, KubeVirt is
+virtualization) and lands here on the same shape as ProxmoxVE.
 
-**IaC** — the corpus *does* have declarative desired-state members:
-`ansible-linux-docker`, `home-ops` (GitOps), `khuedoan/homelab` (bare disk →
-cluster), and `homelab-mcp`'s Ansible inventory. Discriminator 6 separates
-them from the one-shot imperative installers (`ProxmoxVE`, `Deployrr`).
-Open question 12.
+### Orchestration & Infrastructure as Code
+
+Automate a fleet — declaratively (IaC) or imperatively (run-books) — but
+*not* one-shot install helpers, which stay with the platforms they stand
+up. Discriminators 5 and 6 both fire here; substrate-wins + declarative
+desired-state.
+
+**Container / fleet orchestration:** komodo, homelab-core, Olares
+(platform on top of a fleet)
+
+**IaC (declarative, discriminator 6):** Peco602/ansible-linux-docker (the
+repo discriminator 3 is named after — moved out of Container on
+2026-09-07), mirceanton/home-ops (Kubernetes via GitOps),
+khuedoan/homelab (bare disk → cluster), bjeans/homelab-mcp (Ansible
+inventory). Resolves open question 12 — IaC does earn a leaf, and it is
+this one, sharing it with fleet orchestrators.
+
+**Held pending question 1:** proxmox-vm-autoscale, proxmox-lxc-autoscale
+(Container) — substrate-wins says they belong here; held in Container until
+question 1 (does "runs on Proxmox" pull a repo out of Container) is
+answered for ProxmoxVE itself.
+
+**Imperative installer, same leaf:** SimpleHomelab/Deployrr (open question
+15 — first clean disagreement between discriminators 5 and 6; landed here
+because discriminator 5 wins, same shape as ProxmoxVE).
+
+### Self-Hosted Dashboards
+
+Application-layer UIs that aggregate or admin a homelab from the *outside*.
+This leaf is application, not substrate — discriminators 1, 2 and 3 all
+fire: the dashboard knows what it's looking at (Heimdall bookmarks,
+Organizr service pages), the docker packaging is delivery not domain, the
+function is aggregation not automation.
+
+Members: Heimdall, Organizr, homebutler, homelable, lg-washer-dryer-card
+(Home Assistant card specialised to laundry), homelab-discovery
+
+`homebutler`/`homelable` were held as open question 9 against Monitoring
+on 2026-09-07 (substrate vs function discriminators disagreed for the first
+time). Splitting Homelab resolves it: the function discriminator lands them
+in this leaf, and the substrate discriminator is *also* satisfied (they act
+on the homelab itself), so the disagreement was only with the old
+single-leaf framing.
 
 ### Walked against Stuart's actual Homelab list *(2026-09-07)*
 
@@ -232,7 +264,7 @@ open question 8.
 calls it imperative (so not IaC); discriminator 5 calls it substrate (so
 Homelab). Those two disagree — open question 15.
 
-**Evictions from current Homelab (63 → ~25 staying):**
+**Evictions from the old Homelab & Server Administration leaf (63 → ~25 staying):**
 
 - `glances` → Monitoring (it is observability of a single machine)
 - `Pulse` → Monitoring (observability of a fleet is still observability)
@@ -245,7 +277,8 @@ Homelab). Those two disagree — open question 15.
 - `headscale`, `zoraxy`, `traefik` → Networking (rung 2)
 - `infisical`, `desktop-app` (ivpn), `awesome-scapy`, `unbound` → already
   moved in rung 2
-- `homebutler`, `homelable` → *stays* — substrate-wins for dashboards
+- `homebutler`, `homelable` → *stays* → now lands in **Self-Hosted Dashboards**
+  (open question 9 resolved by the 2026-09-11 split)
 - `gsmarena-scraper` → *out*: device specs scraping, function is
   data-aggregation about phones. Open question 13 (Devices? Webscrawl? or
   Data & Systems Management for now).
@@ -257,9 +290,10 @@ Homelab). Those two disagree — open question 15.
 - `astral` → Code & Build Tooling (GitHub starred-repo manager)
 - `democracy-watcher` → Civic & Public Affairs (already a leaf)
 - `crewAI-examples`, `federated-api-model` (the *other* copy), `graphhopper`
-  → already in Homelab but misclassified by their domain strings; `graphhopper`
-  is OSM *routing* — its function is geospatial, its `it support` match is
-  from the entities list. Should land on Geospatial & Mapping.
+  → already in old Homelab but misclassified by their domain strings;
+  `graphhopper` is OSM *routing* — its function is geospatial, its `it
+  support` match is from the entities list. Should land on Geospatial &
+  Mapping.
 - `ZohoAPI` → Business (Zoho sync)
 - `bloop` → Code & Build Tooling (codebase search)
 - `ossapps` → Wearables/Home Automation (Fitbit clock faces; per its domain
@@ -268,9 +302,9 @@ Homelab). Those two disagree — open question 15.
 - `pc-part-dataset` → IT Support (device specs, see rung-2 discussion; the
   dataset function beats the Storage misclassification)
 - `windows95` → Operating Systems (rung 1)
-- `proxmox-vm-autoscale`, `proxmox-lxc-autoscale` (Container) → Homelab per
-  open question 1 once decided; held here under "stays in current bucket
-  until question 1 is answered"
+- `proxmox-vm-autoscale`, `proxmox-lxc-autoscale` (Container) → **Orchestration & IaC**
+  per open question 1 once decided; held here under "stays in current
+  bucket until question 1 is answered"
 - `3d-printed-nas` → Hardware (open question 13)
 - `openhaystack` → Hardware (Find My network; per its domain `hardware
   hacking` — open question 13)
@@ -279,7 +313,15 @@ Homelab). Those two disagree — open question 15.
   Affairs / Code & Build Tooling (awesome-list-by-subject per question 2)
 - `xpipe` → Code & Build Tooling (server connection manager, function is
   developer tooling)
-- `kvm` (jetkvm) → *stays in Homelab* per the substrate argument above
+- `kvm` (jetkvm) → *stays* → now lands in **Virtualization & Server Platforms**
+  per the substrate argument above
+
+**Migration of the ~25 staying (2026-09-11 split):** the
+hypervisor/platform members → Virtualization & Server Platforms (4);
+fleet orchestrators + IaC + held-proxmox-scalers + Deployrr →
+Orchestration & Infrastructure as Code (9); self-hosted dashboards →
+Self-Hosted Dashboards (6); the remaining ~6 are named in the walked list
+above and stay in the leaf they're already listed under.
 
 ### IT Support & Device Management
 End-user IT and per-device tooling. The rung's "user-facing" band:
@@ -461,10 +503,18 @@ to have repos already scattered across unrelated categories.
    pipeline leaf: Media Pipeline / Media Acquisition / Media Library?
 5. **venn.js exists under 3 keys in 3 categories** (Dashboards, Education &
    Research, Documents). Decide once: charting or maths-teaching?
-6. **Homelab & Server Administration will balloon** — 49 today, plus
+6. **Homelab & Server Administration will balloon** — ~~49 today, plus
    hypervisors, orchestration and IaC, minus single-box tooling leaving for
    Operating Systems. Likely 80+. Will need splitting later on grounds
-   internal to itself, best judged after the whole tree is walked.
+   internal to itself, best judged after the whole tree is walked.~~
+   **Resolved 2026-09-11:** split now, into Virtualization & Server Platforms,
+   Orchestration & Infrastructure as Code, and Self-Hosted Dashboards. The
+   "judge after the whole tree" caveat was set when the leaf was one bucket;
+   the sub-axes (stand up / automate / face) are already obvious without
+   the tree walk, so the wait was costing nothing but the risk of
+   absorbing 30 more repos before splitting. Side effect: open questions 9
+   (dashboard vs Monitoring) and 12 (does IaC earn a leaf) resolved in the
+   same move.
 7. **Is "Access" the right rung name?** Networking, Authentication and Remote
    Access are all about *reaching* a machine; Monitoring is about *watching*
    one. Either the rung is named for three-quarters of itself, or Monitoring
