@@ -6,8 +6,9 @@ list in `category_dividers.html` as it gets walked theme by theme.
 **Status 2026-09-11:** Single Computer rung closed — the single-node,
 bare-metal material is done. Currently walking the device / homelab material:
 Access rung walked but not closed (questions 7–11), Substrate rung walked but
-not closed (questions 1, 9, 12, 13, 14, 15 still hold; question 6 resolved
-on 2026-09-11 by the Homelab split below).
+not closed (questions 1, 9, 12, 13, 14, 15 still hold; questions 5 and 6
+resolved on 2026-09-11 — Q5 implementation landed on 2026-09-25, Q6 by the
+Homelab split below).
 
 **This is a manual walk, and stays one.** The scripted classifier
 (`classify_repos.py`) and its borrowed tag vocabulary (`category_tags.json`,
@@ -502,7 +503,18 @@ to have repos already scattered across unrelated categories.
    leans mime-type for content + pipeline as its own leaf. Name for the
    pipeline leaf: Media Pipeline / Media Acquisition / Media Library?
 5. **venn.js exists under 3 keys in 3 categories** (Dashboards, Education &
-   Research, Documents). Decide once: charting or maths-teaching?
+   Research, Documents). Decide once: charting or maths-teaching? —
+   **Resolved 2026-09-11 (2026-09-25 implementation):** **Data Systems**.
+   venn.js is visualising data (the function), which the Dashboards leaf
+   captures for *dashboards* but not for the broader set-relationship /
+   comparative work that venn-style diagrams do for *data* — business,
+   hobby, or academic. It lands in a new "Data Systems" leaf at Rung 4,
+   alongside Data & Systems Management (the residue bucket that Q5 was
+   actually about) but with a clear differentiator: Data Systems is *what
+   you do with data*, the residue bucket was *ops tooling that happens to
+   touch data*. The split into "Visualising" vs "not-Visualising" stays open
+   (open question 16) until the leaf has enough members to make the cut
+   self-evident; today it has one.
 6. **Homelab & Server Administration will balloon** — ~~49 today, plus
    hypervisors, orchestration and IaC, minus single-box tooling leaving for
    Operating Systems. Likely 80+. Will need splitting later on grounds
@@ -559,6 +571,13 @@ to have repos already scattered across unrelated categories.
     (so Homelab, not Containerization). First clean disagreement between those
     two discriminators. Same shape as question 1 (`ProxmoxVE`), so both should
     probably be answered together.
+16. **Does Data Systems split into Visualising vs not?** Settled on 2026-09-11
+    (Q5) that venn.js belongs in a new Data Systems leaf at Rung 4, distinct
+    from the Data & Systems Management residue. The decision deferred the
+    sub-split — Visualising (charting, diagrams, comparison) vs everything
+    else Data Systems ends up holding — until the leaf has enough members to
+    make the cut self-evident. With one member today, the split is premature;
+    revisit when a fourth or fifth data-tools repo lands here.
 
 ## Caveat on all counts
 
@@ -584,9 +603,14 @@ size after this walk: ~25 members, not 80+, because much of what *was* in
 Homelab was misclassified single-machine tooling that rung 1 evicts.
 
 **Rung 4 — Data & Content** *(proposed)*: Knowledge Base · Dashboards ·
-Data & Systems Management · AI · Photos · Music · Video · Documents. The
-substrate runs out here and the rung turns to *what lives on the box*, not
-the box itself. This is also where the tag-pool issue logged in ISSUES.md
-hurts most — the "Analysis" / "Tracking" / "Manager" tags send nearly every
-one of these to Monitoring right now, so the rung is likely to be the loudest
-single correction in the whole walk.
+Data Systems · Data & Systems Management · AI · Photos · Music · Video ·
+Documents. The substrate runs out here and the rung turns to *what lives on
+the box*, not the box itself. **Data Systems** is the new leaf decided on
+2026-09-11 (open question 5): venn.js lands here; it captures *what you do
+with data* (visualising, comparing, querying, …) and is distinct from Data &
+Systems Management, which is the *ops tooling that happens to touch data*
+residue. The "Visualising vs not" sub-split is held until the leaf has
+enough members to make the cut self-evident. This is also where the tag-pool
+issue logged in ISSUES.md hurts most — the "Analysis" / "Tracking" / "Manager"
+tags send nearly every one of these to Monitoring right now, so the rung is
+likely to be the loudest single correction in the whole walk.
