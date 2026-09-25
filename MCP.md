@@ -24,24 +24,24 @@ the previews**, and keeps the acts behind the UI.
 
 | Tool | Params | Returns | Backs onto |
 |---|---|---|---|
-| `get_plan` | — | the current plan: hubs, members, forbids | `GET /plan` (`routers/plan.py:31`) |
-| `list_hubs` | — | hub repos | `GET /hubs` (`routers/hubs.py:10`) |
-| `list_forbids` | — | pairs explicitly barred from clustering | `GET /plan/forbids` (`routers/plan.py:135`) |
-| `get_cluster` | `session_id` | the clustering result for a session | `GET /cluster/{session_id}` (`routers/cluster.py:316`) |
-| `get_order` | `session_id`, `hub` | the absorb order for a hub | `GET /order/{session_id}/{hub}` (`routers/order.py:87`) |
-| `get_absorb_plan` | `hub`, `repo`, `session_id` | how one repo folds into a hub | `GET /absorb/plan/{hub}/{repo}/{session_id}` (`routers/absorb.py:180`) |
-| `get_migration_plan` | `hub`, `session_id` | the migration view for a hub | `GET /migration/hub/{hub}/{session_id}` (`routers/migration.py:64`) |
-| `preview_execute` | `session_id` | what execution *would* do | `GET /execute/preview/{session_id}` (`routers/execute.py:60`) |
-| `get_install_plan` | `session_id`, `format?` | install steps, text or compose | `GET /install/{session_id}[/text|/compose]` (`routers/installer.py:145`) |
-| `get_promote` | `session_id` | promotion candidates | `GET /promote/{session_id}` (`routers/promote.py:51`) |
+| `get_plan` | — | the current plan: hubs, members, forbids | `GET /api/plan` (`routers/plan.py:31`) |
+| `list_hubs` | — | hub repos | `GET /api/hubs` (`routers/hubs.py:10`) |
+| `list_forbids` | — | pairs explicitly barred from clustering | `GET /api/plan/forbids` (`routers/plan.py:135`) |
+| `get_cluster` | `session_id` | the clustering result for a session | `GET /api/cluster/{session_id}` (`routers/cluster.py:316`) |
+| `get_order` | `session_id`, `hub` | the absorb order for a hub | `GET /api/order/{session_id}/{hub}` (`routers/order.py:87`) |
+| `get_absorb_plan` | `hub`, `repo`, `session_id` | how one repo folds into a hub | `GET /api/absorb/plan/{hub}/{repo}/{session_id}` (`routers/absorb.py:180`) |
+| `get_migration_plan` | `hub`, `session_id` | the migration view for a hub | `GET /api/migration/hub/{hub}/{session_id}` (`routers/migration.py:64`) |
+| `preview_execute` | `session_id` | what execution *would* do | `GET /api/execute/preview/{session_id}` (`routers/execute.py:60`) |
+| `get_install_plan` | `session_id`, `format?` | install steps, text or compose | `GET /api/install/{session_id}[/text|/compose]` (`routers/installer.py:145`) |
+| `get_promote` | `session_id` | promotion candidates | `GET /api/promote/{session_id}` (`routers/promote.py:51`) |
 
 ## Tools — drift and config
 
 | Tool | Params | Returns | Backs onto |
 |---|---|---|---|
-| `drift_status` | — | current drift against the baseline | `GET /drift/status` (`routers/drift.py:15`) |
-| `drift_history` | — | drift over time | `GET /drift/history` (`routers/drift.py:30`) |
-| `llm_status` | — | which providers are configured and reachable | `GET /config/llm-status` (`routers/config.py:134`) |
+| `drift_status` | — | current drift against the baseline | `GET /api/drift/status` (`routers/drift.py:15`) |
+| `drift_history` | — | drift over time | `GET /api/drift/history` (`routers/drift.py:30`) |
+| `llm_status` | — | which providers are configured and reachable | `GET /api/config/llm-status` (`routers/config.py:134`) |
 
 `llm_status` is worth having: after the 2026-08-23 decision the provider chain
 is `openrouter → ollama`, and "which one actually answered" is a real question
@@ -57,14 +57,14 @@ when a clustering run behaves oddly.
 
 ## What must NOT be a tool
 
-- **`DELETE /plan/hub/{name}`, `DELETE /plan/forbid`, `DELETE /cluster/{id}`.**
+- **`DELETE /api/plan/hub/{name}`, `DELETE /api/plan/forbid`, `DELETE /api/cluster/{id}`.**
   Destructive and session-scoped; an agent deleting a hub mid-review loses work
   that took an LLM run to produce.
 - **Execution.** `preview_execute` is exposed; actually executing is not. The
   execute stage moves real repositories. Preview is the honest half.
-- **`GET /gh-token`** (`routers/auth.py:61`) — never. That is a GitHub
+- **`GET /api/gh-token`** (`routers/auth.py:61`) — never. That is a GitHub
   credential; a tool returning it puts it in a model's context.
-- **Anything under `/config` that writes.** Provider keys are entered on the
+- **Anything under `/api/config` that writes.** Provider keys are entered on the
   Setup page.
 
 ## Note on the push action
