@@ -6,9 +6,10 @@ list in `category_dividers.html` as it gets walked theme by theme.
 **Status 2026-09-11:** Single Computer rung closed — the single-node,
 bare-metal material is done. Currently walking the device / homelab material:
 Access rung walked but not closed (questions 7–11), Substrate rung walked but
-not closed (questions 1, 9, 12, 13, 14, 15 still hold; questions 5 and 6
-resolved on 2026-09-11 — Q5 implementation landed on 2026-09-25, Q6 by the
-Homelab split below).
+not closed (questions 1, 9, 12, 13, 14, 15 still hold; questions 4, 5 and 6
+resolved on 2026-09-11 — Q5 implementation landed on 2026-09-25, Q4 and Q6
+by the Media Acquisition + Homelab splits on 2026-09-25; question 17 opened
+on 2026-09-25 to capture the deferred Productivity placement).
 
 **This is a manual walk, and stays one.** The scripted classifier
 (`classify_repos.py`) and its borrowed tag vocabulary (`category_tags.json`,
@@ -478,7 +479,9 @@ to have repos already scattered across unrelated categories.
   sparql.anything, Ontologies, OpenMetadata. All stranded in Data & Systems
   Management. Open: is **RDF** a separate leaf or does it fold in?
 - **Webcrawl** — twitterscraper, tweetext. Thin so far.
-- **Media Pipeline** *(name undecided)* — the renamed Arr. See below.
+- **Media Acquisition** — the renamed Arr: input pipeline for media-for-leisure,
+  mime-agnostic (acquisition + watch-state sync). Output lives in the
+  Video/Music/Photos content leaves. See Q4 resolution.
 
 ## Leaves being dissolved
 
@@ -501,7 +504,18 @@ to have repos already scattered across unrelated categories.
 4. **Media rung is two-dimensional** — mime-type (Video/Music/Photos) vs
    function (the Arr pipeline, which is mime-agnostic within media). Stuart
    leans mime-type for content + pipeline as its own leaf. Name for the
-   pipeline leaf: Media Pipeline / Media Acquisition / Media Library?
+   pipeline leaf: Media Pipeline / Media Acquisition / Media Library? —
+   **Resolved 2026-09-11 (2026-09-25 implementation):** **Media Acquisition**.
+   Arr is one of two input pipelines — the other is Productivity (handles
+   email + documents for the work-productivity pipeline). Both produce media
+   outputs served by the user's normal computers. Arr's real content
+   (acquisition: yt-dlp, qBittorrent; watch-state sync: Simkl/Trakt tooling)
+   maps cleanly to "Media Acquisition" — the mime-typed leaves (Video,
+   Music, Photos) capture the *outputs*, Media Acquisition captures the
+   *throughput*. Productivity stays open: not yet a leaf, placement unclear
+   (the work-productivity pipeline's outputs — email, documents — file under
+   Documents today, but the pipeline itself isn't represented). New open
+   question 17 captures that.
 5. **venn.js exists under 3 keys in 3 categories** (Dashboards, Education &
    Research, Documents). Decide once: charting or maths-teaching? —
    **Resolved 2026-09-11 (2026-09-25 implementation):** **Data Systems**.
@@ -578,6 +592,14 @@ to have repos already scattered across unrelated categories.
     else Data Systems ends up holding — until the leaf has enough members to
     make the cut self-evident. With one member today, the split is premature;
     revisit when a fourth or fifth data-tools repo lands here.
+17. **Does Productivity earn its own leaf, or does it fold into Documents?**
+    Settled on 2026-09-11 (Q4) that Arr and Productivity are the two input
+    pipelines. Arr got a leaf (Media Acquisition) because its contents are
+    mime-agnostic and don't fit any content leaf; Productivity's outputs
+    (email, documents) currently file under Documents — but the *pipeline*
+    itself (the input side: email clients, doc tools) isn't represented.
+    Decide whether Productivity earns a leaf in its own right, or whether
+    the pipeline aspect stays implicit and only the output leaf matters.
 
 ## Caveat on all counts
 
@@ -610,7 +632,12 @@ the box*, not the box itself. **Data Systems** is the new leaf decided on
 with data* (visualising, comparing, querying, …) and is distinct from Data &
 Systems Management, which is the *ops tooling that happens to touch data*
 residue. The "Visualising vs not" sub-split is held until the leaf has
-enough members to make the cut self-evident. This is also where the tag-pool
+enough members to make the cut self-evident. **Media Acquisition** is the
+new leaf decided on 2026-09-11 (open question 4): Arr is one of two input
+pipelines (the other is Productivity) and lands here as a *pipeline* leaf
+(distinct from the mime-typed Video/Music/Photos content leaves that
+capture its outputs); Productivity placement is open (new question 17).
+This is also where the tag-pool
 issue logged in ISSUES.md hurts most — the "Analysis" / "Tracking" / "Manager"
 tags send nearly every one of these to Monitoring right now, so the rung is
 likely to be the loudest single correction in the whole walk.
