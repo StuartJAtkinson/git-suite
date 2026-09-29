@@ -477,7 +477,8 @@ to have repos already scattered across unrelated categories.
   "Activity Watch?" placeholder — they're the same thing.
 - **Ontology** — CommonCoreOntologies, ontologiesUK, skoseditor,
   sparql.anything, Ontologies, OpenMetadata. All stranded in Data & Systems
-  Management. Open: is **RDF** a separate leaf or does it fold in?
+  Management. RDF folds in: it is the storage-and-query layer for the same
+  semantic content, not a separate leaf.
 - **Webcrawl** — twitterscraper, tweetext. Thin so far.
 - **Media Acquisition** — the renamed Arr: input pipeline for media-for-leisure,
   mime-agnostic (acquisition + watch-state sync). Output lives in the
@@ -500,7 +501,11 @@ to have repos already scattered across unrelated categories.
    Containerization?
 2. **Awesome-lists** — file by subject (done so far: awesome-docker,
    awesome-proxmox-ve, awesome-supabase) or pool them in one leaf?
-3. **RDF and Ontology** — one leaf or two?
+3. **RDF and Ontology** — one leaf or two? —
+   **Resolved 2026-09-11 (2026-09-29 implementation):** **One**.
+   RDF is the storage-and-query layer for the same semantic content, so it
+   folds into Ontology rather than earning a separate leaf. Recorded against
+   the "Ontology" entry in "New leaves earned so far" above.
 4. **Media rung is two-dimensional** — mime-type (Video/Music/Photos) vs
    function (the Arr pipeline, which is mime-agnostic within media). Stuart
    leans mime-type for content + pipeline as its own leaf. Name for the
