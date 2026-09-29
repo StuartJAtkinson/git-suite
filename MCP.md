@@ -43,9 +43,11 @@ the previews**, and keeps the acts behind the UI.
 | `drift_history` | — | drift over time | `GET /api/drift/history` (`routers/drift.py:30`) |
 | `llm_status` | — | which providers are configured and reachable | `GET /api/config/llm-status` (`routers/config.py:134`) |
 
-`llm_status` is worth having: after the 2026-08-23 decision the provider chain
-is `openrouter → ollama`, and "which one actually answered" is a real question
-when a clustering run behaves oddly.
+`llm_status` is worth having: the failover chain is whatever the user has
+configured (Setup → LLM provider priority; seven providers are wired —
+`anthropic`, `openai`, `deepseek`, `openrouter`, `xai`, `minimax`, `ollama`),
+and "which one actually answered" is a real question when a clustering run
+behaves oddly.
 
 ## Resources
 

@@ -29,13 +29,17 @@ separate deliberate step against GitHub.
 - [x] Track which repos each hub has absorbed (`plan.json` hubs[].absorbs)
 - [x] Re-scan to verify portfolio matches target (Reconcile / Summary pages)
 
-## Phase 4 — Feature-level pipeline (in progress)
+## Phase 4 — Feature-level pipeline ✅
 The pipeline beyond repo-level absorb: analyse each repo's *features*,
 recommend which features from stars/forks to fold into an owned repo (not
 the whole repo into a hub), align design principles across a hub, and end as
-a guided installer. Detailed steps + status: `ui/ROADMAP.md`'s
-"Architecture model" section and `ISSUES.md`'s Open list.
+a guided installer. All eight architecture steps are built — see `ui/ROADMAP.md`'s
+"Architecture model" section for the per-step status. Open follow-on work
+lives in `ISSUES.md`.
 
 ## Later
 - [x] Scheduled portfolio drift checks
 - [x] One-click "align docs" across a hub (this sweep, automated)
+
+*Updated 2026-09-29 — Phase 4 marked ✅ (all eight architecture steps are built; see
+`ui/ROADMAP.md`). Previously said "in progress" since 2026-09-06.*
