@@ -6,10 +6,11 @@ list in `category_dividers.html` as it gets walked theme by theme.
 **Status 2026-09-11:** Single Computer rung closed — the single-node,
 bare-metal material is done. Currently walking the device / homelab material:
 Access rung walked but not closed (questions 7–11), Substrate rung walked but
-not closed (questions 1, 9, 12, 13, 14, 15 still hold; questions 2, 4, 5
-and 6 resolved on 2026-09-11 — Q2 implementation (file awesome-lists by
-subject) landed on 2026-09-29, Q5 implementation on 2026-09-25, Q4 and Q6
-by the Media Acquisition + Homelab splits on 2026-09-25; question 17 opened
+not closed (questions 9, 12, 13, 14, 15 still hold; questions 1, 2, 4, 5
+and 6 resolved on 2026-09-11 — Q1 implementation (LXC content stays in
+Containerization) and Q2 implementation (file awesome-lists by subject)
+landed on 2026-09-29, Q5 implementation on 2026-09-25, Q4 and Q6 by the
+Media Acquisition + Homelab splits on 2026-09-25; question 17 opened
 on 2026-09-25 to capture the deferred Productivity placement).
 
 **This is a manual walk, and stays one.** The scripted classifier
@@ -83,11 +84,12 @@ Absorbs single-machine tooling currently misfiled in the Homelab leaves
 Container runtimes and container lifecycle management.
 
 Members: portainer, rancher¹, dockge, podman, watchtower, awesome-docker,
-komodo, proxmox-lxc-autoscale², community-scripts/ProxmoxVE², Deployrr
+komodo, proxmox-lxc-autoscale, community-scripts/ProxmoxVE, Deployrr
 
 ¹ rancher is orchestration → Rung 3 substrate (Orchestration &
    Infrastructure as Code).
-² Open: does "runs on Proxmox" pull these to Homelab? Substrate-wins says yes.
+ProxmoxVE and proxmox-lxc-autoscale stay here per question 1 — LXC content
+is containerization regardless of the fact that the platform runs on Proxmox.
 
 Latent fault line, not split (leaf too thin): **runtimes** (docker, podman,
 containerd, runc) vs **lifecycle management** (portainer, dockge, komodo,
@@ -160,8 +162,10 @@ Provision substrate: hypervisors and the platforms that *stand up the box*.
 What runs *on* the box is out of scope for this leaf; only the platform
 itself counts.
 
-Members: community-scripts/ProxmoxVE, cozystack/cozystack, jetkvm/kvm,
-Corsinvest/awesome-proxmox-ve (meta index, file by subject per question 2)
+Members: cozystack/cozystack, jetkvm/kvm, Corsinvest/awesome-proxmox-ve
+(meta index, file by subject per question 2). `community-scripts/ProxmoxVE`
+stays in Containerization — see question 1 (LXC content is containerization,
+so the repo belongs there even though it stands up Proxmox itself).
 
 `jetkvm/kvm` is a hardware IP-KVM, not a software hypervisor — kept here on
 the *what-it-acts-on* test (it is how you reach a box once stood up) and
@@ -188,9 +192,10 @@ inventory). Resolves open question 12 — IaC does earn a leaf, and it is
 this one, sharing it with fleet orchestrators.
 
 **Held pending question 1:** proxmox-vm-autoscale, proxmox-lxc-autoscale
-(Container) — substrate-wins says they belong here; held in Container until
-question 1 (does "runs on Proxmox" pull a repo out of Container) is
-answered for ProxmoxVE itself.
+(Container) — kept in Containerization per question 1: LXC content is
+containerization regardless of running on Proxmox, and VM autoscale is the
+same shape (autoscaler, not stand-up tool — the stand-up helper ProxmoxVE
+itself stays in Containerization for the same reason).
 
 **Imperative installer, same leaf:** SimpleHomelab/Deployrr (open question
 15 — first clean disagreement between discriminators 5 and 6; landed here
@@ -499,7 +504,16 @@ to have repos already scattered across unrelated categories.
 
 1. **Proxmox LXC repos** — does "runs on Proxmox" pull `ProxmoxVE` and
    `proxmox-lxc-autoscale` up to Homelab, or does LXC content keep them in
-   Containerization?
+   Containerization? —
+   **Resolved 2026-09-11 (2026-09-29 implementation):** **LXC content wins
+   — stay in Containerization**. LXCs are containers, so LXC tooling
+   belongs in Containerization regardless of the fact that the platform
+   runs on Proxmox. `community-scripts/ProxmoxVE` is now listed only under
+   Containerization (it was previously duplicated under Homelab), and
+   `proxmox-lxc-autoscale` and `proxmox-vm-autoscale` are kept in
+   Containerization rather than escalated to Orchestration & IaC. The
+   principle: a repo's content decides its leaf, not the platform it runs
+   on.
 2. **Awesome-lists** — file by subject (done so far: awesome-docker,
    awesome-proxmox-ve, awesome-supabase) or pool them in one leaf? —
    **Resolved 2026-09-11 (2026-09-29 implementation):** **File by subject**.
