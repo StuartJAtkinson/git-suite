@@ -6,8 +6,9 @@ list in `category_dividers.html` as it gets walked theme by theme.
 **Status 2026-09-11:** Single Computer rung closed — the single-node,
 bare-metal material is done. Currently walking the device / homelab material:
 Access rung walked but not closed (questions 7–11), Substrate rung walked but
-not closed (questions 1, 9, 12, 13, 14, 15 still hold; questions 4, 5 and 6
-resolved on 2026-09-11 — Q5 implementation landed on 2026-09-25, Q4 and Q6
+not closed (questions 1, 9, 12, 13, 14, 15 still hold; questions 2, 4, 5
+and 6 resolved on 2026-09-11 — Q2 implementation (file awesome-lists by
+subject) landed on 2026-09-29, Q5 implementation on 2026-09-25, Q4 and Q6
 by the Media Acquisition + Homelab splits on 2026-09-25; question 17 opened
 on 2026-09-25 to capture the deferred Productivity placement).
 
@@ -500,7 +501,19 @@ to have repos already scattered across unrelated categories.
    `proxmox-lxc-autoscale` up to Homelab, or does LXC content keep them in
    Containerization?
 2. **Awesome-lists** — file by subject (done so far: awesome-docker,
-   awesome-proxmox-ve, awesome-supabase) or pool them in one leaf?
+   awesome-proxmox-ve, awesome-supabase) or pool them in one leaf? —
+   **Resolved 2026-09-11 (2026-09-29 implementation):** **File by subject**.
+   The walk already routes every `awesome-*` repo to the leaf of the
+   domain it curates (Containerization → `awesome-docker`; Business →
+   `awesome-selfhosted`; Code & Build Tooling →
+   `awesome-open-source-supporters`; Homelab → `awesome-proxmox-ve`;
+   Web & API Tooling → `awesome-supabase`; Data & Systems Management →
+   `awesome-neo4j`, `awesome-graph`; etc.) — pooling them into one leaf
+   would force the feature-check step to dereference a meta index every
+   time, and the end aim is to absorb each listed repo's *feature* into
+   an owned primary, not to keep the meta index itself as a destination.
+   If a listed repo's features diverge from its host leaf later, the
+   absorb step can split it again on its own merits.
 3. **RDF and Ontology** — one leaf or two? —
    **Resolved 2026-09-11 (2026-09-29 implementation):** **One**.
    RDF is the storage-and-query layer for the same semantic content, so it
