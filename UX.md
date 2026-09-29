@@ -21,6 +21,10 @@ Declared in one `:root` block at `app.css:264`:
 | `--border` | `#e5e7eb` | every card / panel / section / row border, and the track of progress bars |
 | `--quiet-text` | `#9ca3af` | de-emphasised text: `.quiet`, `.empty`, `.tag.none`, install's DAG edge strokes |
 | `--mono` | `'Consolas', 'Fira Code', monospace` | **all** monospace: repo names, paths, hashes, commands, `kbd`, `.preview-box` |
+| `--brand` | `#0057b7` | brand blue: links, default `<button>`, focus border, `.hub-card:hover`, `.progress-fill` |
+| `--brand-hover` | `#003d8f` | button hover darkens to this |
+| `--brand-rgb` | `0,87,183` | raw RGB triple, used inside `rgba(...)` for the focus ring and hub-card hover shadow |
+| `--muted-text` | `#6b7280` | `.muted`, `.sub`, `.hint`, `.loading`, `.repo-count`, `.ref-url`, `.page-header .crumb`, `.login-card .sub`, `button.secondary` |
 
 There are no other tokens. Everything else below is a literal hex repeated
 across files — see `ISSUES.md` for the ones that should be promoted.

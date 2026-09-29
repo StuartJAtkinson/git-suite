@@ -212,9 +212,7 @@
   padding: 1.25rem;
 }
 .stat-value { font-size: 2rem; font-weight: 700; color: #1a1a2e; }
-.stat-label { font-size: 0.8rem; color: #6b7280; margin-top: 0.2rem; }
-.progress-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 0.5rem; }
-.progress-fill { height: 100%; background: #0057b7; transition: width 0.3s; }
+.stat-label { font-size: 0.8rem; color: var(--muted-text); margin-top: 0.2rem; }
 .hub-progress-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .hub-progress-row {
   display: flex;
@@ -230,11 +228,11 @@
 .hub-tag-sm { font-size: 0.68rem; background: #eff6ff; color: #1e40af; border-radius: 4px; padding: 0.1em 0.4em; }
 .hub-bars { flex: 1; display: flex; gap: 1rem; align-items: center; }
 .mini-bar-group { display: flex; align-items: center; gap: 0.35rem; flex: 1; }
-.mini-label { font-size: 0.7rem; color: #6b7280; width: 38px; }
+.mini-label { font-size: 0.7rem; color: var(--muted-text); width: 38px; }
 .mini-bar { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
-.mini-fill.absorb { background: #0057b7; height: 100%; }
+.mini-fill.absorb { background: var(--brand); height: 100%; }
 .mini-fill.archive { background: #d97706; height: 100%; }
-.mini-count { font-size: 0.72rem; color: #6b7280; width: 36px; text-align: right; }
+.mini-count { font-size: 0.72rem; color: var(--muted-text); width: 36px; text-align: right; }
 .ghost-note { font-size: 0.72rem; color: var(--quiet-text); }
 .empty-small { color: var(--quiet-text); font-size: 0.85rem; }
 .actions-list { display: flex; flex-direction: column; gap: 0.6rem; }
@@ -251,6 +249,6 @@
 .repo-chip { font-size: 0.75rem; background: #f3f4f6; border: 1px solid var(--border); border-radius: 4px; padding: 0.2rem 0.5rem; font-family: var(--mono); }
 .orphan-list { display: flex; flex-direction: column; gap: 0.25rem; }
 .orphan-row { display: flex; gap: 0.6rem; align-items: baseline; padding: 0.25rem 0; }
-.orphan-desc { font-size: 0.78rem; color: #6b7280; }
+.orphan-desc { font-size: 0.78rem; color: var(--muted-text); }
 .empty, .empty-small { color: var(--quiet-text); font-size: 0.85rem; }
 </style>
