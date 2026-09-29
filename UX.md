@@ -26,8 +26,14 @@ Declared in one `:root` block at `app.css:264`:
 | `--brand-rgb` | `0,87,183` | raw RGB triple, used inside `rgba(...)` for the focus ring and hub-card hover shadow |
 | `--muted-text` | `#6b7280` | `.muted`, `.sub`, `.hint`, `.loading`, `.repo-count`, `.ref-url`, `.page-header .crumb`, `.login-card .sub`, `button.secondary` |
 
-There are no other tokens. Everything else below is a literal hex repeated
-across files — see `ISSUES.md` for the ones that should be promoted.
+Beyond the tokens above, every hex in this section is a literal that is
+intentionally unpromoted — they are the semantic palette (success / info /
+warn / danger / neutral / docs) used by `.cat-*`, `.tag.*`, `.p1`-`.p4`,
+`.gap-pill`, etc., and they are documented inline so reviewers can audit the
+pair (background + text) against intent. Route files that need brand or
+muted grey should consume `var(--brand)` / `var(--muted-text)` — see
+`ISSUES.md` for the routes still using the raw hex after the token
+promotion.
 
 ## Colour
 
