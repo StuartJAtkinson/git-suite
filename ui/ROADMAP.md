@@ -5,8 +5,8 @@ of hub platforms. It treats the plan as **data**, continuously **reconciles**
 intent against live GitHub, and turns decisions into real, idempotent actions.
 
 > Status: the staged plan (Setup → Scan → Cluster → Own → Order → Triage →
-> Execute → Summary) is built and well past its original scope. This doc
-> describes what actually exists.
+> Execute → **Install** → Summary) is built and well past its original scope.
+> This doc describes what actually exists.
 
 ---
 
@@ -125,8 +125,9 @@ All eight steps are built. Remaining work is tracked in
 | **Cluster** ("Themes") | An **iterative refinement surface**, not a one-shot render. **✨ Group by themes** bundles **owned repos AND starred repos** (every repo's distilled purpose/entities/domain + the full README, iteratively summarised to fit the active model's context budget) and asks the configured LLM chain to name each theme after the *human activity* the repos serve, never a tech-stack bucket (no "python", "data", "tools"). Stars are identified to the LLM by full `owner/repo` (owned repos by bare name) so same-named stars from different orgs never collide. **⬇ Download prompt (.txt)** exports the identical system+user prompt as a file for pasting into any external chat LLM; **↥ Import result** parses that LLM's JSON reply back into the same theme cards. Each theme card shows a **margin bar** (1 − Jaccard token overlap vs. its nearest neighbour; thin/ok/wide) and supports **merge with nearest**, **split** (checkbox-select members → peel into a new card), **move** a single member to another card or to unplaced, **rename** (click the title), and **delete** (members return to unplaced). All five mutate the saved `cluster_result` in place via `POST /cluster/{sid}/merge\|split\|move\|rename\|delete`. Themes are cached per-session; promoting a theme into a real hub happens on **Promote**, not here |
 | **Own** | Step 3 — owned forks with upstream status (parent, private-upstream flag), current verdict + cluster; per-fork decide promote (→ keep / absorb into a hub) or drop (→ archive), and generate a git detach checklist (GitHub has no de-fork API, so the move is yours to run) |
 | **Order** | Per-hub Tree-of-Knowledge layout — one ordered list of a hub's members (foundational first, presentation last); three classification checkboxes (Gather / Analyse / Display) act as filters; per-row arrow reordering + per-row and per-hub LLM Suggest; **✨ Features** per row asks the LLM to identify the repo's concrete features (architecture Step 5), saved immediately into `feature_annotations`; per-hub compat-tag vocabulary override |
-| **Triage** | Keyboard-fast verdict queue (1–N absorb, a/k/o/s); stub badges |
+| **Triage** | Keyboard-fast verdict queue (1–N absorb, a/k/o/s); stub badges; per-orphan **best-hub recommendation** folded into the card stream as a `💡` hint, a `✅` one-click "Absorb into …", or a `⭐` copy-URL row for starred repos you unstar yourself on github.com (architecture Step 6) |
 | **Execute** | Dry-run preview diffed against live GitHub, then idempotent batch actions: archive repos, create missing hubs, push composed hub READMEs (which include the ToK ordering subsection) + per-absorb migration checklists / MIGRATION.md; hub lifecycle (archive / return / delete) |
+| **Install** | Read-only hand-off (architecture Step 8). Renders the per-hub install DAG (Wikidata SPARQL over `P279`/`P361` with a local `plan.json` fallback) as a d3-force bubble layout, with manual Wikidata Q-id mapping per hub. Exports the manifest as JSON / install-order `.txt` / Docker compose fragment. git-suite is the planning/analysis/recommendation/install **brain**, not the installer — nothing on this page pushes to GitHub or mutates `plan.json` |
 | **Summary** | Reconciliation dashboard: live / absorbed / archived / undecided / ghost / stub counts, per-hub progress, **hub members + orphan repos** (the former Hub Audit, merged in), next-action list |
 
 ---
@@ -180,6 +181,8 @@ services/
   migration.py     absorb checklist + scaffold + MIGRATION.md
   promote.py       fork detach checklist (Step 3 "Own")
   stars.py         starred-repo snapshot (refresh / list)
+  wikidata.py      per-hub install DAG (SPARQL over P279/P361 with local
+                   plan.json fallback; cached by sorted Q-id set)
   models.py        live model listing per provider dialect (no static lists)
   columns.py       Order-page column names + default compat tags
 routers/
@@ -188,7 +191,9 @@ routers/
                    session
   scan            start + WebSocket stream + results + latest + distill
   cluster         propose (saved_only or explicit recompute) / prompt (.txt
-                   export) / import (external LLM JSON reply) / form hub
+                   export) / import (external LLM JSON reply) / form hub /
+                   merge / split / move / rename / delete (iterative refinement,
+                   mutates the saved `cluster_result` in place)
   promote         list forks / decide promote|drop / detach checklist
   stars           refresh starred snapshot / list
   order           per-hub ToK layout: get/save/suggest-order/suggest-column/
@@ -202,6 +207,16 @@ routers/
   plan            get / reset / blank / clear / hub upsert+remove / verdict / hub-boundary
   execute         preview / archive / create-hubs / push-readmes / archive-hubs / unarchive-hubs / delete-hubs
   migration       hub status / checklist (LLM or rule) / push MIGRATION.md
+  wikidata        per-hub DAG fetch (SPARQL with local fallback) + manual
+                  wikidata_id mapping per hub
+  installer       install manifest (JSON) / install-order text / Docker
+                  compose fragment / manifest validation (read-only — does
+                  not push to GitHub or mutate plan.json)
+  absorb          per-repo absorb plan + checklist (sourced into the
+                  Execute runbook)
+  drift           scheduled portfolio drift: latest snapshot + history
+  recommend       per-orphan best-hub recommendation (Step 6; two-tier
+                  confidence; folded into the Triage card stream)
 ```
 
 State: `~/.git-suite/plan.json` (plan), `~/.git-suite/config.json` (keys),
@@ -235,3 +250,15 @@ across different starred orgs). Docker deployment removed (local dev is
 the only supported path); dead k-means `services/cluster.py` deleted;
 architecture Step 5 (Feature-identify) built — Order page's ✨ Features
 button. **122 tests green.**
+
+*Last updated: 2026-09-29 — doc-correction pass brought the architecture doc
+back in line with the shipped app: workflow chain and Pages table now
+include the **Install** stage (architecture Step 8; absent from this doc
+since the page shipped in 2026-07-27), the Triage row now mentions the
+per-orphan best-hub recommendation (architecture Step 6), the Backend
+layout now lists the `wikidata` service and the `wikidata` / `installer`
+/ `absorb` / `drift` / `recommend` routers (all five mounted under `/api`
+since the relevant pages shipped — `installer` tag is `install`), and the
+`cluster` router description now lists the `merge / split / move /
+rename / delete` mutation endpoints that drive iterative refinement.
+**195 tests green** (line 36 is the live count).*
