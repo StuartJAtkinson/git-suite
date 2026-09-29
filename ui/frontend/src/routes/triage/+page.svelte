@@ -181,7 +181,7 @@
           {/each}
         </div>
         <div class="actions-row" style="margin-top:0.75rem;">
-          <button class="archive-btn" disabled={busy === active.name} on:click={() => decide(active, 'archive', active.hub)}>
+          <button class="danger" disabled={busy === active.name} on:click={() => decide(active, 'archive', active.hub)}>
             <span class="key">a</span> Archive
           </button>
           <button class="success" disabled={busy === active.name} on:click={() => decide(active, 'keep')}>
@@ -232,8 +232,6 @@
   .verdict-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.4rem; margin-top: 1rem; }
   .hub-btn { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; text-align: left; font-size: 0.82rem; }
   .hub-btn:hover:not(:disabled) { background: #dbeafe; }
-  .archive-btn { background: #f59e0b; }
-  .archive-btn:hover:not(:disabled) { background: #d97706; }
   .key { display: inline-block; min-width: 1.1em; text-align: center; font-family: var(--mono); font-weight: 700; background: rgba(0,0,0,0.12); border-radius: 3px; padding: 0 0.25em; margin-right: 0.35em; font-size: 0.8em; }
 
   .repo-row { cursor: pointer; }
