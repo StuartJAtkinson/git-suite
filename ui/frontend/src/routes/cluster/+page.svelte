@@ -180,8 +180,7 @@
     A refinement surface, not a decision. Group by themes, then merge near-
     duplicates, split bloated clusters, move a stray member, or rename —
     until the lowest margin between any two clusters reads
-    <b>wide</b>. Promote hubs from the <a href="/promote">Promote</a> or
-    <a href="/hubs">Hubs</a> pages once boundaries feel real.
+    <b>wide</b>. Promote hubs from the <a href="/promote">Own</a> page once boundaries feel real.
   </p>
 </div>
 
