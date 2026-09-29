@@ -145,7 +145,7 @@
   {#if !manifest || !manifest.nodes?.length}
     <div class="info-msg centered">
       No hubs in plan.json. Form one on the <a href="/cluster">Cluster</a>
-      page first — Step 8 plans emerge from Step 7's hub DAG.
+      page first — install plans emerge from the hub DAG.
     </div>
   {:else}
     <div class="bar">
