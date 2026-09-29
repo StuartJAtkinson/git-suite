@@ -5,7 +5,7 @@ the code **actually does today**, not what it should do. Open design questions
 live in `CONSIDERATIONS.md`; fixable drift from these conventions lives in
 `ISSUES.md`.
 
-Everything global is in `ui/frontend/src/app.css` (268 lines). Route files carry
+Everything global is in `ui/frontend/src/app.css` (276 lines). Route files carry
 only styles genuinely local to that page — anything used by two or more pages
 gets promoted into `app.css` (that's how `.tag`, `.bar` and `.gap-pill` got
 there).
