@@ -6,7 +6,6 @@
 
 
 ## Open
-- [ ] **RDF and Ontology - one leaf or two?** — decided: One. Implement this decision. *(answered 2026-09-11)*
 - [ ] **Awesome-lists - file each by subject (as done so far with awesome-docker, awesome-proxmox-ve, awesome-supabase) or pool them into one leaf?** — decided: I think in the subject they're relevant to is the way as the end aim of this project is to feature check the listed repos and absorb into a primary potentially splitting again. At the feature check other repos that are listed in awessome can also be looped through to see which to feature mine.. Implement this decision. *(answered 2026-09-11)*
 - [ ] **Proxmox LXC repos - does "runs on Proxmox" pull `community-scripts/ProxmoxVE` and `proxmox-lxc-autoscale` up to Homelab, or does their LXC content keep them in Containerization?** — decided: Ah yes containerisation should include lxcs. Implement this decision. *(answered 2026-09-11)*
 - [ ] **Design-consistency sweep (consolidates 19 closed CSS-drift items)** — the SvelteKit app has no token layer: `#0057b7` appears 28x raw, `#6b7280` 40x raw, `.stat`/`.progress-bar`/`.primary` are redeclared per-route, and border-radius/font-size/gap have off-scale one-offs. One pass: promote the repeated hexes to `app.css` custom properties, delete the per-route duplicate rules, snap the off-scale values. Not urgent, not 19 separate issues. *(consolidated 2026-09-11)*
@@ -19,6 +18,7 @@
 ### Raw hexes that should be tokens
 `app.css:264` already establishes the pattern: `:root { --border; --quiet-text; --mono; }`.
 ## Resolved
+- [x] **RDF and Ontology - one leaf or two?** — decided: One. Implement this decision. *(answered 2026-09-11)* — auto-continue *(resolved 2026-09-29)*
 - [x] **The media rung is two-dimensional: mime-type (Video/Music/Photos) versus function (the pipeline, which is mime-agnostic within media) - if the pipeline gets its own leaf, what is it called?** — decided: Arr and productivity tend to be the 2 pipleines for inputs, media for leisure email and documents for the work productivty pipeline. Both of which result in media outputs which are served by normal computers.. Implement this decision. *(answered 2026-09-11)* — auto-continue *(resolved 2026-09-25)*
 - [x] **venn.js exists under 3 keys in 3 categories (Dashboards, Education & Research, Documents) - is it charting or maths-teaching?** — decided: Data systems I think which might be split into Visualising and not... visualising data is like Dashboards but for data business or hobby or academic.. Implement this decision. *(answered 2026-09-11)* — auto-continue *(resolved 2026-09-25)*
 - [x] **Homelab & Server Administration will balloon to ~80+ once hypervisors, orchestration and IaC land - split it now, or after the whole tree is walked?** — decided: Split now. Implement this decision. *(answered 2026-09-11)* — auto-continue *(resolved 2026-09-25)*
