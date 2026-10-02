@@ -505,7 +505,7 @@
   .saved { color: #16a34a; font-size: 0.78rem; }
   .counts { color: #6b7280; font-size: 0.78rem; }
 
-  .propose { background: #faf5ff; border-color: #c4b5fd; margin-bottom: 1rem; }
+  .propose { background: #eff6ff; border-color: #bfdbfe; margin-bottom: 1rem; }
   .propose h4 { margin: 0 0 0.4rem; }
   .propose .rationale { color: #4b5563; font-style: italic; margin: 0.2rem 0 0.6rem; }
   .proposed { margin: 0.2rem 0 0.6rem; padding-left: 1.2rem; font-family: var(--mono); font-size: 0.85rem; }
@@ -540,7 +540,7 @@
   .feature { font-size: 0.72rem; padding: 0.1rem 0.5rem; border-radius: 4px; background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
   .feature-rationale { font-size: 0.74rem; color: #78716c; font-style: italic; margin: 0.3rem 0 0; }
 
-  .suggest-card { flex-basis: 100%; margin-top: 0.4rem; background: #f5f3ff; border: 1px solid #c4b5fd; border-radius: 6px; padding: 0.5rem 0.7rem; }
+  .suggest-card { flex-basis: 100%; margin-top: 0.4rem; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 0.5rem 0.7rem; }
 
   .align-card { padding: 0.7rem 0.9rem 0.9rem; }
   .align-summary { font-size: 0.84rem; color: #4b5563; margin: 0 0 0.7rem; line-height: 1.45; }
