@@ -46,3 +46,7 @@ Questions 1–6 predate the rung 2/3 walks; 7–15 came out of them.
 One line per question, `- ` prefixed — that is the only shape
 `consideration_items` (atelier-harness `meta/markdown.rs:280`) recognises.
 Answer them inline when atelier interviews this project.
+
+## Cosmetic drift
+
+- **UX.md drift: raw hex literals + bespoke .btn-remove (moved from ISSUES 2026-10-03, not defects)** — Brand-token migration is half-done — route files still use raw `#0057b7` and `#6b7280` literals after the tokens were promoted to `app.css`; Setup uses bespoke `.btn-remove` class for destructive actions instead of the documented `.danger`. Full site lists are in git history of ISSUES.md.
