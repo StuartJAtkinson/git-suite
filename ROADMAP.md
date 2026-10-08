@@ -1,5 +1,18 @@
 # Roadmap — git-suite
 
+> **Auto Continue reads this file.** The `feature` phase takes the first unchecked
+> `- [ ]` line below as its whole brief and ticks it by exact text, so milestones and
+> phases are headings and every slice is one commit-sized, self-contained line.
+> **Human-only** items carry no checkbox, so Auto never picks them up.
+
+**Now:** no milestone queued — Phases 1–4 and Later are shipped (Phase 4 marked ✅
+2026-09-29). Reviewed 2026-10-09: the next real work is a human taxonomy walk, not a feature.
+Docker deployment was removed on purpose (2026-07-23), so no deploy milestone either.
+
+**Human-only:** answer the 15 taxonomy questions in CONSIDERATIONS.md. They are numbered
+(`1.`), which Auto's pause count and interview don't see yet — atelier-harness ROADMAP M2b
+fixes that.
+
 Self-hosted web app for consolidating a sprawling GitHub portfolio into a small
 set of maintained "hubs" (absorb / archive / keep). Hubs are not predefined — they
 emerge from the live GitHub scan (cluster → promote/create) and are processed
