@@ -374,7 +374,7 @@
   .margin-summary.flag-ok { background: #fffbeb; color: #b45309; }
   .margin-summary.flag-wide { background: #ecfdf5; color: #047857; }
 
-  .primary { background: #0057b7; color: #fff; border: none; border-radius: 6px;
+  .primary { background: var(--brand); color: #fff; border: none; border-radius: 6px;
     padding: 0.6rem 0.75rem; font-size: 0.88rem; font-weight: 700;
     cursor: pointer; width: 100%; }
   .primary:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -426,8 +426,8 @@
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card-title:hover { text-decoration: underline; }
   .name-edit { font-size: 1rem; font-weight: 700; width: 100%; padding: 0.15rem 0.3rem;
-    border: 1px solid #0057b7; border-radius: 4px; }
-  .card-count { font-size: 0.74rem; color: #6b7280; margin-top: 0.25rem;
+    border: 1px solid var(--brand); border-radius: 4px; }
+  .card-count { font-size: 0.74rem; color: var(--muted-text); margin-top: 0.25rem;
     display: flex; align-items: center; gap: 0.5rem; }
   .card-stars { color: #b45309; font-weight: 600; }
   .card-desc { font-size: 0.8rem; color: #4b5563; margin-top: 0.35rem; line-height: 1.4; }
@@ -451,7 +451,7 @@
   .cell-title { font-family: var(--mono); font-size: 0.84rem; font-weight: 600;
     color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     text-decoration: none; display: block; margin-bottom: 0.3rem; }
-  .cell-title:hover { color: #0057b7; text-decoration: underline; }
+  .cell-title:hover { color: var(--brand); text-decoration: underline; }
   .cell-sub { display: flex; gap: 0.55rem; align-items: center; font-size: 0.74rem;
     color: #4b5563; line-height: 1.4; }
   .domain-pill { background: #e6effa; color: #1e40af; padding: 0.05rem 0.45em;

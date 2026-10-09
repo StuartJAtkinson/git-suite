@@ -255,14 +255,14 @@
                 {@const isRepo = n.kind === 'repo'}
                 <g transform={`translate(${n.x ?? 0}, ${n.y ?? 0})`}>
                   <circle r={isRoot ? 22 : isRepo ? 14 : 16}
-                          fill={isRoot ? '#0057b7' : isRepo ? '#f59e0b' : '#fff'}
-                          stroke={isRoot ? '#0057b7' : '#6b7280'}
+                          fill={isRoot ? 'var(--brand)' : isRepo ? '#f59e0b' : '#fff'}
+                          stroke={isRoot ? 'var(--brand)' : 'var(--muted-text)'}
                           stroke-width="1" />
                   <text y="4" text-anchor="middle" font-size="11"
                         fill={isRoot ? '#fff' : '#111827'}>
                     {(n.label || n.qid).slice(0, 12)}
                     <tspan x="0" dy="13" font-size="9"
-                           fill={isRoot ? '#e0f2fe' : '#6b7280'}>{n.qid}</tspan>
+                           fill={isRoot ? '#e0f2fe' : 'var(--muted-text)'}>{n.qid}</tspan>
                   </text>
                 </g>
               {/each}
@@ -312,10 +312,10 @@
     padding: 0.4rem 0.9rem; font-size: 0.85rem; cursor: pointer;
     color: #4b5563; display: inline-flex; align-items: center; gap: 0.35rem; }
   .hub-tab:hover { background: #f3f4f6; }
-  .hub-tab.is-active { background: #0057b7; color: #fff;
-    border-color: #0057b7; font-weight: 600; }
-  .hub-tab.is-active .badge { background: #fff; color: #0057b7; }
-  .badge { background: #0057b7; color: #fff; font-size: 0.65rem;
+  .hub-tab.is-active { background: var(--brand); color: #fff;
+    border-color: var(--brand); font-weight: 600; }
+  .hub-tab.is-active .badge { background: #fff; color: var(--brand); }
+  .badge { background: var(--brand); color: #fff; font-size: 0.65rem;
     padding: 0.05rem 0.4rem; border-radius: 3px; font-weight: 700; }
 
   .install-order { list-style: none; padding: 0; margin: 0;
@@ -324,23 +324,23 @@
     border-radius: 8px; padding: 0.7rem 0.9rem; }
   .step-head { display: flex; align-items: center; gap: 0.5rem; }
   .step-num { font-weight: 700; color: #111827; min-width: 1.7rem; }
-  .step-head code { font-size: 1rem; font-weight: 700; color: #0057b7; }
+  .step-head code { font-size: 1rem; font-weight: 700; color: var(--brand); }
   .hub-url { margin-left: auto; font-size: 0.8rem; text-decoration: none;
-    color: #0057b7; }
+    color: var(--brand); }
   .hub-url:hover { text-decoration: underline; }
   .hub-desc { font-size: 0.86rem; color: #4b5563; margin-top: 0.35rem;
     line-height: 1.45; }
-  .hub-deps { font-size: 0.78rem; color: #6b7280; margin-top: 0.3rem; }
+  .hub-deps { font-size: 0.78rem; color: var(--muted-text); margin-top: 0.3rem; }
   .hub-members { font-size: 0.8rem; color: #4b5563; margin-top: 0.4rem;
     display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
   .hub-members code { font-size: 0.74rem; background: #f3f4f6;
     padding: 0.1rem 0.4rem; border-radius: 3px; }
   .hub-wd { font-size: 0.78rem; color: #4b5563; margin-top: 0.4rem;
     display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-  .hub-wd a { color: #0057b7; text-decoration: none; }
+  .hub-wd a { color: var(--brand); text-decoration: none; }
   .hub-wd a:hover { text-decoration: underline; }
   .link-btn { background: none; border: none; padding: 0; cursor: pointer;
-    color: #0057b7; font-size: 0.78rem; text-decoration: underline; }
+    color: var(--brand); font-size: 0.78rem; text-decoration: underline; }
 
   /* DAG canvas. */
   .hub-dag { background: #fff; border: 1px solid var(--border);

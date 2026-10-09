@@ -216,11 +216,11 @@
   .statbar { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.75rem; }
   .stat { font-size: 0.8rem; padding: 0.2rem 0.55rem; border-radius: 5px; background: #eef1f6; color: #374151; }
   .stat b { font-size: 0.95rem; }
-  .ghost-stat { background: #f3f4f6; color: #6b7280; }
-  .toggle { flex-direction: row; align-items: center; gap: 0.4rem; font-weight: 400; color: #6b7280; margin-top: 0.9rem; }
+  .ghost-stat { background: #f3f4f6; color: var(--muted-text); }
+  .toggle { flex-direction: row; align-items: center; gap: 0.4rem; font-weight: 400; color: var(--muted-text); margin-top: 0.9rem; }
   .toggle input { width: auto; }
 
-  .active-card { background: #fff; border: 2px solid #0057b7; border-radius: 12px; padding: 1.25rem 1.4rem; margin-top: 1rem; box-shadow: 0 4px 18px rgba(0,87,183,0.12); }
+  .active-card { background: #fff; border: 2px solid var(--brand); border-radius: 12px; padding: 1.25rem 1.4rem; margin-top: 1rem; box-shadow: 0 4px 18px rgba(var(--brand-rgb), 0.12); }
   .active-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
   .repo-name.big { font-size: 1.15rem; font-weight: 700; flex: none; }
   .counter { margin-left: auto; font-size: 0.8rem; color: var(--quiet-text); }
@@ -235,7 +235,7 @@
   .key { display: inline-block; min-width: 1.1em; text-align: center; font-family: var(--mono); font-weight: 700; background: rgba(0,0,0,0.12); border-radius: 3px; padding: 0 0.25em; margin-right: 0.35em; font-size: 0.8em; }
 
   .repo-row { cursor: pointer; }
-  .repo-row.active-row { border-color: #0057b7; background: #eff6ff; }
+  .repo-row.active-row { border-color: var(--brand); background: #eff6ff; }
   kbd { font-family: var(--mono); background: var(--border); border-radius: 3px; padding: 0 0.3em; font-size: 0.85em; }
 
   /* Step 6: recommendation row (one of three) */

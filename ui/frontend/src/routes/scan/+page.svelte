@@ -394,7 +394,7 @@
 
 <style>
   table.records { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
-  table.records th { text-align: left; color: #6b7280; font-weight: 600; border-bottom: 2px solid var(--border); padding: 0.3rem 0.5rem; }
+  table.records th { text-align: left; color: var(--muted-text); font-weight: 600; border-bottom: 2px solid var(--border); padding: 0.3rem 0.5rem; }
   table.records th.sortable { cursor: pointer; user-select: none; }
   table.records th.sortable:hover { background: #f1f5f9; color: #1e293b; }
   table.records th .caret { color: var(--quiet-text); font-size: 0.7rem; margin-left: 0.15rem; font-weight: 400; }
@@ -406,11 +406,11 @@
   tr.warn:hover td { background: #ffedd5; }
   td.src { text-align: center; }
   td.name a { color: #1e293b; font-family: var(--mono); }
-  td.name a.readme { font-size: 0.66rem; color: #6b7280; margin-left: 0.3rem; }
+  td.name a.readme { font-size: 0.66rem; color: var(--muted-text); margin-left: 0.3rem; }
   td.purpose { color: #1e293b; max-width: 280px; }
   td.domain .domain-pill { background: #e6effa; color: #1e40af; border-radius: 4px; padding: 0.1em 0.45em; font-size: 0.72rem; }
-  td.entities { color: #6b7280; max-width: 220px; }
-  td.hub { color: #6b7280; }
+  td.entities { color: var(--muted-text); max-width: 220px; }
+  td.hub { color: var(--muted-text); }
   td.stars { color: var(--quiet-text); text-align: right; }
   td.note-cell { padding: 0.18rem 0.5rem; }
   td.note-cell .note-input {
@@ -420,7 +420,7 @@
   }
   td.note-cell .note-input:focus { outline: none; border-color: #1e40af; box-shadow: 0 0 0 2px #e6effa; }
   td.note-cell .note-input::placeholder { color: #cbd5e1; }
-  td.note-cell .note-saving { font-size: 0.7rem; color: #6b7280; margin-left: 0.3rem; }
+  td.note-cell .note-saving { font-size: 0.7rem; color: var(--muted-text); margin-left: 0.3rem; }
   .muted-small { color: var(--quiet-text); font-size: 0.74rem; font-weight: 400; margin-left: 0.5rem; }
   ul.warnlist { list-style: none; padding: 0; margin: 0; }
   ul.warnlist li { padding: 0.35rem 0.5rem; border-bottom: 1px solid #f1f5f9; display: flex; gap: 0.6rem; align-items: baseline; }

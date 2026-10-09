@@ -151,7 +151,7 @@
      so they scale with the Font size control like everything else on the page */
   .tag-row :global(.tag) { font-size: 0.7em; }
   .tag-row :global(.lang-tag) { font-size: 0.72em; }
-  .entities { margin: 0; font-size: 0.62em; color: #6b7280; overflow-wrap: break-word; }
+  .entities { margin: 0; font-size: 0.62em; color: var(--muted-text); overflow-wrap: break-word; }
   .purpose {
     margin: 0; font-size: 0.7em; color: #374151; line-height: 1.3;
     overflow-wrap: break-word;

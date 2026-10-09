@@ -390,7 +390,7 @@
   .repo-row.sel { cursor: pointer; gap: 0.6rem; }
   .repo-row.sel input { width: auto; }
   .repo-row.dim { opacity: 0.55; }
-  .aim { font-size: 0.78rem; color: #6b7280; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45%; }
+  .aim { font-size: 0.78rem; color: var(--muted-text); margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45%; }
   .confirm-box { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; padding: 0.9rem 1.1rem; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; }
   .confirm { flex-direction: row; align-items: center; gap: 0.5rem; font-weight: 500; color: #92400e; }
   .confirm input { width: auto; }

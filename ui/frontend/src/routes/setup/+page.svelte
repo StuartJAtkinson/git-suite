@@ -254,7 +254,7 @@
             <span class="gh-user">{$session.github_user}</span>
             <span class="gh-sub">connected</span>
           </div>
-          <button class="btn-remove" on:click={disconnect}>Disconnect</button>
+          <button class="danger sm" on:click={disconnect}>Disconnect</button>
         </div>
         <p class="hint" style="margin:0.75rem 0 0">Next step: run a <a href="/scan">Scan</a> to pull the live portfolio.</p>
       {:else}
@@ -303,7 +303,7 @@
           <div class="provider-controls">
             <button class="btn-icon" on:click={() => movePriority(provider, -1)} disabled={i===0}>↑</button>
             <button class="btn-icon" on:click={() => movePriority(provider, 1)} disabled={i===orderedConfigured.length-1}>↓</button>
-            <button class="btn-remove" on:click={() => removeProvider(provider)}>Remove</button>
+            <button class="danger sm" on:click={() => removeProvider(provider)}>Remove</button>
           </div>
         </div>
         {#if meta[provider]?.needs_key !== false}
@@ -412,25 +412,24 @@
 .status-label { font-weight: 600; }
 .chain-item { background: rgba(255,255,255,0.7); border-radius: 4px; padding: 0.1em 0.45em; font-family: var(--mono); }
 .chain-item.head { font-weight: 700; }
-.chain-model { color: #6b7280; font-size: 0.92em; }
+.chain-model { color: var(--muted-text); font-size: 0.92em; }
 .provider-box { border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; }
 .provider-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
-.provider-num { font-size: 0.7rem; font-weight: 700; color: #6b7280; width: 20px; text-align: right; }
+.provider-num { font-size: 0.7rem; font-weight: 700; color: var(--muted-text); width: 20px; text-align: right; }
 .provider-name { font-size: 0.875rem; font-weight: 500; }
-.get-key { font-size: 0.72rem; color: #0057b7; flex: 1; }
+.get-key { font-size: 0.72rem; color: var(--brand); flex: 1; }
 .provider-controls { display: flex; gap: 0.25rem; }
-.btn-icon { background: none; border: 1px solid #d1d5db; border-radius: 4px; padding: 0.15rem 0.4rem; font-size: 0.75rem; cursor: pointer; color: #6b7280; }
+.btn-icon { background: none; border: 1px solid #d1d5db; border-radius: 4px; padding: 0.15rem 0.4rem; font-size: 0.75rem; cursor: pointer; color: var(--muted-text); }
 .btn-icon:disabled { opacity: 0.3; cursor: not-allowed; }
-.btn-remove { background: none; border: none; color: #dc2626; font-size: 0.75rem; cursor: pointer; padding: 0.15rem 0.4rem; }
 .field-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.35rem 0; }
-.field-label { font-size: 0.8rem; color: #6b7280; width: 80px; flex-shrink: 0; }
+.field-label { font-size: 0.8rem; color: var(--muted-text); width: 80px; flex-shrink: 0; }
 .field-input { flex: 1; padding: 0.35rem 0.6rem; border: 1px solid #d1d5db; border-radius: 5px; font-size: 0.875rem; font-family: var(--mono); }
-.field-input:focus { outline: none; border-color: #0057b7; box-shadow: 0 0 0 2px rgba(0,87,183,0.1); }
+.field-input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px rgba(var(--brand-rgb), 0.1); }
 .add-section { margin-top: 0.5rem; }
-.add-label { font-size: 0.78rem; color: #6b7280; margin-bottom: 0.5rem; }
+.add-label { font-size: 0.78rem; color: var(--muted-text); margin-bottom: 0.5rem; }
 .add-buttons { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.btn-add { background: none; border: 1px solid #d1d5db; border-radius: 6px; padding: 0.3rem 0.75rem; font-size: 0.8rem; color: #6b7280; cursor: pointer; }
-.btn-add:hover { border-color: #0057b7; color: #0057b7; }
+.btn-add { background: none; border: 1px solid #d1d5db; border-radius: 6px; padding: 0.3rem 0.75rem; font-size: 0.8rem; color: var(--muted-text); cursor: pointer; }
+.btn-add:hover { border-color: var(--brand); color: var(--brand); }
 .gh-connected { display: flex; align-items: center; gap: 0.75rem; }
 .gh-avatar { width: 36px; height: 36px; border-radius: 50%; }
 .gh-id { display: flex; flex-direction: column; flex: 1; }
