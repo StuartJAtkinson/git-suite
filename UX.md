@@ -30,10 +30,9 @@ Beyond the tokens above, every hex in this section is a literal that is
 intentionally unpromoted — they are the semantic palette (success / info /
 warn / danger / neutral / docs) used by `.cat-*`, `.tag.*`, `.p1`-`.p4`,
 `.gap-pill`, etc., and they are documented inline so reviewers can audit the
-pair (background + text) against intent. Route files that need brand or
-muted grey should consume `var(--brand)` / `var(--muted-text)` — see
-`ISSUES.md` for the routes still using the raw hex after the token
-promotion.
+pair (background + text) against intent. Route files consume `var(--brand)` /
+`var(--muted-text)` for brand and muted grey — no raw `#0057b7` or `#6b7280`
+remains in `routes/`.
 
 ## Colour
 
@@ -66,11 +65,10 @@ families, and are used consistently for these meanings:
 
 Priority badges `.p1`–`.p4` run red → orange → blue → grey.
 
-> Two of these roles currently have more than one hex in circulation (the
-> amber text and the light-blue info background). Decisions exist in
-> `ISSUES.md` (Q2 amber → `#b45309`, Q3 light-blue bg → `#1e40af`) but were
-> closed as cosmetic drift with no migration, so the codebase still carries
-> both hexes. Don't treat the table above as settled for those two rows.
+> Two of these roles still have more than one hex in circulation: amber text
+> (`#92400e`, `#b45309`, `#78350f`) and the light-blue info background
+> (`#eff6ff`, `#dbeafe`, `#e6effa`). Both are open in `CONSIDERATIONS.md`, so
+> don't treat the table above as settled for those two rows.
 
 ## Shape and spacing
 
@@ -138,7 +136,9 @@ Every workflow route follows the same shape:
 
 - The nine workflow steps, in nav order, are **Setup · Scan · Cluster · Own ·
   Order · Triage · Execute · Install · Summary**. The nav label is the name of
-  the step; page `<h1>`s are meant to repeat it verbatim.
+  the step. Most page `<h1>`s repeat it verbatim; Cluster ("Themes"), Scan
+  ("GitHub Pull"), Summary ("Cycle Summary") and Own (subtitle in the `<h1>`)
+  don't yet.
 - A repo's verdict is one of **absorb · archive · keep · orphan** — used as the
   `.cat-*` badge classes, in `plan.json`, and in the Triage keyboard map. There
   is no fifth verdict and no synonyms ("merge", "consolidate", "drop" are not
