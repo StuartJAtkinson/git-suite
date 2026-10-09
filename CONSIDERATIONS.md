@@ -49,4 +49,3 @@ Answer them inline when atelier interviews this project.
 
 ## Cosmetic drift
 
-- **UX.md drift: raw hex literals + bespoke .btn-remove (moved from ISSUES 2026-10-03, not defects)** — Brand-token migration is half-done — route files still use raw `#0057b7` and `#6b7280` literals after the tokens were promoted to `app.css`; Setup uses bespoke `.btn-remove` class for destructive actions instead of the documented `.danger`. Full site lists are in git history of ISSUES.md.
