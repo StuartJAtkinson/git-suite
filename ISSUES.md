@@ -233,5 +233,7 @@ _Pipeline gap — the built app implements "absorb = repo→hub"; the intended m
 - [x] **All file paths hardcoded to H:\GitHub\\** — both scripts now use `Path(__file__).parent`; outputs live in the project folder *(resolved 2026-05-24)*
 
 ## Needs input (Auto Continue)
-*Left by Auto Continue 2026-09-08 — decide these, then clear CONSIDERATIONS.md.*
-- Which hex value becomes the single token for "warn/highlight amber text" (options: `#92400e`, `#b45309`, `#78350f`)? Which hex value becomes the single token for "light-blue info tag" (options: `#eff6ff`, `#dbeafe`, `#e6effa`)?
+*Left by Auto Continue 2026-10-09 — decide these, then clear CONSIDERATIONS.md.*
+- Light-blue info background still has three hexes in use: `#eff6ff` (app.css, order, triage, promote, summary), `#dbeafe` (order, triage, app.css badges), `#e6effa` (cluster, scan, order); the 2026-09-11 answer `#1e40af` is the text colour, not a background. Which background becomes the one token?
+- Amber text was decided as `#b45309` (2026-09-11) but `#92400e` (execute, order, scan, setup) and `#78350f` (triage:245) are still in use. Should those sites be moved to `#b45309` now?
+- Three page `<h1>`s don't match their nav label: Cluster→"Themes" (cluster:178), Scan→"GitHub Pull" (scan:271), Summary→"Cycle Summary" (summary:45); Own's `<h1>` also carries its subtitle (promote:65). Should the nav word win, or should the nav be renamed?
