@@ -49,4 +49,4 @@ Answer them inline when atelier interviews this project.
 
 ## Cosmetic drift
 
-- Scan, Cluster, Order and Execute use a slate neutral family (`#1e293b` `#475569` `#cbd5e1` `#f1f5f9` `#f8fafc`) beside the app-wide grey one (`#374151` `#4b5563` `#9ca3af` `#f3f4f6` `#f9fafb`). Fold slate into grey, keep both, or move the app to slate? Rendered in `CONSIDERATIONS.html` (1a/1b/1c).
+- Scan, Cluster, Order and Execute use slate (`#1e293b` `#475569` `#cbd5e1` `#f1f5f9` `#f8fafc`) beside the app-wide grey (`#374151` `#4b5563` `#9ca3af` `#f3f4f6` `#f9fafb`); all three options rendered in context in `shots/neutral-greys.png`. Pick 1a fold slate into grey (recommended), 1b keep both, or 1c move the app to slate?
