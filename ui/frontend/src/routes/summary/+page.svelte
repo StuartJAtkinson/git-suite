@@ -42,7 +42,7 @@
 </script>
 
 <div class="page-header">
-  <h1>Cycle Summary</h1>
+  <h1>Summary</h1>
   <p class="sub">Intent vs reality for the current portfolio — and what's next.</p>
 </div>
 

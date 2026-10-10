@@ -62,7 +62,7 @@
 </script>
 
 <div class="page-header">
-  <h1>Own — promote forks to first-class repos</h1>
+  <h1>Own</h1>
   <p class="sub">
     Step 3. A fork you rely on should become <em>your own</em> repo, not a
     dependency on someone else's tree. GitHub has no API to detach a fork, so

@@ -268,7 +268,7 @@
 </script>
 
 <div class="page-header">
-  <h1>GitHub Pull</h1>
+  <h1>Scan</h1>
   <p class="sub">
     One pull: <strong>your repos &amp; forks</strong> (streamed), then
     <strong>your stars</strong> in the background. Then <strong>✨ Enrich</strong>

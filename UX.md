@@ -136,9 +136,8 @@ Every workflow route follows the same shape:
 
 - The nine workflow steps, in nav order, are **Setup · Scan · Cluster · Own ·
   Order · Triage · Execute · Install · Summary**. The nav label is the name of
-  the step. Most page `<h1>`s repeat it verbatim; Cluster ("Themes"), Scan
-  ("GitHub Pull"), Summary ("Cycle Summary") and Own (subtitle in the `<h1>`)
-  don't yet.
+  the step. Every page `<h1>` repeats it verbatim; any explanation goes in the
+  `.sub` paragraph below it, never in the `<h1>`.
 - A repo's verdict is one of **absorb · archive · keep · orphan** — used as the
   `.cat-*` badge classes, in `plan.json`, and in the Triage keyboard map. There
   is no fifth verdict and no synonyms ("merge", "consolidate", "drop" are not

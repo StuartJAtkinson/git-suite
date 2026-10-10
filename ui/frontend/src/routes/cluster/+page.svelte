@@ -175,7 +175,7 @@
 </script>
 
 <div class="page-header">
-  <h1>Themes</h1>
+  <h1>Cluster</h1>
   <p class="sub">
     A refinement surface, not a decision. Group by themes, then merge near-
     duplicates, split bloated clusters, move a stray member, or rename —
