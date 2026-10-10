@@ -237,7 +237,5 @@ _Pipeline gap — the built app implements "absorb = repo→hub"; the intended m
 - [x] **All file paths hardcoded to H:\GitHub\\** — both scripts now use `Path(__file__).parent`; outputs live in the project folder *(resolved 2026-05-24)*
 
 ## Needs input (Auto Continue)
-*Left by Auto Continue 2026-10-09 — decide these, then clear CONSIDERATIONS.md.*
-- Light-blue info background still has three hexes in use: `#eff6ff` (app.css, order, triage, promote, summary), `#dbeafe` (order, triage, app.css badges), `#e6effa` (cluster, scan, order); the 2026-09-11 answer `#1e40af` is the text colour, not a background. Which background becomes the one token?
-- Amber text was decided as `#b45309` (2026-09-11) but `#92400e` (execute, order, scan, setup) and `#78350f` (triage:245) are still in use. Should those sites be moved to `#b45309` now?
-- Three page `<h1>`s don't match their nav label: Cluster→"Themes" (cluster:178), Scan→"GitHub Pull" (scan:271), Summary→"Cycle Summary" (summary:45); Own's `<h1>` also carries its subtitle (promote:65). Should the nav word win, or should the nav be renamed?
+*Left by Auto Continue 2026-10-10 — decide these, then clear CONSIDERATIONS.md.*
+- Scan, Cluster, Order and Execute use a slate neutral family (`#1e293b` `#475569` `#cbd5e1` `#f1f5f9` `#f8fafc`) beside the app-wide grey one (`#374151` `#4b5563` `#9ca3af` `#f3f4f6` `#f9fafb`). Fold slate into grey, or keep both?
