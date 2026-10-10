@@ -8,6 +8,7 @@
 ## Open
 - [ ] **Amber text was decided as `#b45309` (2026-09-11) but `#92400e` (execute, order, scan, setup) and `#78350f` (triage:245) are still in use. Should those sites be moved to `#b45309` now?** — decided: first. Implement this decision. *(answered 2026-10-09)*
 - [ ] **Light-blue info background still has three hexes in use: `#eff6ff` (app.css, order, triage, promote, summary), `#dbeafe` (order, triage, app.css badges), `#e6effa` (cluster, scan, order); the 2026-09-11 answer `#1e40af` is the text colour, not a background. Which background becomes the one token?** — decided: last one. Implement this decision. *(answered 2026-10-09)*
+- [ ] **Own page redeclares verdict badges** — `ui/frontend/src/routes/promote/+page.svelte:128-132` defines `.v-absorb/.v-keep/.v-archive/.v-orphan` with its own hexes; `.v-archive` is red (`#fef2f2`/`#b91c1c`) where the global `.cat-archive` (app.css:135) is amber, so "archive" shows two colours. Use the `.cat-*` classes (and drop the `.v-*` ternary at promote:60-61). *(found 2026-10-10)*
 ### Taxonomy
 ### Terminology / labelling
 ### Duplicated / colliding component styles
