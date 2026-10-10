@@ -49,6 +49,3 @@ Answer them inline when atelier interviews this project.
 
 ## Cosmetic drift
 
-- Light-blue info background still has three hexes in use: `#eff6ff` (app.css, order, triage, promote, summary), `#dbeafe` (order, triage, app.css badges), `#e6effa` (cluster, scan, order); the 2026-09-11 answer `#1e40af` is the text colour, not a background. Which background becomes the one token?
-- Amber text was decided as `#b45309` (2026-09-11) but `#92400e` (execute, order, scan, setup) and `#78350f` (triage:245) are still in use. Should those sites be moved to `#b45309` now?
-- Three page `<h1>`s don't match their nav label: Cluster→"Themes" (cluster:178), Scan→"GitHub Pull" (scan:271), Summary→"Cycle Summary" (summary:45); Own's `<h1>` also carries its subtitle (promote:65). Should the nav word win, or should the nav be renamed?
