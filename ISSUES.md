@@ -239,4 +239,18 @@ _Pipeline gap — the built app implements "absorb = repo→hub"; the intended m
 
 ## Needs input (Auto Continue)
 *Left by Auto Continue 2026-10-10 — decide these, then clear CONSIDERATIONS.md.*
-- Scan, Cluster, Order and Execute use a slate neutral family (`#1e293b` `#475569` `#cbd5e1` `#f1f5f9` `#f8fafc`) beside the app-wide grey one (`#374151` `#4b5563` `#9ca3af` `#f3f4f6` `#f9fafb`). Fold slate into grey, or keep both?
+- **Proxmox LXC repos** — does "runs on Proxmox" pull `community-scripts/ProxmoxVE`
+- **Awesome-lists** — file by subject (as done so far with awesome-docker,
+- **RDF and Ontology** — one leaf or two?
+- **Media rung is two-dimensional** — mime-type (Video/Music/Photos) vs function
+- **venn.js exists under 3 keys in 3 categories** (Dashboards, Education & Research,
+- **Homelab & Server Administration will balloon** to ~80+ once hypervisors,
+- **Is "Access" the right rung name?** Networking, Authentication and Remote Access
+- **Does Remote Access earn a leaf?** mRemoteNG, tigervnc, neko — own leaf, fold into
+- **Where do observability dashboards go?** holmesgpt (Monitoring or AI?) and
+- **caddy** — automatic-TLS reverse proxy that is also a web server. Networking or
+- **Does Security earn a leaf?** Jira-Lens (vulnerability scanning) has no home in
+- **Does IaC earn a leaf?** ansible-linux-docker, home-ops, khuedoan/homelab,
+- **Does Hardware earn a leaf?** jetkvm/kvm, openhaystack, 3d-printed-nas,
+- **Where does nerd-fonts go?** Developer tooling or device-side tooling?
+- **`Deployrr` — imperative installer or substrate?** Discriminator 6 says
