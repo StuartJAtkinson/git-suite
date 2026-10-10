@@ -386,7 +386,7 @@
     padding: 0.4rem; border: 1px solid var(--border); border-radius: 6px; resize: vertical; }
   .import-box .primary { padding: 0.4rem 0.6rem; font-size: 0.8rem; }
 
-  .bundle-info { background: #f8fafc; border: 1px solid var(--border);
+  .bundle-info { background: #f9fafb; border: 1px solid var(--border);
     border-radius: 6px; padding: 0.5rem 0.6rem; font-size: 0.76rem;
     color: #374151; display: flex; flex-direction: column; gap: 0.18rem; }
   .bundle-info .muted { font-family: var(--mono); font-size: 0.66rem;
@@ -406,7 +406,7 @@
   .orphan-row select { font-size: 0.68rem; max-width: 90px; }
 
   .stage { border: 1px solid var(--border); border-radius: 10px;
-    background: radial-gradient(circle at 1px 1px, #f1f5f9 1px, transparent 0) 0 0 / 22px 22px;
+    background: radial-gradient(circle at 1px 1px, #f3f4f6 1px, transparent 0) 0 0 / 22px 22px;
     padding: 1rem; display: flex; flex-direction: column; gap: 1.1rem;
     align-items: stretch; min-height: 12rem; }
   .card { width: 100%;
@@ -433,9 +433,9 @@
   .card-desc { font-size: 0.8rem; color: #4b5563; margin-top: 0.35rem; line-height: 1.4; }
 
   .card-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0.5rem 0.9rem;
-    border-bottom: 1px solid #f1f5f9; }
+    border-bottom: 1px solid #f3f4f6; }
   .chip { font-size: 0.72rem; padding: 0.22rem 0.65rem; border-radius: 999px;
-    border: 1px solid var(--border); background: #f8fafc; cursor: pointer; }
+    border: 1px solid var(--border); background: #f9fafb; cursor: pointer; }
   .chip:disabled { opacity: 0.5; cursor: not-allowed; }
   .chip.danger { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
 

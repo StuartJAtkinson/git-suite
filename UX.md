@@ -67,9 +67,9 @@ families, and are used consistently for these meanings:
 
 Priority badges `.p1`–`.p4` run red → orange → blue → grey.
 
-A second, slate neutral family (`#1e293b` `#475569` `#cbd5e1` `#f1f5f9`
-`#f8fafc`) is used for table rules, row hover and panel insets on Scan,
-Cluster, Order and Execute; everywhere else uses the grey ramp above.
+There is one neutral family, the grey ramp above (plus `#111827` for the
+darkest table text, `#d1d5db` for placeholders/outlines, `#f3f4f6` for table
+rules and `#f9fafb` for row hover and panel insets). No slate.
 
 Verdict badges are always the `.cat-*` classes from `app.css`; no route
 declares its own.

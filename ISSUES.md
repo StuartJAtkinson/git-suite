@@ -13,6 +13,7 @@
 ### Raw hexes that should be tokens
 `app.css:264` already establishes the pattern: `:root { --border; --quiet-text; --mono; }`.
 ## Resolved
+- [x] **Slate vs grey neutral family** — decided 1a: folded slate into grey across Scan/Cluster/Order/Execute (`#1e293b→#111827` `#475569→#4b5563` `#cbd5e1→#d1d5db` `#f1f5f9→#f3f4f6` `#f8fafc→#f9fafb`) *(resolved 2026-10-10)*
 - [x] **Amber text was decided as `#b45309` (2026-09-11) but `#92400e` (execute, order, scan, setup) and `#78350f` (triage:245) are still in use. Should those sites be moved to `#b45309` now?** — moved every `#92400e`/`#78350f` (app.css, execute, order, scan, setup, triage) to `#b45309` *(resolved 2026-10-10)*
 - [x] **Light-blue info background still has three hexes in use: `#eff6ff` (app.css, order, triage, promote, summary), `#dbeafe` (order, triage, app.css badges), `#e6effa` (cluster, scan, order); the 2026-09-11 answer `#1e40af` is the text colour, not a background. Which background becomes the one token?** — added `--info-bg: #e6effa` to app.css `:root`; every `#eff6ff`/`#dbeafe`/`#e6effa` now uses it; Triage `.hub-btn:hover` switched to a brand border so hover stays visible *(resolved 2026-10-10)*
 - [x] **Own page redeclares verdict badges** — promote now emits `.cat-*` classes; `.v-*` rules deleted *(resolved 2026-10-10)*

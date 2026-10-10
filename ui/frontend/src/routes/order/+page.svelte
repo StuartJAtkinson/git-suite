@@ -545,7 +545,7 @@
   .align-card { padding: 0.7rem 0.9rem 0.9rem; }
   .align-summary { font-size: 0.84rem; color: #4b5563; margin: 0 0 0.7rem; line-height: 1.45; }
   .align-grid { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-  .align-grid th, .align-grid td { padding: 0.28rem 0.5rem; border-bottom: 1px solid #f1f5f9;
+  .align-grid th, .align-grid td { padding: 0.28rem 0.5rem; border-bottom: 1px solid #f3f4f6;
     text-align: left; vertical-align: top; }
   .align-grid thead th { color: var(--muted-text); font-weight: 600; font-size: 0.74rem;
     background: #f9fafb; border-bottom: 2px solid var(--border); }
