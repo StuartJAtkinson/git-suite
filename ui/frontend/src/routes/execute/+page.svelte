@@ -383,7 +383,7 @@
 <style>
   .statbar { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.75rem; }
   .stat { font-size: 0.8rem; padding: 0.2rem 0.55rem; border-radius: 5px; background: #eef1f6; color: #374151; }
-  .stat.will { background: #fef3c7; color: #92400e; }
+  .stat.will { background: #fef3c7; color: #b45309; }
   .stat.make { background: #dcfce7; color: #166534; }
   .stat.doc { background: #e0e7ff; color: #3730a3; }
   .stat b { font-size: 0.95rem; }
@@ -392,7 +392,7 @@
   .repo-row.dim { opacity: 0.55; }
   .aim { font-size: 0.78rem; color: var(--muted-text); margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45%; }
   .confirm-box { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; padding: 0.9rem 1.1rem; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; }
-  .confirm { flex-direction: row; align-items: center; gap: 0.5rem; font-weight: 500; color: #92400e; }
+  .confirm { flex-direction: row; align-items: center; gap: 0.5rem; font-weight: 500; color: #b45309; }
   .confirm input { width: auto; }
     .hub-life-actions { margin-left: auto; display: flex; gap: 0.3rem; }
   .mig-hub { margin-bottom: 0.9rem; }

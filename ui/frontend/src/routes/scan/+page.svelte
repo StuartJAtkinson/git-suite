@@ -329,8 +329,8 @@
       <span class="badge">{SOURCE_GLYPH.owned} owned: {counts.owned || 0}</span>
       <span class="badge">{SOURCE_GLYPH.fork} forks: {counts.fork || 0}</span>
       <span class="badge">{SOURCE_GLYPH.star} stars: {counts.star || 0}</span>
-      <span class="badge" style="background:#e6effa;color:#1e40af">enriched: {Object.keys(records).length}</span>
-      <span class="badge" style="background:#fef3c7;color:#92400e">notes: {noteCount}</span>
+      <span class="badge" style="background:var(--info-bg);color:#1e40af">enriched: {Object.keys(records).length}</span>
+      <span class="badge" style="background:#fef3c7;color:#b45309">notes: {noteCount}</span>
     </div>
     <table class="records">
       <thead>
@@ -408,7 +408,7 @@
   td.name a { color: #1e293b; font-family: var(--mono); }
   td.name a.readme { font-size: 0.66rem; color: var(--muted-text); margin-left: 0.3rem; }
   td.purpose { color: #1e293b; max-width: 280px; }
-  td.domain .domain-pill { background: #e6effa; color: #1e40af; border-radius: 4px; padding: 0.1em 0.45em; font-size: 0.72rem; }
+  td.domain .domain-pill { background: var(--info-bg); color: #1e40af; border-radius: 4px; padding: 0.1em 0.45em; font-size: 0.72rem; }
   td.entities { color: var(--muted-text); max-width: 220px; }
   td.hub { color: var(--muted-text); }
   td.stars { color: var(--quiet-text); text-align: right; }
@@ -418,7 +418,7 @@
     border: 1px solid var(--border); border-radius: 4px; font: inherit;
     background: #fff; color: #1e293b;
   }
-  td.note-cell .note-input:focus { outline: none; border-color: #1e40af; box-shadow: 0 0 0 2px #e6effa; }
+  td.note-cell .note-input:focus { outline: none; border-color: #1e40af; box-shadow: 0 0 0 2px var(--info-bg); }
   td.note-cell .note-input::placeholder { color: #cbd5e1; }
   td.note-cell .note-saving { font-size: 0.7rem; color: var(--muted-text); margin-left: 0.3rem; }
   .muted-small { color: var(--quiet-text); font-size: 0.74rem; font-weight: 400; margin-left: 0.5rem; }

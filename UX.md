@@ -24,6 +24,7 @@ Declared in one `:root` block at `app.css:264`:
 | `--brand` | `#0057b7` | brand blue: links, default `<button>`, focus border, `.hub-card:hover`, `.progress-fill` |
 | `--brand-hover` | `#003d8f` | button hover darkens to this |
 | `--brand-rgb` | `0,87,183` | raw RGB triple, used inside `rgba(...)` for the focus ring and hub-card hover shadow |
+| `--info-bg` | `#e6effa` | the one light-blue info background: `.info-msg`, `.cat-absorb`, `.p3`, `.lang-tag`, `.gap-pill`, hub/domain pills, active rows |
 | `--muted-text` | `#6b7280` | `.muted`, `.sub`, `.hint`, `.loading`, `.repo-count`, `.ref-url`, `.page-header .crumb`, `.login-card .sub`, `button.secondary` |
 
 Beyond the tokens above, every hex in this section is a literal that is
@@ -58,9 +59,9 @@ families, and are used consistently for these meanings:
 |---|---|---|---|
 | error / destructive | `#fef2f2` | `#dc2626` | `.error-msg`, `button.danger` |
 | success / done / keep | `#f0fdf4` `#d1fae5` `#dcfce7` | `#15803d` `#065f46` `#166534` | `.ok-msg`, `button.success`, `.cat-keep`, `.tag.ok`, `.tag.make` |
-| info / hub / absorb | `#eff6ff` `#dbeafe` | `#1e40af` | `.info-msg`, `.lang-tag`, `.cat-absorb`, `.p3`, `.gap-pill` |
+| info / hub / absorb | `var(--info-bg)` `#e6effa` | `#1e40af` | `.info-msg`, `.lang-tag`, `.cat-absorb`, `.p3`, `.gap-pill` |
 | error text (inline) | `#fef2f2` | `#b91c1c` | Cluster `.chip.danger` / `.flag-thin`, Order `.cell.absent`; `#b91c1c` is also `button.danger:hover` |
-| warn / archive | `#fef3c7` | `#92400e` | `.cat-archive`, `.tag.arch` |
+| warn / archive | `#fef3c7` `#fffbeb` | `#b45309` | `.cat-archive`, `.tag.arch` |
 | neutral / orphan / none | `#f3f4f6` | `#4b5563` | `.cat-orphan`, `.p4`, `.tag.none` |
 | docs | `#e0e7ff` | `#3730a3` | `.tag.doc` |
 
@@ -70,13 +71,11 @@ A second, slate neutral family (`#1e293b` `#475569` `#cbd5e1` `#f1f5f9`
 `#f8fafc`) is used for table rules, row hover and panel insets on Scan,
 Cluster, Order and Execute; everywhere else uses the grey ramp above.
 
-Verdict badges are `.cat-*` from `app.css`, except Own (`promote`), which
-still declares its own `.v-*` set.
+Verdict badges are always the `.cat-*` classes from `app.css`; no route
+declares its own.
 
-> Two of these roles still have more than one hex in circulation: amber text
-> (`#92400e`, `#b45309`, `#78350f`) and the light-blue info background
-> (`#eff6ff`, `#dbeafe`, `#e6effa`). Both are open in `CONSIDERATIONS.md`, so
-> don't treat the table above as settled for those two rows.
+Amber text is always `#b45309`; the light-blue info background is always
+`var(--info-bg)`.
 
 ## Shape and spacing
 

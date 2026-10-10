@@ -57,8 +57,7 @@
   }
 
   const verdictClass = (v) =>
-    v === 'absorb' ? 'v-absorb' : v === 'keep' ? 'v-keep'
-    : v === 'archive' ? 'v-archive' : 'v-orphan';
+    ['absorb', 'keep', 'archive'].includes(v) ? `cat-${v}` : 'cat-orphan';
 </script>
 
 <div class="page-header">
@@ -126,10 +125,6 @@
 .fork-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
 .fork-name { font-weight: 600; font-family: var(--mono); }
 .verdict { font-size: 0.7rem; border-radius: 4px; padding: 0.1em 0.45em; text-transform: uppercase; letter-spacing: 0.04em; }
-.v-absorb { background: #eff6ff; color: #1e40af; }
-.v-keep { background: #ecfdf5; color: #047857; }
-.v-archive { background: #fef2f2; color: #b91c1c; }
-.v-orphan { background: #f3f4f6; color: var(--muted-text); }
 .parent { font-size: 0.78rem; color: var(--muted-text); }
 .warn { font-size: 0.72rem; color: #b45309; background: #fffbeb; border-radius: 4px; padding: 0.1em 0.4em; }
 .cluster { font-size: 0.72rem; color: #4b5563; margin-left: auto; }

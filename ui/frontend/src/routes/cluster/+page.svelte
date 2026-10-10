@@ -454,7 +454,7 @@
   .cell-title:hover { color: var(--brand); text-decoration: underline; }
   .cell-sub { display: flex; gap: 0.55rem; align-items: center; font-size: 0.74rem;
     color: #4b5563; line-height: 1.4; }
-  .domain-pill { background: #e6effa; color: #1e40af; padding: 0.05rem 0.45em;
+  .domain-pill { background: var(--info-bg); color: #1e40af; padding: 0.05rem 0.45em;
     border-radius: 3px; font-size: 0.7rem; }
   .cell-desc { font-size: 0.8rem; color: #4b5563; line-height: 1.4;
     margin-top: 0.3rem;

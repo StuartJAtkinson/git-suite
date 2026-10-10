@@ -225,7 +225,7 @@
 }
 .hub-info { display: flex; align-items: center; gap: 0.5rem; min-width: 160px; }
 .hub-name { font-size: 0.875rem; font-weight: 500; font-family: var(--mono); }
-.hub-tag-sm { font-size: 0.68rem; background: #eff6ff; color: #1e40af; border-radius: 4px; padding: 0.1em 0.4em; }
+.hub-tag-sm { font-size: 0.68rem; background: var(--info-bg); color: #1e40af; border-radius: 4px; padding: 0.1em 0.4em; }
 .hub-bars { flex: 1; display: flex; gap: 1rem; align-items: center; }
 .mini-bar-group { display: flex; align-items: center; gap: 0.35rem; flex: 1; }
 .mini-label { font-size: 0.7rem; color: var(--muted-text); width: 38px; }

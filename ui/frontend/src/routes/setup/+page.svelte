@@ -333,7 +333,7 @@
           </button>
         </div>
         {#if modelErr[provider] && !(modelLists[provider] || []).length}
-          <p class="hint" style="color:#92400e; margin:0.2rem 0 0">{modelErr[provider]} — type a model name manually.</p>
+          <p class="hint" style="color:#b45309; margin:0.2rem 0 0">{modelErr[provider]} — type a model name manually.</p>
         {/if}
       </div>
       {/each}
@@ -392,10 +392,10 @@
           </button>
         </div>
         {#if embedErr}
-          <p class="hint" style="color:#92400e; margin:0.2rem 0 0">{embedErr} — type a model name manually.</p>
+          <p class="hint" style="color:#b45309; margin:0.2rem 0 0">{embedErr} — type a model name manually.</p>
         {/if}
         {#if embedProvider === 'openai' && !llmKeys.openai}
-          <p class="hint" style="color:#92400e">Add an OpenAI key above for embeddings to work.</p>
+          <p class="hint" style="color:#b45309">Add an OpenAI key above for embeddings to work.</p>
         {/if}
       {/if}
     </div>
@@ -408,7 +408,7 @@
 .col { display: flex; flex-direction: column; gap: 1rem; }
 .card-title { font-size: 0.875rem; font-weight: 600; color: #374151; margin: 0 0 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
 .status-box { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 7px; padding: 0.6rem 0.8rem; margin-bottom: 1rem; font-size: 0.78rem; color: #065f46; }
-.status-box.warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.status-box.warn { background: #fffbeb; border-color: #fde68a; color: #b45309; }
 .status-label { font-weight: 600; }
 .chain-item { background: rgba(255,255,255,0.7); border-radius: 4px; padding: 0.1em 0.45em; font-family: var(--mono); }
 .chain-item.head { font-weight: 700; }

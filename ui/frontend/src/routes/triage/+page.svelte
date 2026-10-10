@@ -230,21 +230,21 @@
   .stub-badge { background: #fee2e2; color: #991b1b; }
 
   .verdict-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.4rem; margin-top: 1rem; }
-  .hub-btn { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; text-align: left; font-size: 0.82rem; }
-  .hub-btn:hover:not(:disabled) { background: #dbeafe; }
+  .hub-btn { background: var(--info-bg); color: #1e40af; border: 1px solid #bfdbfe; text-align: left; font-size: 0.82rem; }
+  .hub-btn:hover:not(:disabled) { border-color: var(--brand); }
   .key { display: inline-block; min-width: 1.1em; text-align: center; font-family: var(--mono); font-weight: 700; background: rgba(0,0,0,0.12); border-radius: 3px; padding: 0 0.25em; margin-right: 0.35em; font-size: 0.8em; }
 
   .repo-row { cursor: pointer; }
-  .repo-row.active-row { border-color: var(--brand); background: #eff6ff; }
+  .repo-row.active-row { border-color: var(--brand); background: var(--info-bg); }
   kbd { font-family: var(--mono); background: var(--border); border-radius: 3px; padding: 0 0.3em; font-size: 0.85em; }
 
   /* Step 6: recommendation row (one of three) */
   .recommend-row { display: flex; align-items: center; gap: 0.5rem;
                    flex-wrap: wrap; margin-top: 0.6rem; padding: 0.45rem 0.6rem;
                    border-radius: 6px; font-size: 0.85rem; }
-  .recommend-row.hint-row    { background: #fefce8; border: 1px solid #fde68a; color: #78350f; }
+  .recommend-row.hint-row    { background: #fefce8; border: 1px solid #fde68a; color: #b45309; }
   .recommend-row.action-row  { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
-  .recommend-row.star-row    { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+  .recommend-row.star-row    { background: var(--info-bg); border: 1px solid #bfdbfe; color: #1e40af; }
   .rec-mark { font-size: 1rem; }
   .conf    { font-size: 0.75rem; opacity: 0.7; margin-left: auto;
              font-family: var(--mono); }
