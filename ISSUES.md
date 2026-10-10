@@ -6,7 +6,6 @@
 
 
 ## Open
-- [ ] **Scan, Cluster, Order and Execute use a slate neutral family (`#1e293b` `#475569` `#cbd5e1` `#f1f5f9` `#f8fafc`) beside the app-wide grey one (`#374151` `#4b5563` `#9ca3af` `#f3f4f6` `#f9fafb`). Fold slate into grey, or keep both?** — decided: Need VISUAL. Implement this decision. *(answered 2026-10-10)*
 ### Taxonomy
 ### Terminology / labelling
 ### Duplicated / colliding component styles
