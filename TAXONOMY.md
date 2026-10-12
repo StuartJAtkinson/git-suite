@@ -673,3 +673,44 @@ This is also where the tag-pool
 issue logged in ISSUES.md hurts most — the "Analysis" / "Tracking" / "Manager"
 tags send nearly every one of these to Monitoring right now, so the rung is
 likely to be the loudest single correction in the whole walk.
+
+## Hub leaders — atelier projects *(decided 2026-10-11, revised 2026-10-12)*
+
+Manual promotion, per [[hubs-emerge-not-seeded]]: a leader is an owned, atelier-driven
+repo that neighbouring repos in its leaf get feature-absorbed into. Leaves with no
+owned project stay leaderless.
+
+| Hub | Leader | Satellites (owned) | Absorb candidates (third-party) |
+|---|---|---|---|
+| Database | sql-schema-miner | — | SchemaCrawler · sql_schema_visualizer · cloudbeaver · bytebase |
+| Homelab | homelab-designer | — | awesome-selfhosted · homelab-discovery · homelab-mcp · ProxmoxVE · Deployrr |
+| IT Support & Device Mgmt | belzona-tickets | — | jira · atlassian-python-api · Jira-Lens · EMailParseAI |
+| Ingestion *(rung 5, Data Input)* | socialMediaArchiver | multitudes · dnd-session-recorder · aw-import-ical | YouTubeCommunityPosts · tweetext · twitterscraper |
+| Code & Build Tooling | git-suite | — | astral · all-repos |
+| Ai — agent tooling | Atelier-Harness | ask-ai | aider · OpenDevin · Archon · crewAI-examples |
+| Ontology | marvel-ontology | — | CommonCoreOntologies · ontologiesUK · skoseditor · sparql.anything · IAO |
+| Geospatial & Mapping | map-merch | — | streets-gl · osmnx · kepler.gl |
+| Business | chemeter-data | — | ZohoAPI · twenty |
+| Civic & Public Affairs | organised-commons | canvassing-planner | democracy-watcher · federated-api-model |
+| Lifelogging *(presentation)* | timelinize | Genealogy | ActivityWatch · aw-watcher-* · simklExporter · timeliner |
+| Health | traintenance | — | — |
+| Travel | travel-planner | — | — |
+| Video | video-autoeditor | — | — |
+| Games — TTRPG | FoundryVTT | ddb-bridge · swipe-vtt · dnd-aFirstStep | — |
+| Games — library | Playnite *(local install, no remote)* | — | — |
+| Games — in-game data | game-across-the-obelisk | d4lf | free-map-genie · AllaganTools · WoWAnalyzer · FFXIVPlugin · xiv-resources · Memoria |
+| Games — collectibles | card-collection | — | card-collector |
+
+Cross-hub feature flows (not membership):
+
+| From | To | Feature |
+|---|---|---|
+| dnd-session-recorder | Ontology | entity resolution |
+| sql-schema-miner | Business | business-object extraction from SQL |
+| Ingestion | Lifelogging | ingest → present pipeline |
+
+Decisions: Games splits four ways (TTRPG · library · in-game data · collectibles) ·
+Playnite and card-collection stay separate · organised-commons leads Civic ·
+git-suite and Atelier-Harness are separate hubs · marvel-ontology leads Ontology ·
+Genealogy files under Lifelogging · ingestion is its own hub at rung 5, presentation
+stays with timelinize.
