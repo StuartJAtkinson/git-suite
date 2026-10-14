@@ -238,7 +238,7 @@ _Pipeline gap — the built app implements "absorb = repo→hub"; the intended m
 - [x] **All file paths hardcoded to H:\GitHub\\** — both scripts now use `Path(__file__).parent`; outputs live in the project folder *(resolved 2026-05-24)*
 
 ## Needs input (Auto Continue)
-*Left by Auto Continue 2026-10-12 — decide these, then clear CONSIDERATIONS.md.*
+*Left by Auto Continue 2026-10-14 — decide these, then clear CONSIDERATIONS.md.*
 - **Proxmox LXC repos** — does "runs on Proxmox" pull `community-scripts/ProxmoxVE`
 - **Awesome-lists** — file by subject (as done so far with awesome-docker,
 - **RDF and Ontology** — one leaf or two?
