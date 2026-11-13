@@ -4,28 +4,28 @@
   import { session } from '$lib/stores';
   import { api } from '$lib/api';
 
-  // Refinement surface between the raw scan and hub promotion: the LLM
-  // proposes clusters, the user merges/splits/moves/renames until every
-  // pair's margin reads comfortably wide, then promotes from Promote/Hubs.
+  // Clump the portfolio, show the AI's confidence, and answer the clarifying
+  // questions it raises until the boundaries settle. One page, read top to
+  // bottom: questions, then clumps, then anything still unplaced.
 
   let data = null;
-  let themes = [];             // [{id, suggested_name, suggested_description, members, size, nearest}]
-  let orphans = [];            // repos in zero clusters
+  let themes = [];             // [{id, name, description, confidence, members, size}]
+  let questions = [];          // [{id, question, repos, options}]
+  let orphans = [];            // repos the AI left unplaced
+  let resolved = [];           // cumulative (question, answer) pairs from prior rounds
+  let round = 0;
+
   let loading = true;
-  let busy = false;            // group/import in flight
-  let mutating = false;        // merge/split/move/rename/delete in flight
-  let exporting = false;
-  let exportMsg = '';
-  let importing = false;
-  let importText = '';
-  let showImport = false;
+  let busy = false;            // initial grouping in flight
+  let refining = false;        // answer → re-group in flight
   let errorMsg = '';
   let msg = '';
-  let bundleInfo = null;
 
+  let pending = [];            // answers chosen this round [{question, answer}]
+  let chosen = {};             // questionId -> answer (for selected styling)
+  let customText = {};         // questionId -> free-text
   let editingId = null;
   let editingValue = '';
-  let splitSelect = {};        // clusterId -> Set(memberKey)
 
   onMount(async () => {
     if (!$session) { goto('/'); return; }
@@ -37,131 +37,80 @@
   });
 
   async function groupNow() {
-    busy = true; errorMsg = '';
+    busy = true; errorMsg = ''; msg = '';
     try {
-      data = null;
       data = await api.getClusters($session.session_id, { recompute: true });
       build(data);
-      msg = `${themes.length} themes · ${orphans.length} unplaced`;
     } catch (e) { errorMsg = e.message; }
     finally { busy = false; }
   }
 
-  async function downloadPrompt() {
-    exporting = true; exportMsg = ''; errorMsg = '';
+  async function apply() {
+    refining = true; errorMsg = ''; msg = '';
     try {
-      const url = `/api/cluster/${$session.session_id}/prompt`;
-      const r = await fetch(url);
-      if (!r.ok) throw new Error((await r.text()) || r.statusText);
-      const text = await r.text();
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
-      a.download = `themes-prompt-${new Date().toISOString().slice(0,10)}.txt`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-      exportMsg = `Downloaded ${new Blob([text]).size.toLocaleString()} bytes — ` +
-                  `feed it to any chat LLM, then paste its JSON reply below.`;
-    } catch (e) { errorMsg = e.message; }
-    finally { exporting = false; }
-  }
-
-  async function importThemes() {
-    if (!importText.trim()) return;
-    importing = true; errorMsg = ''; msg = '';
-    try {
-      data = await api.importThemes($session.session_id, importText);
+      data = await api.answerThemes($session.session_id, pending);
       build(data);
-      msg = `Imported: ${themes.length} themes · ${orphans.length} unplaced`;
-      importText = ''; showImport = false;
+      msg = 'Re-grouped with your answers.';
     } catch (e) { errorMsg = e.message; }
-    finally { importing = false; }
+    finally { refining = false; }
   }
 
   function build(d) {
     themes = (d.clusters || []).map((c) => ({
       id: c.id,
-      suggested_name: c.suggested_name,
-      suggested_description: c.suggested_description || '',
+      name: c.suggested_name,
+      description: c.suggested_description || '',
+      confidence: c.confidence ?? null,
       members: (c.members || []).map((m) => ({
         repo: m.repo || m.name || m.full_name,
         full_name: m.full_name || m.repo || m.name || '',
         source: m.source || 'owned',
         stars: m.stars || 0,
         domain: m.domain || '',
-        entities: m.entities || [],
-        purpose: m.purpose || '',
         aim: m.aim || m.description || '',
       })).sort((a, b) => b.stars - a.stars),
-      size: c.size ?? (c.members || []).length,
-      nearest: c.nearest || null,
-    }));
-    themes = themes
-      .map((t) => ({ ...t, totalStars: t.members.reduce((n, m) => n + (m.stars || 0), 0) }))
-      .sort((a, b) => b.totalStars - a.totalStars);
+    })).sort((a, b) => sizeOf(b) - sizeOf(a));
+
+    questions = d.questions || [];
     orphans = (d.orphans_returned || []).map((m) => ({
       repo: m.repo || m.name || m.full_name,
       full_name: m.full_name || m.repo || m.name || '',
       source: m.source || 'owned',
-      aim: m.aim || m.description || '',
     }));
-    bundleInfo = d.bundle || null;
-    splitSelect = {};
+    resolved = d.answers || [];
+    round = d.round || 0;
+
+    pending = [];
+    chosen = {};
+    customText = {};
+    editingId = null;
+  }
+
+  function sizeOf(t) { return (t.members || []).length; }
+
+  function setAnswer(q, answer) {
+    const a = answer.trim();
+    if (!a) return;
+    chosen = { ...chosen, [q.id]: a };
+    pending = [...pending.filter((p) => p.question !== q.question),
+               { question: q.question, answer: a }];
+  }
+
+  function submitCustom(q) {
+    const v = (customText[q.id] || '').trim();
+    if (!v) return;
+    setAnswer(q, v);
+    customText = { ...customText, [q.id]: '' };
+  }
+
+  function conf(c) {
+    if (c == null) return { label: 'no score', cls: 'none' };
+    if (c >= 0.85) return { label: 'high', cls: 'high' };
+    if (c >= 0.65) return { label: 'medium', cls: 'med' };
+    return { label: 'low', cls: 'low' };
   }
 
   function memberKey(m) { return m.full_name || m.repo; }
-
-  function lowestMargin() {
-    let lowest = null;
-    for (const t of themes) {
-      if (t.nearest && (lowest === null || t.nearest.score < lowest.score)) lowest = t.nearest;
-    }
-    return lowest;
-  }
-
-  async function afterMutation(promise) {
-    mutating = true; errorMsg = '';
-    try {
-      data = await promise;
-      build(data);
-    } catch (e) { errorMsg = e.message; }
-    finally { mutating = false; }
-  }
-
-  function startRename(t) { editingId = t.id; editingValue = t.suggested_name; }
-  function cancelRename() { editingId = null; editingValue = ''; }
-  async function saveRename(t) {
-    const name = editingValue.trim();
-    editingId = null;
-    if (!name || name === t.suggested_name) return;
-    await afterMutation(api.renameCluster($session.session_id, t.id, name));
-  }
-
-  async function mergeWithNearest(t) {
-    if (!t.nearest) return;
-    await afterMutation(api.mergeClusters($session.session_id, t.id, t.nearest.id));
-  }
-
-  function toggleSplitMember(clusterId, key) {
-    const set = splitSelect[clusterId] || new Set();
-    if (set.has(key)) set.delete(key); else set.add(key);
-    splitSelect = { ...splitSelect, [clusterId]: set };
-  }
-
-  async function doSplit(t) {
-    const set = splitSelect[t.id];
-    if (!set || set.size === 0) return;
-    await afterMutation(api.splitCluster($session.session_id, t.id, [...set]));
-  }
-
-  async function deleteCluster(t) {
-    if (!confirm(`Delete "${t.suggested_name}"? Its ${t.size} member(s) become unplaced.`)) return;
-    await afterMutation(api.deleteCluster($session.session_id, t.id));
-  }
-
-  async function moveMemberTo(m, fromId, toId) {
-    if (!toId || toId === fromId) return;
-    await afterMutation(api.moveMember($session.session_id, memberKey(m), fromId, toId));
-  }
 
   function ghUrl(m) {
     const fn = m.full_name || '';
@@ -172,301 +121,210 @@
     if (fn.includes('/')) return `https://github.com/${fn}`;
     return `https://github.com/${m.repo}`;
   }
+
+  function startRename(t) { editingId = t.id; editingValue = t.name; }
+  function cancelRename() { editingId = null; editingValue = ''; }
+  async function saveRename(t) {
+    const name = editingValue.trim();
+    editingId = null;
+    if (!name || name === t.name) return;
+    try {
+      const d = await api.renameCluster($session.session_id, t.id, name);
+      build(d);
+    } catch (e) { errorMsg = e.message; }
+  }
 </script>
 
 <div class="page-header">
   <h1>Cluster</h1>
   <p class="sub">
-    A refinement surface, not a decision. Group by themes, then merge near-
-    duplicates, split bloated clusters, move a stray member, or rename —
-    until the lowest margin between any two clusters reads
-    <b>wide</b>. Promote hubs from the <a href="/promote">Own</a> page once boundaries feel real.
+    Your repos get clumped by the AI, each with a confidence score. Answer its
+    clarifying questions to settle the fuzzy boundaries. Promote a clump into a
+    real project from the <a href="/promote">Own</a> page once it looks right.
   </p>
 </div>
 
 {#if errorMsg}<div class="error-msg">{errorMsg}</div>{/if}
 {#if msg}<div class="ok-msg" style="margin-top:0.6rem">{msg}</div>{/if}
+
 {#if loading}<p class="loading">Loading…</p>{/if}
 
-{#if !loading && data && (!data.available || themes.length || data.saved === false)}
-  <div class="layout">
-    <aside class="rail">
-      <div class="rail-stats">
-        {#if data.available}
-          <b>{themes.length}</b> themes<br>
-          <b>{themes.reduce((n, t) => n + t.size, 0)}</b> grouped<br>
-          {#if orphans.length}<span class="stat-orphans">{orphans.length} unplaced</span>{/if}
-          {#if themes.length > 1}
-            {@const low = lowestMargin()}
-            {#if low}
-              <div class="margin-summary flag-{low.flag}">
-                lowest margin: <b>{low.flag}</b> ({(1 - low.score).toFixed(2)} similar)
-              </div>
-            {/if}
-          {/if}
-        {:else}
-          <span class="muted">Not yet grouped.</span>
-        {/if}
-      </div>
+{#if !loading}
+  <div class="bar">
+    {#if !data || !data.available}
+      <button disabled={busy} on:click={groupNow}
+        title="Ask your LLM to clump every repo by the human activity it serves.">
+        ✨ {busy ? 'Clumping…' : 'Clump my repos'}
+      </button>
+      {#if data?.reason}<span class="hint">{data.reason}</span>{/if}
+    {:else}
+      <span class="summary">
+        <b>{themes.length}</b> clumps · <b>{themes.reduce((n, t) => n + sizeOf(t), 0)}</b> grouped
+        {#if orphans.length}<span class="unplaced">· {orphans.length} unplaced</span>{/if}
+        {#if resolved.length}<span class="resolved">· {resolved.length} answers</span>{/if}
+        {#if round}<span class="muted">· round {round}</span>{/if}
+      </span>
+      <button class="ghost sm" disabled={busy} on:click={groupNow}
+        title="Re-clump from scratch (forget all answers and re-ask).">
+        ↻ {busy ? 'Clumping…' : 'Restart'}
+      </button>
+    {/if}
+  </div>
 
-      <button class="primary" disabled={busy || exporting || mutating} on:click={groupNow}
-        title="Bundle the scan + READMEs and ask your configured LLM chain to group by activity, not tech">
-        ✨ {busy ? 'Grouping…' : 'Group by themes (use my LLM)'}
-      </button>
-      <button class="secondary" disabled={busy || exporting} on:click={downloadPrompt}
-        title="Download the same prompt as a .txt file so you can paste it into any chat LLM.">
-        ⬇ {exporting ? 'Downloading…' : 'Download prompt (.txt)'}
-      </button>
-      {#if exportMsg}<div class="ok-msg" style="margin:0;font-size:0.74rem">{exportMsg}</div>{/if}
-
-      <button class="secondary" disabled={importing} on:click={() => showImport = !showImport}
-        title="Paste the JSON an external LLM returned to build theme cards from it.">
-        ↥ Import result
-      </button>
-      {#if showImport}
-        <div class="import-box">
-          <textarea bind:value={importText} rows="6"
-            placeholder="Paste the themes JSON the external LLM returned…"></textarea>
-          <button class="primary" disabled={importing || !importText.trim()} on:click={importThemes}>
-            {importing ? 'Importing…' : 'Import'}
+  {#if data?.available}
+    {#if questions.length}
+      <section class="section">
+        <div class="section-head">
+          <h2>Things I'm unsure about ({questions.length})</h2>
+          <button class="sm" disabled={refining || pending.length === 0} on:click={apply}>
+            {refining ? 'Re-clumping…' : `Apply & re-clump${pending.length ? ` (${pending.length})` : ''}`}
           </button>
         </div>
-      {/if}
 
-      {#if bundleInfo}
-        <div class="bundle-info">
-          <div><b>{bundleInfo.size_bytes?.toLocaleString() || 0}</b> bytes</div>
-          <div>target {bundleInfo.target_tokens?.toLocaleString() || 0} tokens
-            ({Math.round((bundleInfo.target_tokens || 0)
-                         / (bundleInfo.context_window || 1) * 100)}% of
-            {bundleInfo.context_window?.toLocaleString() || 0} ctx)</div>
-          {#if bundleInfo.iterations?.length}
-            <div>{bundleInfo.iterations.length} fit-pass{bundleInfo.iterations.length === 1 ? '' : 'es'}
-              · {bundleInfo.iterations.at(-1).tokens.toLocaleString()} final tokens</div>
-          {/if}
-          {#if bundleInfo.summarised_repos?.length}
-            <div>{bundleInfo.summarised_repos.length} README{bundleInfo.summarised_repos.length === 1 ? '' : 's'}
-              summarised to fit</div>
-          {/if}
-          <div class="muted small" title={bundleInfo.path}>saved to {bundleInfo.path}</div>
-        </div>
-      {/if}
-
-      {#if data.saved}<span class="saved-pill">cached</span>{/if}
-
-      {#if orphans.length}
-        <div class="orphans-box">
-          <div class="orphans-head">unplaced ({orphans.length})</div>
-          {#each orphans as o (memberKey(o))}
-            <div class="orphan-row">
-              <a class="orphan-name" href={ghUrl(o)} target="_blank" rel="noopener">{o.repo}</a>
-              <select disabled={mutating}
-                on:change={(e) => { moveMemberTo(o, 'orphans', e.target.value); e.target.value=''; }}>
-                <option value="">add to…</option>
-                {#each themes as t (t.id)}
-                  <option value={t.id}>{t.suggested_name}</option>
+        <div class="questions">
+          {#each questions as q (q.id)}
+            <div class="q-card">
+              <div class="q-text">{q.question}</div>
+              {#if q.repos?.length}
+                <div class="q-repos">
+                  {#each q.repos as r}<span class="q-repo">{r}</span>{/each}
+                </div>
+              {/if}
+              <div class="q-options">
+                {#each q.options as opt}
+                  <button class="opt {chosen[q.id] === opt ? 'sel' : ''}"
+                    disabled={refining}
+                    on:click={() => setAnswer(q, opt)}>{opt}</button>
                 {/each}
-              </select>
+              </div>
+              <div class="q-other">
+                <input type="text" bind:value={customText[q.id]}
+                  placeholder="or say it your own way…"
+                  on:keydown={(e) => { if (e.key === 'Enter') submitCustom(q); }} />
+                <button class="ghost sm" disabled={refining || !(customText[q.id] || '').trim()}
+                  on:click={() => submitCustom(q)}>use</button>
+              </div>
             </div>
           {/each}
         </div>
+      </section>
+    {:else}
+      {#if resolved.length}
+        <div class="ok-msg">No open questions — boundaries look settled.</div>
       {/if}
-    </aside>
+    {/if}
 
-    <div class="canvas">
-      {#if !data.available}
-        <div class="info-msg centered">
-          {data.reason}
-        </div>
-      {:else if themes.length === 0}
-        <p class="empty">✓ No themes — every repo was unplaced.</p>
-      {:else}
-        <div class="stage">
-          {#each themes as t (t.id)}
-            <section class="card">
-              <div class="margin-bar flag-{t.nearest?.flag || 'wide'}"
-                title={t.nearest ? `nearest: ${t.nearest.name} (${t.nearest.flag}, ${(1 - t.nearest.score).toFixed(2)} similar)` : ''}></div>
-              <div class="card-body">
-                <header class="card-head">
-                  {#if editingId === t.id}
-                    <input class="name-edit" bind:value={editingValue}
-                      on:keydown={(e) => { if (e.key === 'Enter') saveRename(t); if (e.key === 'Escape') cancelRename(); }}
-                      on:blur={() => saveRename(t)} autofocus />
-                  {:else}
-                    <button class="card-title" title="Click to rename" on:click={() => startRename(t)}>
-                      {t.suggested_name}
-                    </button>
-                  {/if}
-                  <div class="card-count">{t.size} repo{t.size === 1 ? '' : 's'}
-                    {#if t.totalStars}<span class="card-stars">★ {t.totalStars.toLocaleString()}</span>{/if}</div>
-                  {#if t.suggested_description}
-                    <div class="card-desc">{t.suggested_description}</div>
-                  {/if}
-                </header>
-
-                <div class="card-actions">
-                  {#if t.nearest}
-                    <button class="chip" disabled={mutating} on:click={() => mergeWithNearest(t)}
-                      title={`Merge with nearest neighbour: ${t.nearest.name}`}>
-                      🔗 merge w/ {t.nearest.name}
-                    </button>
-                  {/if}
-                  {#if (splitSelect[t.id]?.size || 0) > 0}
-                    <button class="chip" disabled={mutating} on:click={() => doSplit(t)}>
-                      ✂ split {splitSelect[t.id].size} off
-                    </button>
-                  {/if}
-                  <button class="chip danger" disabled={mutating} on:click={() => deleteCluster(t)}>
-                    🗑 delete
-                  </button>
+    {#if themes.length}
+      <div class="clumps">
+        {#each themes as t (t.id)}
+          <section class="clump">
+            <header>
+              {#if editingId === t.id}
+                <input class="name-edit" bind:value={editingValue}
+                  on:keydown={(e) => { if (e.key === 'Enter') saveRename(t); if (e.key === 'Escape') cancelRename(); }}
+                  on:blur={() => saveRename(t)} autofocus />
+              {:else}
+                <button class="clump-title" title="Click to name your ideal project"
+                  on:click={() => startRename(t)}>{t.name}</button>
+              {/if}
+              <span class="conf conf-{conf(t.confidence).cls}"
+                title="AI confidence in this clump's membership">
+                {conf(t.confidence).label}{t.confidence != null ? ` · ${Math.round(t.confidence * 100)}%` : ''}
+              </span>
+            </header>
+            {#if t.description}<p class="clump-desc">{t.description}</p>{/if}
+            <div class="members">
+              {#each t.members as m (memberKey(m))}
+                <div class="member">
+                  <a class="m-name" href={ghUrl(m)} target="_blank" rel="noopener"
+                    title={`Open ${m.full_name || m.repo} on GitHub`}>{m.repo}</a>
+                  <span class="m-meta">
+                    {#if m.domain}<span class="domain-pill">{m.domain}</span>{/if}
+                    {#if m.stars}<span>★ {m.stars}</span>{/if}
+                  </span>
+                  {#if m.aim}<span class="m-aim">{m.aim}</span>{/if}
                 </div>
+              {/each}
+            </div>
+          </section>
+        {/each}
+      </div>
+    {/if}
 
-                <div class="card-members">
-                  {#each t.members as m (memberKey(m))}
-                    <div class="cell">
-                      <input type="checkbox" class="split-check"
-                        checked={splitSelect[t.id]?.has(memberKey(m)) || false}
-                        on:change={() => toggleSplitMember(t.id, memberKey(m))}
-                        title="Select for split" />
-                      <div class="cell-main">
-                        <a class="cell-title" href={ghUrl(m)} target="_blank" rel="noopener"
-                           title={`Open ${m.full_name || m.repo} on GitHub`}>{m.repo}</a>
-                        <div class="cell-sub">
-                          {#if m.domain}<span class="domain-pill">{m.domain}</span>{/if}
-                          {#if m.stars}<span>★ {m.stars}</span>{/if}
-                        </div>
-                        {#if m.aim}<div class="cell-desc" title={m.aim}>{m.aim}</div>{/if}
-                      </div>
-                      <select class="move-select" disabled={mutating}
-                        on:change={(e) => { moveMemberTo(m, t.id, e.target.value); e.target.value=''; }}>
-                        <option value="">move…</option>
-                        {#each themes.filter(x => x.id !== t.id) as x (x.id)}
-                          <option value={x.id}>{x.suggested_name}</option>
-                        {/each}
-                        <option value="orphans">unplaced</option>
-                      </select>
-                    </div>
-                  {/each}
-                </div>
-              </div>
-            </section>
+    {#if orphans.length}
+      <section class="section">
+        <div class="section-head"><h2>Unplaced ({orphans.length})</h2></div>
+        <div class="orphans">
+          {#each orphans as o (memberKey(o))}
+            <a class="orphan" href={ghUrl(o)} target="_blank" rel="noopener">{o.repo}</a>
           {/each}
         </div>
-      {/if}
-    </div>
-  </div>
+      </section>
+    {/if}
+  {/if}
 {/if}
 
 <style>
-  .layout { display: grid; grid-template-columns: 260px 1fr; gap: 1rem;
-    margin-top: 0.7rem; align-items: start; }
+  .bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .summary { font-size: 0.88rem; color: #374151; }
+  .unplaced { color: #b45309; font-weight: 600; }
+  .resolved { color: var(--muted-text); }
 
-  .rail { background: #fff; border: 1px solid var(--border); border-radius: 8px;
-    padding: 0.7rem 0.75rem; position: sticky; top: 0.5rem;
-    max-height: calc(100vh - 1rem); overflow-y: auto;
-    display: flex; flex-direction: column; gap: 0.55rem; }
-  .rail-stats { color: #374151; font-size: 0.86rem; line-height: 1.45;
-    padding-bottom: 0.45rem; border-bottom: 1px solid var(--border); }
-  .stat-orphans { color: #b45309; font-weight: 600; }
-  .margin-summary { margin-top: 0.3rem; font-size: 0.74rem; padding: 0.15rem 0.4rem;
-    border-radius: 4px; display: inline-block; }
-  .margin-summary.flag-thin { background: #fef2f2; color: #b91c1c; }
-  .margin-summary.flag-ok { background: #fffbeb; color: #b45309; }
-  .margin-summary.flag-wide { background: #ecfdf5; color: #047857; }
+  .section { margin-top: 1.1rem; background: #fff; border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.9rem 1rem; }
+  .section-head { display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 0.6rem; }
+  .section-head h2 { font-size: 1rem; margin: 0; }
 
-  .primary { background: var(--brand); color: #fff; border: none; border-radius: 6px;
-    padding: 0.6rem 0.75rem; font-size: 0.88rem; font-weight: 700;
-    cursor: pointer; width: 100%; }
-  .primary:disabled { opacity: 0.5; cursor: not-allowed; }
-  .secondary { width: 100%; text-align: center; padding: 0.5rem 0.6rem;
-    font-size: 0.82rem; font-weight: 600; }
+  .questions { display: flex; flex-direction: column; gap: 0.6rem; }
+  .q-card { border: 1px solid var(--border); border-radius: 8px; padding: 0.7rem 0.8rem; }
+  .q-text { font-size: 0.9rem; color: #111827; font-weight: 600; }
+  .q-repos { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.4rem; }
+  .q-repo { font-family: var(--mono); font-size: 0.72rem; background: #f9fafb;
+    border: 1px solid var(--border); border-radius: 4px; padding: 0.05rem 0.4rem; }
+  .q-options { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.55rem; }
+  .opt { font-size: 0.8rem; padding: 0.32rem 0.7rem; border-radius: 6px;
+    border: 1px solid var(--border); background: #fff; cursor: pointer; }
+  .opt:hover { border-color: var(--brand); color: var(--brand); }
+  .opt.sel { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .q-other { display: flex; gap: 0.4rem; margin-top: 0.5rem; }
+  .q-other input { flex: 1; font-size: 0.8rem; }
 
-  .import-box { display: flex; flex-direction: column; gap: 0.4rem; }
-  .import-box textarea { width: 100%; font-family: var(--mono); font-size: 0.72rem;
-    padding: 0.4rem; border: 1px solid var(--border); border-radius: 6px; resize: vertical; }
-  .import-box .primary { padding: 0.4rem 0.6rem; font-size: 0.8rem; }
-
-  .bundle-info { background: #f9fafb; border: 1px solid var(--border);
-    border-radius: 6px; padding: 0.5rem 0.6rem; font-size: 0.76rem;
-    color: #374151; display: flex; flex-direction: column; gap: 0.18rem; }
-  .bundle-info .muted { font-family: var(--mono); font-size: 0.66rem;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-  .saved-pill { font-size: 0.72rem; background: #ecfdf5; color: #047857;
-    border: 1px solid #a7f3d0; border-radius: 4px; padding: 0.1rem 0.5rem;
-    align-self: flex-start; }
-
-  .orphans-box { border-top: 1px solid var(--border); padding-top: 0.5rem;
-    display: flex; flex-direction: column; gap: 0.3rem; max-height: 260px; overflow-y: auto; }
-  .orphans-head { font-size: 0.76rem; font-weight: 700; color: #b45309; }
-  .orphan-row { display: flex; align-items: center; justify-content: space-between;
-    gap: 0.3rem; font-size: 0.74rem; }
-  .orphan-name { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis;
-    white-space: nowrap; max-width: 130px; }
-  .orphan-row select { font-size: 0.68rem; max-width: 90px; }
-
-  .stage { border: 1px solid var(--border); border-radius: 10px;
-    background: radial-gradient(circle at 1px 1px, #f3f4f6 1px, transparent 0) 0 0 / 22px 22px;
-    padding: 1rem; display: flex; flex-direction: column; gap: 1.1rem;
-    align-items: stretch; min-height: 12rem; }
-  .card { width: 100%;
-    display: flex; background: rgba(255,255,255,0.5); border-radius: 10px;
-    border: 1px solid var(--border); overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-  .margin-bar { width: 7px; flex-shrink: 0; }
-  .margin-bar.flag-thin { background: #ef4444; }
-  .margin-bar.flag-ok { background: #f59e0b; }
-  .margin-bar.flag-wide { background: #10b981; }
-
-  .card-body { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-  .card-head { padding: 0.75rem 0.9rem 0.65rem; border-bottom: 1px solid var(--border);
-    background: rgba(255,255,255,0.6); }
-  .card-title { font-size: 1rem; font-weight: 800; color: #1e40af;
-    text-transform: lowercase; letter-spacing: 0.01em; background: none; border: none;
-    padding: 0; cursor: pointer; text-align: left; width: 100%;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .card-title:hover { text-decoration: underline; }
-  .name-edit { font-size: 1rem; font-weight: 700; width: 100%; padding: 0.15rem 0.3rem;
+  .clumps { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-top: 1.1rem; }
+  .clump { background: #fff; border: 1px solid var(--border); border-radius: 10px;
+    padding: 0.85rem 0.95rem; display: flex; flex-direction: column; }
+  .clump header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+  .clump-title { font-size: 1rem; font-weight: 700; color: #1e40af; background: none;
+    border: none; padding: 0; cursor: pointer; text-align: left; }
+  .clump-title:hover { text-decoration: underline; }
+  .name-edit { font-size: 1rem; font-weight: 700; flex: 1; padding: 0.15rem 0.3rem;
     border: 1px solid var(--brand); border-radius: 4px; }
-  .card-count { font-size: 0.74rem; color: var(--muted-text); margin-top: 0.25rem;
-    display: flex; align-items: center; gap: 0.5rem; }
-  .card-stars { color: #b45309; font-weight: 600; }
-  .card-desc { font-size: 0.8rem; color: #4b5563; margin-top: 0.35rem; line-height: 1.4; }
+  .conf { font-size: 0.7rem; font-weight: 600; border-radius: 4px; padding: 0.1rem 0.45rem;
+    white-space: nowrap; }
+  .conf-high { background: #f0fdf4; color: #15803d; }
+  .conf-med { background: #fef3c7; color: #b45309; }
+  .conf-low { background: #fef2f2; color: #dc2626; }
+  .conf-none { background: #f3f4f6; color: #4b5563; }
+  .clump-desc { font-size: 0.8rem; color: #4b5563; margin: 0.4rem 0 0.5rem; line-height: 1.4; }
 
-  .card-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0.5rem 0.9rem;
-    border-bottom: 1px solid #f3f4f6; }
-  .chip { font-size: 0.72rem; padding: 0.22rem 0.65rem; border-radius: 999px;
-    border: 1px solid var(--border); background: #f9fafb; cursor: pointer; }
-  .chip:disabled { opacity: 0.5; cursor: not-allowed; }
-  .chip.danger { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+  .members { display: flex; flex-direction: column; gap: 0.35rem; }
+  .member { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.4rem;
+    border: 1px solid #f3f4f6; border-radius: 6px; padding: 0.35rem 0.5rem; }
+  .m-name { font-family: var(--mono); font-size: 0.82rem; font-weight: 600;
+    color: #111827; text-decoration: none; }
+  .m-name:hover { color: var(--brand); text-decoration: underline; }
+  .m-meta { display: flex; gap: 0.4rem; align-items: center; font-size: 0.7rem;
+    color: #4b5563; }
+  .domain-pill { background: var(--info-bg); color: #1e40af; padding: 0.03rem 0.4rem;
+    border-radius: 3px; font-size: 0.68rem; }
+  .m-aim { font-size: 0.76rem; color: #4b5563; width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  .card-members { overflow-y: auto; padding: 0.7rem;
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; max-height: 48rem; }
+  .orphans { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .orphan { font-family: var(--mono); font-size: 0.78rem; background: #f9fafb;
+    border: 1px solid var(--border); border-radius: 4px; padding: 0.15rem 0.5rem;
+    color: #374151; text-decoration: none; }
+  .orphan:hover { border-color: var(--brand); color: var(--brand); }
 
-  .cell { display: flex; align-items: flex-start; gap: 0.5rem; border-radius: 7px;
-    padding: 0.65rem 0.75rem; min-height: 6.5rem; background: #fff;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
-    border: 2px solid #111827; overflow: hidden; }
-  .split-check { margin-top: 0.25rem; flex-shrink: 0; }
-  .cell-main { min-width: 0; flex: 1; }
-  .cell-title { font-family: var(--mono); font-size: 0.84rem; font-weight: 600;
-    color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    text-decoration: none; display: block; margin-bottom: 0.3rem; }
-  .cell-title:hover { color: var(--brand); text-decoration: underline; }
-  .cell-sub { display: flex; gap: 0.55rem; align-items: center; font-size: 0.74rem;
-    color: #4b5563; line-height: 1.4; }
-  .domain-pill { background: var(--info-bg); color: #1e40af; padding: 0.05rem 0.45em;
-    border-radius: 3px; font-size: 0.7rem; }
-  .cell-desc { font-size: 0.8rem; color: #4b5563; line-height: 1.4;
-    margin-top: 0.3rem;
-    display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
-    overflow: hidden; text-overflow: ellipsis; }
-  .move-select { font-size: 0.68rem; max-width: 76px; flex-shrink: 0; align-self: flex-start; }
-
-  @media (max-width: 1000px) {
-    .card-members { grid-template-columns: repeat(2, 1fr); }
-  }
-  @media (max-width: 640px) {
-    .card-members { grid-template-columns: 1fr; }
-    .layout { grid-template-columns: 1fr; }
-  }
+  @media (max-width: 900px) { .clumps { grid-template-columns: 1fr; } }
 </style>

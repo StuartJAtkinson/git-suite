@@ -1,4 +1,4 @@
-// All calls go through Vite's dev proxy (/api -> :2800/api, /auth -> :2800/auth)
+// All calls go through Vite's dev proxy (/api -> :2801/api, /auth -> :2801/auth)
 // so no hard-coded base URL is needed in dev or prod.
 
 import { session } from './stores';
@@ -96,6 +96,8 @@ export const api = {
     req('POST', `/api/cluster/${session_id}/rename`, { cluster_id, name }),
   deleteCluster: (session_id, cluster_id) =>
     req('POST', `/api/cluster/${session_id}/delete`, { cluster_id }),
+  answerThemes: (session_id, answers) =>
+    req('POST', `/api/cluster/${session_id}/answer`, { answers }),
 
   // Promote (Step 3 "Own" — turn owned forks into first-class repos)
   listForks: (session_id) => req('GET', `/api/promote/${session_id}`),

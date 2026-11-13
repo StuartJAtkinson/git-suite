@@ -33,7 +33,7 @@ npm run dev          # http://localhost:2173
 ### Tests
 
 ```bash
-cd ui/backend && python -m pytest        # 195 tests
+cd ui/backend && python -m pytest        # 219 tests
 ```
 
 Health: `http://localhost:2801/health`. API docs: `/docs`.
@@ -122,7 +122,7 @@ All eight steps are built. Remaining work is tracked in
 |------|--------------|
 | **Setup** | First step — GitHub connection (PAT); LLM provider config (API key + failover priority; call URLs are hardcoded per provider, models are fetched live from each provider's own listing endpoint and filtered to completion-capable ones); embedding provider + live-listed embedding models; chain readout showing where each is used |
 | **Scan** | Streams the live portfolio (incl. private repos) over a same-origin WebSocket; enriched fields (topics, stars, fork, pushed_at, archived, size); **Print preview** (`/scan/print`) renders every owned/fork/star repo as an A4-ready card grid (name, purpose, domain/hub tags, language, entities, stars) for printing/PDF |
-| **Cluster** ("Themes") | An **iterative refinement surface**, not a one-shot render. **✨ Group by themes** bundles **owned repos AND starred repos** (every repo's distilled purpose/entities/domain + the full README, iteratively summarised to fit the active model's context budget) and asks the configured LLM chain to name each theme after the *human activity* the repos serve, never a tech-stack bucket (no "python", "data", "tools"). Stars are identified to the LLM by full `owner/repo` (owned repos by bare name) so same-named stars from different orgs never collide. **⬇ Download prompt (.txt)** exports the identical system+user prompt as a file for pasting into any external chat LLM; **↥ Import result** parses that LLM's JSON reply back into the same theme cards. Each theme card shows a **margin bar** (1 − Jaccard token overlap vs. its nearest neighbour; thin/ok/wide) and supports **merge with nearest**, **split** (checkbox-select members → peel into a new card), **move** a single member to another card or to unplaced, **rename** (click the title), and **delete** (members return to unplaced). All five mutate the saved `cluster_result` in place via `POST /cluster/{sid}/merge\|split\|move\|rename\|delete`. Themes are cached per-session; promoting a theme into a real hub happens on **Own**, not here |
+| **Cluster** | Clumps owned + starred repos by human activity, each with a **confidence** score; the LLM raises **clarifying questions** (answer an option, re-clump). Backed by the **grouping ledger** (`grouping_store.py`, see [../GROUPING.md](../GROUPING.md)): per-repo status freezes what's settled, and refinement becomes targeted merge/split/move/rename **deltas** the LLM proposes and you approve — `POST /cluster/{sid}/propose` + `/apply`. Operable via the MCP server (`mcp_server.py`) |
 | **Own** | Step 3 — owned forks with upstream status (parent, private-upstream flag), current verdict + cluster; per-fork decide promote (→ keep / absorb into a hub) or drop (→ archive), and generate a git detach checklist (GitHub has no de-fork API, so the move is yours to run) |
 | **Order** | Per-hub Tree-of-Knowledge layout — one ordered list of a hub's members (foundational first, presentation last); three classification checkboxes (Gather / Analyse / Display) act as filters; per-row arrow reordering + per-row and per-hub LLM Suggest; **✨ Features** per row asks the LLM to identify the repo's concrete features (architecture Step 5), saved immediately into `feature_annotations`; per-hub compat-tag vocabulary override |
 | **Triage** | Keyboard-fast verdict queue (1–N absorb, a/k/o/s); stub badges; per-orphan **best-hub recommendation** folded into the card stream as a `💡` hint, a `✅` one-click "Absorb into …", or a `⭐` copy-URL row for starred repos you unstar yourself on github.com (architecture Step 6) |
@@ -161,8 +161,14 @@ All eight steps are built. Remaining work is tracked in
 
 ```
 plan_store.py      canonical plan.json: load/heal (empty default), verdicts, blank/reset
+grouping_store.py  the grouping ledger (~/.git-suite/grouping.json): per-repo
+                   status (unsettled/proposed/settled/ambiguous), seed from a
+                   clustering, delta application (merge/split/move/rename)
 database.py        aiosqlite schema + column migrations
 llm_providers.py   provider registry (api_type, base_url, exhaust patterns)
+mcp_server.py      MCP server (stdio): grouping ledger as resources +
+                   propose_next / apply_delta / answer_question / set_floor /
+                   settle tools — thin adapter, no grouping logic
 services/
   llm.py           async failover chain (complete)
   embeddings.py    async failover chain + DB cache (cosine)
@@ -175,7 +181,9 @@ services/
                    persisted to ~/.git-suite/themes-bundle.json. Stars are
                    identified by full owner/repo, owned repos by bare name
                    (to_prompt_records() picks the right one per source)
-  topic_llm.py     one-shot LLM theme discovery over the bundle; forbids
+  topic_llm.py     one-shot LLM theme discovery over the bundle (confidence +
+                   clarifying questions) AND targeted refinement deltas
+                   (propose_deltas) over the grouping ledger; forbids
                    tech-stack theme names; parse_external_response() re-uses
                    the same extract/validate path for pasted-back JSON
   migration.py     absorb checklist + scaffold + MIGRATION.md
@@ -190,10 +198,10 @@ routers/
                    github_user — one live session per user, always), gh-token,
                    session
   scan            start + WebSocket stream + results + latest + distill
-  cluster         propose (saved_only or explicit recompute) / prompt (.txt
-                   export) / import (external LLM JSON reply) / form hub /
-                   merge / split / move / rename / delete (iterative refinement,
-                   mutates the saved `cluster_result` in place)
+  cluster         propose (saved_only or explicit recompute) / answer /
+                  propose (deltas over the ledger) / apply (commit a delta) /
+                  prompt (.txt export) / import (external LLM JSON reply) /
+                  form hub / merge / split / move / rename / delete
   promote         list forks / decide promote|drop / detach checklist
   stars           refresh starred snapshot / list
   order           per-hub ToK layout: get/save/suggest-order/suggest-column/
@@ -217,14 +225,17 @@ routers/
   drift           scheduled portfolio drift: latest snapshot + history
   recommend       per-orphan best-hub recommendation (Step 6; two-tier
                   confidence; folded into the Triage card stream)
+  grouping        read + reset the grouping ledger (GET /api/grouping,
+                  POST /api/grouping/reset)
 ```
 
 State: `~/.git-suite/plan.json` (plan), `~/.git-suite/config.json` (keys),
-`~/.git-suite/state.db` (sessions, scans, forks, starred snapshot, repo_domain,
-hub_actions, hub_order, migration checklists, embeddings cache, cluster_result),
-`~/.git-suite/themes-bundle.json` (audit copy of the last full-scan bundle sent
-to the LLM). `GIT_SUITE_HOME` overrides the directory. Session rows are
-single-per-user — login purges any other session for the same `github_user`.
+`~/.git-suite/grouping.json` (grouping ledger), `~/.git-suite/state.db` (sessions,
+scans, forks, starred snapshot, repo_domain, hub_actions, hub_order, migration
+checklists, embeddings cache, cluster_result), `~/.git-suite/themes-bundle.json`
+(audit copy of the last full-scan bundle sent to the LLM). `GIT_SUITE_HOME`
+overrides the directory. Session rows are single-per-user — login purges any
+other session for the same `github_user`.
 
 ---
 
@@ -250,6 +261,19 @@ across different starred orgs). Docker deployment removed (local dev is
 the only supported path); dead k-means `services/cluster.py` deleted;
 architecture Step 5 (Feature-identify) built — Order page's ✨ Features
 button. **122 tests green.**
+
+*Last updated: 2026-11-13 — Cluster reworked from the manual merge/split/move/
+margin surface into AI-driven refinement: clumps carry a confidence score, the
+LLM raises clarifying questions (answer an option → re-clump), and underneath sits
+a durable **grouping ledger** (`grouping_store.py`, `~/.git-suite/grouping.json`)
+that gives every repo a resumable status and lets the LLM propose targeted
+merge/split/move/rename **deltas** (approve → `settled`, which freezes the repo).
+New endpoints: `POST /cluster/{sid}/answer` (answer questions → re-clump),
+`POST /cluster/{sid}/propose` + `/apply` (deltas), `GET/POST /api/grouping`.
+A stdio **MCP server** (`mcp_server.py`) operates the ledger. Also: `state.db` is
+chmod 0600; Ollama default is `localhost:11434` + `qwen3:8b`; the `.gitignore`
+`*.json` rule was removed (it had kept `package.json`/lockfile untracked); three
+tests made hermetic. **219 tests green** (line 36 is the live count).*
 
 *Last updated: 2026-09-29 — doc-correction pass brought the architecture doc
 back in line with the shipped app: workflow chain and Pages table now

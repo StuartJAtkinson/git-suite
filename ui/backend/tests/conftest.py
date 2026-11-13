@@ -162,7 +162,7 @@ def insert_scan(database, session_id="s1", scan_id="sc1", repos=None):
 
 
 def insert_stars(database, stars=None):
-    """Helper: write rows into starred_repo. Each star dict needs at least
+    """Write rows into starred_repo. Each star dict needs at least
     full_name + name; owner/description/topics/stars/url default sensibly."""
     stars = stars or []
 
@@ -182,3 +182,13 @@ def insert_stars(database, stars=None):
             await db.commit()
 
     asyncio.run(_go())
+
+
+@pytest.fixture
+def isolated_grouping(tmp_path, monkeypatch):
+    """grouping_store backed by a throwaway grouping.json in a tmp dir."""
+    import grouping_store
+    monkeypatch.setattr(grouping_store, "_HOME", tmp_path)
+    monkeypatch.setattr(grouping_store, "_FILE", tmp_path / "grouping.json")
+    grouping_store.reset()
+    return grouping_store

@@ -3,8 +3,7 @@ import os
 from pathlib import Path
 
 # All persistent state (this file + config.json + plan.json) lives under one
-# directory so a single host mount in docker-compose.yml covers everything.
-# Defaults to ~/.git-suite for non-Docker runs; docker sets GIT_SUITE_HOME=/app/data.
+# directory (GIT_SUITE_HOME). Defaults to ~/.git-suite.
 _HOME = Path(os.environ.get("GIT_SUITE_HOME", str(Path.home() / ".git-suite")))
 DB_PATH = _HOME / "state.db"
 
@@ -244,6 +243,13 @@ async def init_db() -> None:
         """)
         await _migrate(db)
         await db.commit()
+
+    # The DB holds the GitHub PAT (session table) and LLM keys indirectly — lock
+    # it down like config.json / plan.json do (no-op on Windows).
+    try:
+        os.chmod(DB_PATH, 0o600)
+    except OSError:
+        pass
 
 
 # Columns added after the initial schema — applied to existing DBs on startup.

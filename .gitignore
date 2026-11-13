@@ -31,7 +31,6 @@ Thumbs.db
 # Generated data files (project-specific)
 *.csv
 *.xlsx
-*.json
 prompts/
 build_prompts.py
 

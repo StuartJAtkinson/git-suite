@@ -21,6 +21,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 import plan_store
+import grouping_store
 from database import get_db
 from routers.reconcile import reconcile
 
@@ -213,13 +214,16 @@ def _pool_counts(pool: list[dict]) -> dict[str, int]:
 
 
 async def _propose_themes(session_id: str, orphans: list[dict],
-                          hubs: list[str]) -> dict:
-    """One-shot LLM topic discovery.
+                          hubs: list[str], answers: list[dict] | None = None,
+                          round_: int = 0) -> dict:
+    """One-shot LLM topic discovery (with iterative answer steering).
 
     Bundler flow: build the full scan+README bundle, trim iteratively to the
     active model's 70% token budget (summarising top-25% largest READMEs each
-    pass), then ask the LLM to organise the trimmed bundle into themes.
-    Falls back to the light `records()` path if the bundler raises.
+    pass), then ask the LLM to organise the trimmed bundle into themes. On a
+    refinement round the already-persisted bundle for this session is reused
+    (READMEs are unchanged; only the answers change). Falls back to the light
+    `records()` path if the bundler raises.
     """
     from services import distill, topic_llm, themes_bundle
 
@@ -227,9 +231,18 @@ async def _propose_themes(session_id: str, orphans: list[dict],
 
     bundle_meta = None
     try:
-        bundle_meta = await themes_bundle.build_and_persist(session_id)
-        records_in = themes_bundle.to_prompt_records(json.loads(
-            themes_bundle._BUNDLE_PATH.read_text(encoding="utf-8")))
+        path = themes_bundle._BUNDLE_PATH
+        artefact = None
+        try:
+            artefact = json.loads(path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError):
+            artefact = None
+        if not artefact or artefact.get("session_id") != session_id:
+            bundle_meta = await themes_bundle.build_and_persist(session_id)
+            artefact = json.loads(path.read_text(encoding="utf-8"))
+        else:
+            bundle_meta = artefact.get("meta") or {}
+        records_in = themes_bundle.to_prompt_records(artefact)
     except Exception as exc:
         # Bundler can fail (token not loaded, readmes 404, etc.) — fall back
         # to the lightweight records-only path so the user still gets themes.
@@ -245,7 +258,7 @@ async def _propose_themes(session_id: str, orphans: list[dict],
             r["entities"] = rec.get("entities", [])
             r["domain"] = rec.get("domain", "")
 
-    themes = await topic_llm.discover_themes(records_in)
+    themes, questions = await topic_llm.discover_themes(records_in, answers=answers)
     if not themes:
         return {
             "available": False,
@@ -256,6 +269,9 @@ async def _propose_themes(session_id: str, orphans: list[dict],
             "mode": "themes",
             "counts": _pool_counts(pool),
             "bundle": bundle_meta,
+            "questions": [],
+            "answers": answers or [],
+            "round": round_,
         }
     clusters, orphans_returned = topic_llm.themes_to_clusters(themes, pool_by_name)
 
@@ -269,8 +285,12 @@ async def _propose_themes(session_id: str, orphans: list[dict],
         "orphans_returned": orphans_returned,
         "counts": _pool_counts(pool),
         "bundle": bundle_meta,
+        "questions": questions,
+        "answers": answers or [],
+        "round": round_,
     }
     await _save_result(session_id, payload)
+    grouping_store.seed_from_clusters(payload)
     return payload
 
 
@@ -435,6 +455,7 @@ async def import_themes(session_id: str, body: ImportRequest):
         "bundle": None,
     }
     await _save_result(session_id, payload)
+    grouping_store.seed_from_clusters(payload)
     payload = await _ensure_ids(session_id, payload)
     return _with_margins(payload)
 
@@ -615,6 +636,43 @@ async def delete_cluster(session_id: str, body: DeleteClusterRequest):
     return _with_margins(payload)
 
 
+class AnswerRequest(BaseModel):
+    answers: list[dict]    # [{"question": str, "answer": str}] — this round's replies
+
+
+@router.post("/cluster/{session_id}/answer")
+async def answer(session_id: str, body: AnswerRequest):
+    """Iterative refinement: record the user's answers to the clarifying
+    questions, then re-run the one-shot grouping with every prior answer
+    folded back in as steering context. Returns the fresh clusters + the next
+    round of questions. Cheap: the README bundle is reused, only the LLM call
+    is new."""
+    saved = await _load_result(session_id)
+    if saved is None or not saved.get("available") or not saved.get("clusters"):
+        raise HTTPException(status_code=404,
+                            detail="no saved clustering to refine — group first")
+
+    prior = list(saved.get("answers") or [])
+    for a in body.answers:
+        q = (a.get("question") or "").strip()
+        ans = (a.get("answer") or "").strip()
+        if q and ans:
+            prior.append({"question": q, "answer": ans})
+    if not prior:
+        raise HTTPException(status_code=400, detail="no answers provided")
+
+    round_ = int(saved.get("round") or 0) + 1
+    recon = await reconcile(session_id)
+    orphans = recon["orphans"]
+    hubs = list(plan_store.get_plan().get("hubs", {}).keys())
+    payload = await _propose_themes(session_id, orphans, hubs=hubs,
+                                    answers=prior, round_=round_)
+    if payload.get("available") and payload.get("clusters"):
+        payload = await _ensure_ids(session_id, payload)
+        payload = _with_margins(payload)
+    return payload
+
+
 class FormRequest(BaseModel):
     # priority is emergent — left unset at form time; hub order derives from
     # size until someone sets a manual override (promote/order).
@@ -624,6 +682,92 @@ class FormRequest(BaseModel):
     boundary: str = ""
     members: list[str]
     promote: str | None = None     # a member repo that becomes the hub itself
+
+
+# -- iterative refinement over the grouping ledger (step 2) -------------------
+# Round 0 (propose/answer/import above) seeds the ledger. From there refinement
+# is targeted deltas over the ledger, not a full re-cluster: the LLM proposes
+# merge/split/move/rename (or a question), the human approves, and approving
+# settles the touched repos so they freeze.
+
+
+async def _distilled_records(session_id: str) -> list[dict]:
+    """Per-repo distilled records (name/purpose/entities/domain) for the
+    session, reusing the persisted bundle when it matches this session."""
+    from services import distill, themes_bundle
+    recon = await reconcile(session_id)
+    pool, pool_by_name = await _pool_by_name(recon["orphans"])
+    try:
+        path = themes_bundle._BUNDLE_PATH
+        artefact = json.loads(path.read_text(encoding="utf-8"))
+        if artefact.get("session_id") != session_id:
+            await themes_bundle.build_and_persist(session_id)
+            artefact = json.loads(path.read_text(encoding="utf-8"))
+        return themes_bundle.to_prompt_records(artefact)
+    except Exception:
+        records = []
+        for nm in pool_by_name:
+            records.append({"name": nm, "purpose": "", "entities": [], "domain": ""})
+        rec_map, _ = await distill.records(pool, stop_on_error=False)
+        for r in records:
+            rec = rec_map.get(r["name"]) or {}
+            r["purpose"] = rec.get("purpose", "")
+            r["entities"] = rec.get("entities", [])
+            r["domain"] = rec.get("domain", "")
+        return records
+
+
+@router.post("/cluster/{session_id}/propose")
+async def propose_refinement(session_id: str):
+    """Ask the LLM for targeted deltas over the current ledger. Writes the
+    deltas into `ledger.pending` and returns them alongside any questions."""
+    from services import topic_llm
+
+    ledger = grouping_store.load()
+    if not ledger.get("clumps"):
+        raise HTTPException(status_code=404,
+                            detail="no grouping ledger — group (round 0) first")
+    records = await _distilled_records(session_id)
+    deltas, questions = await topic_llm.propose_deltas(
+        records, ledger, ledger.get("answers"))
+    for i, d in enumerate(deltas):
+        d["id"] = f"d{i}"
+    ledger["pending"] = deltas
+    grouping_store.save(ledger)
+    return {"deltas": deltas, "questions": questions,
+            "summary": grouping_store.summary(ledger)}
+
+
+class ApplyRequest(BaseModel):
+    delta_id: str
+    approve: bool = True
+    edits: dict | None = None       # optional override (e.g. new_name)
+
+
+@router.post("/cluster/{session_id}/apply")
+async def apply_refinement(session_id: str, body: ApplyRequest):
+    """Approve (commit) or reject one pending delta. Approving settles the
+    repos it places; settled repos are then frozen out of future deltas."""
+    ledger = grouping_store.load()
+    pending = ledger.get("pending") or []
+    delta = next((d for d in pending if d.get("id") == body.delta_id), None)
+    if delta is None:
+        raise HTTPException(status_code=404, detail="unknown delta id")
+    ledger["pending"] = [d for d in pending if d.get("id") != body.delta_id]
+
+    if not body.approve:
+        grouping_store.save(ledger)
+        return {"applied": False, "summary": grouping_store.summary(ledger),
+                "ledger": ledger}
+
+    if body.edits:
+        delta = {**delta, **body.edits}
+    res = grouping_store.apply_delta(ledger, delta)
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail=res.get("error"))
+    grouping_store.save(ledger)
+    return {"applied": True, "changed": res.get("changed", []),
+            "summary": grouping_store.summary(ledger), "ledger": ledger}
 
 
 @router.post("/cluster/form/{session_id}")

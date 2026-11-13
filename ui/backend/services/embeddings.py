@@ -27,7 +27,7 @@ EMBED_PROVIDERS: dict[str, dict] = {
     "openai": {"api_type": "openai_compat", "base_url": "https://api.openai.com/v1",
                "default_model": "text-embedding-3-small", "needs_key": True},
     # ponytail: reuse the LLM module's ollama URL so there's one source of truth
-    # (defaults to host.docker.internal:11434 in Docker; LLM_OLLAMA_BASE_URL override).
+    # (defaults to localhost:11434; LLM_OLLAMA_BASE_URL override).
     "ollama": {"api_type": "ollama",
                "base_url": __import__("llm_providers").PROVIDERS["ollama"]["base_url"],
                "default_model": "nomic-embed-text", "needs_key": False},

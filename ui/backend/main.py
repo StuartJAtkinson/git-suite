@@ -10,7 +10,7 @@ from database import init_db
 from routers import (auth, scan, hubs, config, reconcile,
                      plan, execute, migration, cluster, stars,
                      order, promote, installer, absorb, drift, recommend,
-                     wikidata)
+                     wikidata, grouping)
 from services import drift as _drift
 
 _LOG_DIR = Path(__file__).parent / "logs"
@@ -79,6 +79,7 @@ app.include_router(installer.router,  prefix="/api",   tags=["install"])
 app.include_router(absorb.router,     prefix="/api",   tags=["absorb"])
 app.include_router(drift.router,      prefix="/api",   tags=["drift"])
 app.include_router(recommend.router,  prefix="/api",   tags=["recommend"])
+app.include_router(grouping.router,   prefix="/api",   tags=["grouping"])
 
 
 @app.get("/health")

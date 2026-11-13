@@ -112,12 +112,12 @@ PROVIDERS: dict[str, ProviderMeta] = {
     "ollama": {
         "display_name": "Ollama (local)",
         "api_type": "ollama",
-        # host.docker.internal so the backend (running in Docker) can reach
-        # the host's Ollama daemon. If you run git-suite without Docker,
-        # override via the LLM_OLLAMA_BASE_URL env var.
-        "base_url": "http://host.docker.internal:11434",
+        # Local dev only (Docker deployment was removed 2026-07-23), so the
+        # daemon is on localhost. Override via LLM_OLLAMA_BASE_URL if it runs
+        # on another host.
+        "base_url": "http://localhost:11434",
         "setup_url": "https://ollama.com",
-        "default_model": "llama3.2",
+        "default_model": "qwen3:8b",
         "needs_key": False,
         "exhaust_patterns": [],  # local — no credit concept
     },

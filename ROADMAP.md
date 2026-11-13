@@ -9,6 +9,11 @@
 2026-09-29). Reviewed 2026-10-09: the next real work is a human taxonomy walk, not a feature.
 Docker deployment was removed on purpose (2026-07-23), so no deploy milestone either.
 
+**Grouping (2026-11-13):** the Cluster page was reworked into an AI-driven,
+human-in-the-loop refinement backed by a durable **grouping ledger** and an
+**MCP server** — see [`GROUPING.md`](GROUPING.md) for the method and
+[`MCP.md`](MCP.md) for the surface. 219 tests.
+
 **Human-only:** answer the 15 taxonomy questions in CONSIDERATIONS.md. They are numbered
 (`1.`), which Auto's pause count and interview don't see yet — atelier-harness ROADMAP M2b
 fixes that.

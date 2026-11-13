@@ -11,7 +11,7 @@
   const LLM_DEFAULT_MODELS = {
     anthropic: "claude-sonnet-4-6", openai: "gpt-4o",
     openrouter: "anthropic/claude-sonnet-4-6", deepseek: "deepseek-chat",
-    xai: "grok-beta", minimax: "abab6.5-chat", ollama: "llama3.2",
+    xai: "grok-beta", minimax: "abab6.5-chat", ollama: "qwen3:8b",
   };
 
   function obfuscate(key) {

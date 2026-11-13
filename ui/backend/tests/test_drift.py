@@ -62,6 +62,7 @@ def test_scheduler_interval_floor(monkeypatch):
 
     try:
         # Point the scheduler at a tiny in-memory config.
+        cfg_path.parent.mkdir(parents=True, exist_ok=True)
         cfg_path.write_text(json.dumps({"drift": {"interval_seconds": 5}}), encoding="utf-8")
         assert asyncio.run(s._interval()) == drift.MIN_INTERVAL_SECONDS
     finally:

@@ -1,7 +1,10 @@
 # MCP — git-suite
 
-**Design spec.** No MCP server exists yet. This is the surface this repo should
-expose, mapped to the routers that already implement it.
+**Design spec + the one server that now exists.** The **grouping** server is
+built (`ui/backend/mcp_server.py`, stdio) — see [GROUPING.md](GROUPING.md) for
+the method it operates. Everything else below is the spec for the full server
+this repo should still grow into, mapped to the routers that already implement
+it.
 
 - **Proposed server:** `git-suite`
 - **Transport:** stdio
@@ -79,6 +82,6 @@ not become a tool. `get_align_audit`-style **reads** are fine; the push is not.
 ## Implementation note
 
 Every router is already session-scoped and returns JSON the UI renders, so the
-MCP layer is an adapter with no logic of its own. The 195 backend tests cover
+MCP layer is an adapter with no logic of its own. The 219 backend tests cover
 the routers; a server that only reads them needs no new test surface beyond
 "the tool passes the session id through".

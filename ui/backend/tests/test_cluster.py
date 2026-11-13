@@ -10,7 +10,7 @@ from routers.cluster import (
 )
 
 
-def test_form_creates_hub_and_absorbs(isolated_plan):
+def test_form_creates_hub_and_absorbs(temp_db, isolated_plan):
     isolated_plan.clear()
     res = asyncio.run(form("s1", FormRequest(
         hub_name="map-suite", description="maps", boundary="spatial",
@@ -22,7 +22,7 @@ def test_form_creates_hub_and_absorbs(isolated_plan):
     assert res["absorbed"] == ["tilemaker", "streets-gl"]
 
 
-def test_form_promote_keeps_member_as_hub(isolated_plan):
+def test_form_promote_keeps_member_as_hub(temp_db, isolated_plan):
     isolated_plan.clear()
     asyncio.run(form("s1", FormRequest(
         hub_name="streets-gl", members=["tilemaker", "streets-gl"],
