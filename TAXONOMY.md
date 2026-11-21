@@ -3,6 +3,15 @@
 Working state of the theme/category ontology. Supersedes the flat 32-category
 list in `category_dividers.html` as it gets walked theme by theme.
 
+**Status 2026-11-21:** Single Computer rung closed — the single-node,
+bare-metal material is done. The nine open calls are answered: the Access rung
+was **split** — Monitoring now sits in a new **Rung 3 — Observability &
+Security** with the newly-earned Security leaf — and Remote Access, Security
+and Productivity are earned leaves. Rung 3 (Substrate) renumbered to **Rung 4**;
+Data & Content to **Rung 5**; Data Input to **Rung 6**. Decisions and their
+reasons are in `CONSIDERATIONS.md`'s history and `ISSUES.md`'s resolved list;
+the questions themselves are annotated in "Open questions" below.
+
 **Status 2026-09-11:** Single Computer rung closed — the single-node,
 bare-metal material is done. Currently walking the device / homelab material:
 Access rung walked but not closed (questions 7–11), Substrate rung walked but
@@ -55,7 +64,7 @@ Applied in this order when placing a repo:
    know what the data means?* `anime-offline-database`, `pc-part-dataset` and
    `multitudes` all failed this.
 5. **Substrate vs application.** Hypervisors, orchestrators and config
-   management are substrate → the Rung 3 substrate leaves
+   management are substrate → the Rung 4 substrate leaves
    (Virtualization & Server Platforms, Orchestration & Infrastructure as
    Code, Self-Hosted Dashboards). Applications go to their domain leaf.
 6. **Declarative desired-state** distinguishes real IaC (Ansible, Terraform)
@@ -78,18 +87,21 @@ Members: windows95, winutil, linutil, GoAwayEdge, chromeos-apk, puter,
 Windows11-3.0, dotnet9x, Windows-MCP, runwhenidle, netboot.xyz
 
 Absorbs single-machine tooling currently misfiled in the Homelab leaves
-(Rung 3 substrate).
+(Rung 4 substrate).
 
 ### Containerization *(was "Container")*
 Container runtimes and container lifecycle management.
 
 Members: portainer, rancher¹, dockge, podman, watchtower, awesome-docker,
-komodo, proxmox-lxc-autoscale, community-scripts/ProxmoxVE, Deployrr
+komodo, proxmox-lxc-autoscale, community-scripts/ProxmoxVE, Deployrr²
 
-¹ rancher is orchestration → Rung 3 substrate (Orchestration &
+¹ rancher is orchestration → Rung 4 substrate (Orchestration &
    Infrastructure as Code).
 ProxmoxVE and proxmox-lxc-autoscale stay here per question 1 — LXC content
 is containerization regardless of the fact that the platform runs on Proxmox.
+² Deployrr arrived here on 2026-11-21 (question 15): it ships Docker Compose,
+   so its content is containerization — the same principle that put ProxmoxVE
+   here, even though it automates home-server setup and so reads as substrate.
 
 Latent fault line, not split (leaf too thin): **runtimes** (docker, podman,
 containerd, runc) vs **lifecycle management** (portainer, dockge, komodo,
@@ -104,7 +116,9 @@ briefly-proposed "File Management" leaf — Stuart's original gloss was
 "Filesystems and the sort", which already meant this.
 
 Members: minio, nextcloud/all-in-one (recovered from Business),
-nextcloud/desktop, llama-fs, TagStudio, + a mime-type element still to land
+nextcloud/desktop, llama-fs, TagStudio, 3d-printed-nas (from Homelab —
+question 13, resolved 2026-11-21: it stores files, and a NAS knows what its
+files are), + a mime-type element still to land
 
 The line that keeps it honest: **a mime-type sorter is Storage; a thing that
 knows what a *season* or an *album* is, is Arr.** Generic type vs domain
@@ -133,7 +147,7 @@ Dashboards; sparql.anything → Ontology
 Graph stays inside Database — a storage model, not a semantic commitment. RDF
 is where edges carry meaning, and that's the specialisation threshold.
 
-## Rung 3 — Substrate *(WALKED, not closed)*
+## Rung 4 — Substrate *(WALKED, closed 2026-11-21)*
 
 Leaves: **Virtualization & Server Platforms · Orchestration & Infrastructure as Code · Self-Hosted Dashboards · IT Support & Device Management**
 
@@ -153,7 +167,7 @@ Administration leaf holding ~25 repos; the leaf split into three on
 2026-09-11 once it was clear that hypervisors, orchestration, IaC and
 self-hosted dashboards were four distinct sub-axes that would each grow
 past 20 members on their own (open question 6). Splitting now keeps each
-leaf at rung-3's natural granularity — stand up / automate / face — and
+leaf at rung-4's natural granularity — stand up / automate / face — and
 removes the "wait for the corpus to grow" risk.
 
 ### Virtualization & Server Platforms
@@ -162,16 +176,17 @@ Provision substrate: hypervisors and the platforms that *stand up the box*.
 What runs *on* the box is out of scope for this leaf; only the platform
 itself counts.
 
-Members: cozystack/cozystack, jetkvm/kvm, Corsinvest/awesome-proxmox-ve
+Members: cozystack/cozystack, Corsinvest/awesome-proxmox-ve
 (meta index, file by subject per question 2). `community-scripts/ProxmoxVE`
 stays in Containerization — see question 1 (LXC content is containerization,
 so the repo belongs there even though it stands up Proxmox itself).
 
-`jetkvm/kvm` is a hardware IP-KVM, not a software hypervisor — kept here on
-the *what-it-acts-on* test (it is how you reach a box once stood up) and
-the rung's natural ordering. Rung 1's footnote already settled that a
-hypervisor is substrate regardless of node count; `cozystack` is two layers
-down at once (Kubernetes is container orchestration, KubeVirt is
+`jetkvm/kvm` was held here on the *what-it-acts-on* test (it is how you reach
+a box once stood up) and **moved to Remote Access on 2026-11-21** (question 8)
+— an IP-KVM is session transport, not a platform, and the doc had been filing
+the same repo under two questions at once. Rung 1's footnote already settled
+that a hypervisor is substrate regardless of node count; `cozystack` is two
+layers down at once (Kubernetes is container orchestration, KubeVirt is
 virtualization) and lands here on the same shape as ProxmoxVE.
 
 ### Orchestration & Infrastructure as Code
@@ -197,9 +212,11 @@ containerization regardless of running on Proxmox, and VM autoscale is the
 same shape (autoscaler, not stand-up tool — the stand-up helper ProxmoxVE
 itself stays in Containerization for the same reason).
 
-**Imperative installer, same leaf:** SimpleHomelab/Deployrr (open question
-15 — first clean disagreement between discriminators 5 and 6; landed here
-because discriminator 5 wins, same shape as ProxmoxVE).
+**Imperative installer, moved out 2026-11-21:** `SimpleHomelab/Deployrr` sat
+here on the discriminator-5 reading (substrate wins), but question 15 settled
+the other way: it ships Docker Compose, so its content is containerization and
+it lives in **Containerization** beside ProxmoxVE. The leaf is declarative
+(discriminator 6) — an imperative installer is not one.
 
 ### Self-Hosted Dashboards
 
@@ -343,42 +360,59 @@ leaf is.
 - `UniGetUI` — Windows package-manager GUI; function is software
   management, fits
 - `nerd-fonts` — dev font/icon aggregation. Function is *developer
-  experience*; **open question 14**: developer tooling or device-side
-  tooling? It's both.
+  experience*; **resolved 2026-11-21 (question 14): it stays here** — it acts
+  on the user's device and is installed to make every application look
+  better, which is what "install, configure" means in this leaf. The
+  device-side framing wins over the dev-experience one.
 - `Install-Git`, `GitPortable`, `nodejs-portable` — single-tool installers,
   function is end-user IT
 - `scrcpy` — *mobile device management* on Android, function beats the
   Networking misclassification; this is the only non-mobile-management
   member of a non-existent MDM leaf, so it's IT Support for now
 - `timelinize` — Lifelogging (rung 2)
-- `ThesauRex`, `ontologies` → Ontology (rung 4, not yet walked)
-- `IAO`, `aw-import-ical`, `EMailParseAI` × 2, `ClickTheseThings`,
-  `all-repos`, `lobehub`, `jira`, `atlassian-python-api`, `portia`,
-  `DoIHaveEverything` — small per-user IT utilities, stay
+- `ThesauRex`, `ontologies` → Ontology (rung 5, not yet walked)
+- `IAO`, `all-repos`, `lobehub`, `jira`, `atlassian-python-api` — small
+  per-user IT utilities, stay
+- `openhaystack` — Find My network; **resolved 2026-11-21 (question 13):
+  IT Support**, filed by function. The leaf's own gloss is "help-desk,
+  install, configure, repair, **find**", and a Find My network finds a lost
+  device.
+- `gsmarena-scraper` — device specs; **resolved 2026-11-21 (question 13):
+  IT Support**, filed by function, beside `pc-part-dataset` (also device
+  specs) already here.
 - `federated-api-model` (the public-sector copy) → Civic & Public Affairs
 
 **Out:**
 
 - `federated-api-model` (gov copy) → Civic & Public Affairs
 - `pc-part-dataset` → IT Support (per above)
+- `EMailParseAI` × 2, `aw-import-ical`, `ClickTheseThings`, `portia`,
+  `DoIHaveEverything` → **Productivity** (2026-11-21, question 17) — the
+  input pipeline is mime-agnostic and fits no content leaf, so it earns one.
+- `huginn` → **Productivity** — web automation that happens to watch pages
+  (evicted from Monitoring to Productivity on 2026-09-07; the leaf it was
+  waiting for now exists).
 - The 17 misclassifications that landed here purely because their
   `it support`/`government it`/`public sector it` keywords matched —
   resolved by function, not by the keyword.
 
-After this walk, IT Support & Device Management holds ~20 members. Still
-small, still real.
+After this walk, and after the 2026-11-21 moves, IT Support & Device
+Management holds ~16 members. Still small, still real.
 
-## Rung 2 — Access *(WALKED, not closed)*
+## Rung 2 — Access *(WALKED, closed 2026-11-21)*
 
-Leaves: **Networking · Authentication · Remote Access?¹ · Monitoring**
+Leaves: **Networking · Authentication · Remote Access**
 
 The rung's throughline: rung 1 was one box; this rung is *the box reached over
 a wire*. Ascending inside the rung — move the bytes (Networking), decide who
-may (Authentication), drive the session (Remote Access), watch it stay up
-(Monitoring). All four are domain-agnostic: none of them knows what the traffic
-means. That is what keeps the whole rung low on the main axis.
+may (Authentication), drive the session (Remote Access). All three are
+domain-agnostic: none of them knows what the traffic means. That is what keeps
+the whole rung low on the main axis.
 
-¹ Proposed, not earned — see open question 8.
+**Monitoring left this rung on 2026-11-21** (open question 7): three of the
+four leaves were about *reaching* a machine and Monitoring is about *watching*
+one, so it was split out into **Rung 3 — Observability & Security** rather than
+renaming the rung to cover both. The rung's own name is unchanged.
 
 ### Networking
 Moving bytes between machines, plus the naming, routing and encryption that
@@ -390,8 +424,11 @@ Container — discriminator 2: it's a VPN client that happens to ship as an
 image) · **ivpn/desktop-app** (from Authentication — a VPN client, not an
 identity provider) · **zrok/openziti** (from Storage, per rung 1's eviction) ·
 **zoraxy**, **traefik** (from Homelab — reverse proxy / ingress) ·
-**certmate** (TLS lifecycle) · **awesome-scapy** (from Authentication) ·
+**certmate** (TLS lifecycle) ·
 **network-sketcher** (from Productivity) · **alternative-internet**
+
+`awesome-scapy` (packet analysis, from Authentication) moved out to
+**Security** on 2026-11-21 — see § Security.
 
 Evicted: Windows11-3.0 → Operating Systems (rung 1) · linkedin-api → Social
 Media · streets-gl, free-map-genie → Geospatial / Games · discord-transcriber →
@@ -403,8 +440,9 @@ Two that resist the leaf, both by the function test:
 - **kong** — an API gateway. Its function is API lifecycle management, not
   packet transport → Web & API Tooling. Substrate-vs-application agrees.
 - **caddy** — cuts both ways: serving sites is Web & API Tooling, automatic
-  ACME + reverse proxy is Networking. Currently Web & API Tooling. Open
-  question 10.
+  ACME + reverse proxy is Networking. **Resolved 2026-11-21 (question 10):
+  Web & API Tooling** — the kong precedent decides it, serving is the function
+  and transport is the mechanism. It stays where the walk put it.
 
 Latent fault line, not split: **transport** (VPN, overlay, DNS, proxy) vs
 **security appliance** (firewall, WAF, adblock). The corpus has essentially no
@@ -430,10 +468,10 @@ what its data means, so it's domain-specific, not generic persistence.
 Leaf is thin — 4 members. It survives because it's a real function, not because
 of its size.
 
-### Remote Access *(proposed leaf)*
+### Remote Access *(leaf — confirmed 2026-11-21)*
 Reaching and driving a machine you aren't sitting at.
 
-Members: **mRemoteNG**, **tigervnc**, **neko**
+Members: **mRemoteNG**, **tigervnc**, **neko**, **jetkvm/kvm**
 
 This is the single largest block currently inside Authentication and it isn't
 authentication: the function is *transporting a session*, not *proving an
@@ -443,14 +481,32 @@ remote-access terms (`Rdp`, `Vnc`, `Ssh`, `Novnc`, `Guacd`, `Putty`,
 Authentication pool, so anything mentioning RDP or VNC was routed to identity
 management. Placed by hand, these three go to session transport.
 
-Three members is thin, and it has two plausible homes instead. Open question 8.
+**Resolved 2026-11-21 (question 8): it earns the leaf.** `jetkvm/kvm` — the
+IP-KVM the Homelab walk held open, and the doc's one place that filed the same
+repo under two questions — joins it here: out-of-band fleet management is
+reaching and driving a machine you aren't sitting at. Its earlier placement
+under Virtualization & Server Platforms is withdrawn. Four members is still
+thin, but the function is real and distinct from both identity and packet
+transport, which is the same reason Authentication survives at four.
+
+## Rung 3 — Observability & Security *(NEW, 2026-11-21)*
+
+Leaves: **Monitoring · Security**
+
+Split out of Rung 2 on 2026-11-21 (question 7): Networking, Authentication and
+Remote Access are all about *reaching* a machine, Monitoring is about *watching*
+one, and Security is about *proving* it is sound. The rung is domain-agnostic
+like Access — none of it knows what the traffic means — so it stays low on the
+main axis, but it watches and audits rather than reaches. It sits between Access
+and Substrate: you watch a box before you stand up a fleet of them.
 
 ### Monitoring
 Observing whether all of the above is healthy — metrics, uptime, alerting,
 logs. Domain-agnostic instrumentation.
 
 In: **uptime-kuma**, **netdata**, **Pulse** (from Homelab), **glances** (from
-Homelab), **zabbix-docker-monitoring** (from Container — discriminator 2)
+Homelab), **zabbix-docker-monitoring** (from Container — discriminator 2),
+**holmesgpt** (from the AI leaf — resolved 2026-11-21, question 9)
 
 Evicted — **19 of the current 24 members**, making this the noisiest category
 in the corpus: games (xenia, WoWAnalyzer, FFXIVPlugin, xiv-resources,
@@ -462,16 +518,27 @@ manami → Video · gpsbabel → Geospatial · lg-washer-dryer-card → Home
 Automation · huginn → Productivity (web automation that happens to watch pages)
 · tailslayer → Operating Systems
 
-Unresolved member: **holmesgpt** (AI incident response over observability data
-— function says Monitoring, implementation says AI). **homebutler** /
-**homelable** were resolved on 2026-09-11 into Self-Hosted Dashboards when the
-Homelab leaf split — see § Self-Hosted Dashboards — so only holmesgpt remains.
-Open question 9.
+**holmesgpt** — AI incident response over observability data. Function says
+Monitoring, implementation says AI; the two discriminators disagree. **Resolved
+2026-11-21 (question 9): Monitoring**, on discriminator 2: "it's AI" is
+implementation, not domain — the same rule that keeps Docker packaging out of
+the signal. **homebutler** / **homelable** had already been resolved on
+2026-09-11 into Self-Hosted Dashboards when the Homelab leaf split — see
+§ Self-Hosted Dashboards.
 
-### Security scanning is NOT in this rung
-**Jira-Lens** is a vulnerability scanner and **awesome-scapy** is packet
-analysis; neither is access control. There is no Security leaf among the
-current 32. Open question 11.
+### Security *(leaf earned 2026-11-21)*
+Finding the weaknesses in a system: vulnerability scanning and packet analysis.
+Domain-agnostic — a scanner does not know what it is scanning.
+
+Members: **Jira-Lens** (vulnerability scanning), **awesome-scapy** (packet
+analysis)
+
+**Resolved 2026-11-21 (question 11): a Security leaf is earned.** It was
+previously recorded as "not in this rung" — scanning is not access control,
+which is still true, so it does not join Access. It sits beside Monitoring
+instead: both inspect a running system, one for liveness and one for soundness.
+A leaf of two survives the same test Authentication does — it is a real
+function, not a size.
 
 ## New leaves earned so far
 
@@ -490,6 +557,25 @@ to have repos already scattered across unrelated categories.
 - **Media Acquisition** — the renamed Arr: input pipeline for media-for-leisure,
   mime-agnostic (acquisition + watch-state sync). Output lives in the
   Video/Music/Photos content leaves. See Q4 resolution.
+
+## Leaves earned in the 2026-11-21 walk
+
+Three leaves earned by answering the nine open questions (full reasoning in
+`ISSUES.md`, resolved list; the questions are annotated in "Open questions"
+below).
+
+- **Remote Access** — mRemoteNG, tigervnc, neko, jetkvm/kvm. Session transport:
+  reaching a machine, not proving an identity and not moving packets. Earned
+  under question 8; see § Remote Access.
+- **Security** — Jira-Lens, awesome-scapy. Finding weaknesses in a running
+  system. Earned under question 11; sits beside Monitoring in
+  § Rung 3 — Observability & Security.
+- **Productivity** *(rung 6, Data Input)* — EMailParseAI, aw-import-ical,
+  ClickTheseThings, DoIHaveEverything, portia, huginn. The second input
+  pipeline, beside Media Acquisition: on the same argument that earned that
+  leaf, its content is mime-agnostic and fits no content leaf — email and
+  documents are outputs, the gathering is the thing. Earned under question 17.
+  Its outputs still file under Documents.
 
 ## Leaves being dissolved
 
@@ -555,7 +641,7 @@ to have repos already scattered across unrelated categories.
    venn.js is visualising data (the function), which the Dashboards leaf
    captures for *dashboards* but not for the broader set-relationship /
    comparative work that venn-style diagrams do for *data* — business,
-   hobby, or academic. It lands in a new "Data Systems" leaf at Rung 4,
+   hobby, or academic. It lands in a new "Data Systems" leaf at Rung 5,
    alongside Data & Systems Management (the residue bucket that Q5 was
    actually about) but with a clear differentiator: Data Systems is *what
    you do with data*, the residue bucket was *ops tooling that happens to
@@ -578,13 +664,21 @@ to have repos already scattered across unrelated categories.
    Access are all about *reaching* a machine; Monitoring is about *watching*
    one. Either the rung is named for three-quarters of itself, or Monitoring
    belongs somewhere else. Alternatives: split into "Access" + "Observability"
-   as two rungs, or rename to something that covers both (Rung 2 = "The Wire"?).
+   as two rungs, or rename to something that covers both (Rung 2 = "The Wire"?). —
+   **Resolved 2026-11-21: split.** Monitoring moves out into a new **Rung 3 —
+   Observability & Security** (which also takes the newly-earned Security leaf);
+   Rung 3 Substrate renumbers to Rung 4, Data & Content to Rung 5, Data Input
+   to Rung 6. The rung keeps the name "Access" — renaming it to cover both was
+   the alternative, and splitting keeps the name honest instead of blurring it.
 8. **Does Remote Access earn a leaf?** Three members (mRemoteNG, tigervnc,
    neko) plus `jetkvm/kvm`, folded in from the Homelab walk (2026-09-07) as the
    strongest case for and against the leaf. Options: (a) its own leaf; (b) fold
    into Networking as session transport; (c) fold into Operating Systems, since
    what you're doing is driving a box. It is definitively *not* Authentication
-   either way.
+   either way. —
+   **Resolved 2026-11-21: (a), it earns the leaf**, and `jetkvm/kvm` joins it —
+   an IP-KVM is session transport, not a platform. Four members; the function
+   is real and distinct from identity and from packet transport.
 9. **Where do observability dashboards go?** holmesgpt (Monitoring or AI?) and
    homebutler / homelable (Monitoring or Homelab?). The substrate discriminator
    and the function discriminator disagree here, which is the first time
@@ -592,14 +686,25 @@ to have repos already scattered across unrelated categories.
    **Partly resolved 2026-09-11:** `homebutler` / `homelable` landed in
    **Self-Hosted Dashboards** (the split made the function discriminator and
    the substrate discriminator agree). **holmesgpt** is still open: Monitoring
-   by function, AI by implementation.
+   by function, AI by implementation. —
+   **Resolved 2026-11-21: holmesgpt → Monitoring**, on discriminator 2 —
+   "it's AI" is implementation, not domain, the same rule that keeps Docker
+   packaging out of the signal. The question is now closed.
 10. **caddy** — automatic-TLS reverse proxy that is also a web server.
     Networking or Web & API Tooling? Same shape as the kong call, but kong
-    resolved cleanly and this doesn't.
+    resolved cleanly and this doesn't. —
+    **Resolved 2026-11-21: Web & API Tooling**, on the kong precedent — serving
+    is the function, transport is the mechanism. caddy stays where the walk put
+    it; Networking keeps zoraxy / traefik / certmate as its proxy set.
 11. **Does Security earn a leaf?** Jira-Lens (vulnerability scanning) has no
     home in the current 32 — it isn't Authentication. Either a Security leaf
     gets earned, or scanners file under the thing they scan (Jira-Lens → Code &
-    Build Tooling / IT Support).
+    Build Tooling / IT Support). —
+    **Resolved 2026-11-21: a Security leaf is earned**, with Jira-Lens and
+    awesome-scapy. It does not join Access (scanning is not access control) —
+    it sits beside Monitoring in **Rung 3 — Observability & Security**, the
+    other way of inspecting a running system. A two-member leaf survives the
+    test Authentication does: a real function, not a size.
 12. **Does IaC earn a leaf?** *(corrected 2026-09-07 — an earlier draft of
     this question claimed the corpus had zero IaC. It doesn't.)* Real
     desired-state members exist: `Peco602/ansible-linux-docker` (Ansible),
@@ -616,19 +721,33 @@ to have repos already scattered across unrelated categories.
     `gsmarena-scraper` (device data) — each is a one-off in Homelab today
     (`jetkvm/kvm` was folded into question 8 instead). If three more arrive, a
     Hardware leaf becomes worth earning; until then they file by function
-    (Home Automation for Find-My-style trackers, IT Support for specs scrapers).
+    (Home Automation for Find-My-style trackers, IT Support for specs scrapers). —
+    **Resolved 2026-11-21: no Hardware leaf — file by function**, the walk's own
+    provisional answer: `3d-printed-nas` → **Storage** (a NAS knows what its
+    files are), `openhaystack` → **IT Support** (the leaf's gloss includes
+    "find", and a Find My network finds a lost device), `gsmarena-scraper` →
+    **IT Support** (device specs, beside `pc-part-dataset`). Revisit if three
+    more device repos arrive.
 14. **Where does nerd-fonts go?** Developer tooling (function: glyph/icons
     used in dev work) or device-side tooling (function: installed on the user's
     machine to *make every application look better*)? Same leaf, two
-    framings.
+    framings. —
+    **Resolved 2026-11-21: it stays in IT Support & Device Management.** The
+    device-side framing wins — it acts on the user's device and is installed to
+    make every application look better, which is what "install, configure"
+    means in that leaf.
 15. **`Deployrr` — imperative installer or substrate?** It automates home
     server setup via Docker Compose. Discriminator 6 says imperative (so not
     IaC, stays out of the declarative group); discriminator 5 says substrate
     (so Homelab, not Containerization). First clean disagreement between those
     two discriminators. Same shape as question 1 (`ProxmoxVE`), so both should
-    probably be answered together.
+    probably be answered together. —
+    **Resolved 2026-11-21: Containerization**, on question 1's principle — a
+    repo's content decides its leaf, and Deployrr's content is Docker Compose.
+    It leaves the declarative IaC leaf (discriminator 6) for the container
+    leaf, beside ProxmoxVE and the other one-shot install helpers.
 16. **Does Data Systems split into Visualising vs not?** Settled on 2026-09-11
-    (Q5) that venn.js belongs in a new Data Systems leaf at Rung 4, distinct
+    (Q5) that venn.js belongs in a new Data Systems leaf at Rung 5, distinct
     from the Data & Systems Management residue. The decision deferred the
     sub-split — Visualising (charting, diagrams, comparison) vs everything
     else Data Systems ends up holding — until the leaf has enough members to
@@ -641,7 +760,14 @@ to have repos already scattered across unrelated categories.
     (email, documents) currently file under Documents — but the *pipeline*
     itself (the input side: email clients, doc tools) isn't represented.
     Decide whether Productivity earns a leaf in its own right, or whether
-    the pipeline aspect stays implicit and only the output leaf matters.
+    the pipeline aspect stays implicit and only the output leaf matters. —
+    **Resolved 2026-11-21: it earns a leaf**, on the same argument that earned
+    Media Acquisition — the input side is mime-agnostic and fits no content
+    leaf. It lands in Rung 6 (Data Input) beside Media Acquisition, with
+    EMailParseAI, aw-import-ical, ClickTheseThings, DoIHaveEverything, portia
+    and huginn. Outputs (email, documents) still file under Documents;
+    `dnd-session-recorder` stays in Ingestion — it is a capture, not
+    productivity.
 
 ## Caveat on all counts
 
@@ -659,20 +785,21 @@ The counts disappear from this document rung by rung as that happens.
 
 ## Next
 
-**Rung 3 — Substrate** is walked but not closed: the Homelab leaf split on
-2026-09-11 (question 6) and IaC earned its leaf (question 12), leaving
-**questions 9, 13, 14 and 15** open on this rung — holmesgpt, the Hardware
-leaf, nerd-fonts and Deployrr. Likely target size after this walk: ~25
-members, not 80+, because much of what *was* in Homelab was misclassified
-single-machine tooling that rung 1 evicts.
+**The nine open calls are answered** (2026-11-21). Rung 2 split — Monitoring
+moved into the new **Rung 3 — Observability & Security** — and three leaves
+were earned: Remote Access, Security and Productivity. Rung 3 Substrate is now
+Rung 4; Data & Content Rung 5; Data Input Rung 6. Each decision is annotated
+in "Open questions" above and recorded in `ISSUES.md`'s resolved list.
 
-**The nine open calls across all rungs** — rung 2's name, Remote Access,
-holmesgpt, caddy, Security, Hardware, nerd-fonts, Deployrr and Productivity —
-are set out with their options in `CONSIDERATIONS.md`, each naming
-`CONSIDERATIONS.html` as the visual (every option shown side by side with the
-repos it moves).
+**Rung 4 — Substrate** is walked but not closed: the Homelab leaf split on
+2026-09-11 (question 6) and IaC earned its leaf (question 12), and the
+2026-11-21 answers closed the last of this rung's calls — Deployrr moved to
+Containerization, nerd-fonts stayed put, the Hardware leaf was declined in
+favour of filing by function. Likely target size: ~25 members, not 80+,
+because much of what *was* in Homelab was misclassified single-machine tooling
+that rung 1 evicts.
 
-**Rung 4 — Data & Content** *(proposed)*: Knowledge Base · Dashboards ·
+**Rung 5 — Data & Content** *(proposed)*: Knowledge Base · Dashboards ·
 Data Systems · Data & Systems Management · AI · Photos · Music · Video ·
 Documents. The substrate runs out here and the rung turns to *what lives on
 the box*, not the box itself. **Data Systems** is the new leaf decided on
@@ -682,13 +809,28 @@ Systems Management, which is the *ops tooling that happens to touch data*
 residue. The "Visualising vs not" sub-split is held until the leaf has
 enough members to make the cut self-evident. **Media Acquisition** is the
 new leaf decided on 2026-09-11 (open question 4): Arr is one of two input
-pipelines (the other is Productivity) and lands here as a *pipeline* leaf
-(distinct from the mime-typed Video/Music/Photos content leaves that
-capture its outputs); Productivity placement is open (new question 17).
+pipelines and lands here as a *pipeline* leaf (distinct from the mime-typed
+Video/Music/Photos content leaves that capture its outputs); the other
+pipeline, **Productivity**, was settled on 2026-11-21 (question 17) and earns
+a leaf beside it in **Rung 6 — Data Input**.
 This is also where the tag-pool
 issue logged in ISSUES.md hurts most — the "Analysis" / "Tracking" / "Manager"
 tags send nearly every one of these to Monitoring right now, so the rung is
 likely to be the loudest single correction in the whole walk.
+
+**The hub-leaders table below predates the 2026-11-21 leaf decisions** — hub
+candidacy (which owned leader absorbs a repo's features) is a different axis
+from leaf placement (which leaf a repo files under), so it is left as decided
+on 2026-10-11. But `EMailParseAI` (now Productivity), `Jira-Lens` (now
+Security) and `Deployrr` (now Containerization) sit in different leaves than
+when that table was drawn, and it is worth a pass now the leaves have moved.
+
+**Rung 6 — Data Input** *(proposed)*: Ingestion · Media Acquisition ·
+Productivity. The content rungs collect what lives on the box; this one is the
+*throughput* — the pipelines that bring it in. Ingestion (social, calendar,
+audio, web) and Media Acquisition (media for leisure) were decided earlier;
+Productivity joins them on 2026-11-21 as the third and last of the input
+pipelines, carrying the email/document/web-automation side.
 
 ## Hub leaders — atelier projects *(decided 2026-10-11, revised 2026-10-12)*
 
@@ -701,7 +843,7 @@ owned project stay leaderless.
 | Database | sql-schema-miner | — | SchemaCrawler · *sql_schema_visualizer* · cloudbeaver · bytebase |
 | Homelab | homelab-designer | — | awesome-selfhosted · homelab-discovery · *homelab-mcp* · ProxmoxVE · Deployrr |
 | IT Support & Device Mgmt | *belzona-tickets* | — | jira · atlassian-api/atlassian-python-api · Jira-Lens · EMailParseAI |
-| Ingestion *(rung 5, Data Input)* | socialMediaArchiver | multitudes · dnd-session-recorder · aw-import-ical | YouTubeCommunityPosts · tweetext · twitterscraper |
+| Ingestion *(rung 6, Data Input)* | socialMediaArchiver | multitudes · dnd-session-recorder · aw-import-ical | YouTubeCommunityPosts · tweetext · twitterscraper |
 | Code & Build Tooling | git-suite | — | StuartJAtkinson/astral · all-repos |
 | Ai — agent tooling | Atelier-Harness | *ask-ai* | aider · OpenDevin · Archon · crewAI-examples |
 | Ontology | *marvel-ontology* | — | CommonCoreOntologies · ontologiesUK · skoseditor · *sparql.anything* · IAO |
@@ -728,7 +870,7 @@ Cross-hub feature flows (not membership):
 Decisions: Games splits four ways (TTRPG · library · in-game data · collectibles) ·
 Playnite and card-collection stay separate · organised-commons leads Civic ·
 git-suite and Atelier-Harness are separate hubs · marvel-ontology leads Ontology ·
-Genealogy files under Lifelogging · ingestion is its own hub at rung 5, presentation
+Genealogy files under Lifelogging · ingestion is its own hub at rung 6, presentation
 stays with timelinize.
 
 *Italicised entries are aspirational — not yet published on GitHub (Stuart's

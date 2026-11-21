@@ -69,6 +69,14 @@ query RepoId($owner: String!, $name: String!) {
 }
 """.strip()
 
+GQL_UPDATE_LIST = """
+mutation UpdateUserList($listId: ID!, $description: String!) {
+  updateUserList(input: {listId: $listId, description: $description}) {
+    list { id name }
+  }
+}
+""".strip()
+
 GQL_UPDATE_LISTS = """
 mutation UpdateListsForItem($itemId: ID!, $listIds: [ID!]!) {
   updateUserListsForItem(input: {itemId: $itemId, listIds: $listIds}) {
@@ -188,6 +196,11 @@ def create_list(name: str, description: str, token: str) -> dict[str, Any]:
     return data["createUserList"]["list"]
 
 
+def update_list_description(list_id: str, description: str, token: str) -> None:
+    """Set a list's description in place (used when a reused list is stale)."""
+    github_gql(GQL_UPDATE_LIST, {"listId": list_id, "description": description}, token)
+
+
 def repo_node_id(slug: str, token: str) -> tuple[str, str] | None:
     """Resolve 'owner/name' → (global node id, nameWithOwner), or None on 404.
 
@@ -278,7 +291,7 @@ LISTS: list[dict[str, Any]] = [
         "name": "IT Support & Device Mgmt",
         "description": (
             "End-user IT and per-device tooling — help-desk, install, "
-            "configure, repair, find. The rung-3 leaf that keeps hands on "
+            "configure, repair, find. The rung-4 leaf that keeps hands on "
             "the box."
         ),
         "members": [
@@ -291,7 +304,7 @@ LISTS: list[dict[str, Any]] = [
     {
         "name": "Ingestion",
         "description": (
-            "Rung 5 / Data Input: pull external streams (social, calendar, "
+            "Rung 6 / Data Input: pull external streams (social, calendar, "
             "audio, web) into local repositories for downstream presentation "
             "or analysis."
         ),
@@ -463,6 +476,7 @@ def main() -> int:
     print(f"Pre-existing viewer lists: {len(existing_lists)}")
 
     created, reused, members_added, members_skipped, members_aspirational = 0, 0, 0, 0, 0
+    descriptions_updated = 0
     skipped_details: list[str] = []
 
     for spec in LISTS:
@@ -471,6 +485,12 @@ def main() -> int:
             lst = existing
             reused += 1
             print(f"= {spec['name']:30s} reused ({lst['slug']})")
+            # Keep the description in step with this file — it is the source of
+            # truth for what each List is for.
+            if (existing.get("description") or "") != spec["description"]:
+                update_list_description(lst["id"], spec["description"], github_token)
+                descriptions_updated += 1
+                print("  description updated")
         else:
             lst = create_list(spec["name"], spec["description"], github_token)
             created += 1
@@ -491,7 +511,7 @@ def main() -> int:
             members_added += 1
 
     print()
-    print(f"Lists:   {created} created, {reused} reused")
+    print(f"Lists:   {created} created, {reused} reused, {descriptions_updated} descriptions updated")
     print(f"Members: {members_added} added, {members_skipped} skipped, {members_aspirational} aspirational (will retry next run)")
     if skipped_details:
         print("\nSkipped (likely 404 — verify canonical owner/name):")

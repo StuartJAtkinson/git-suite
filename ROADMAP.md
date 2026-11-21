@@ -6,19 +6,22 @@
 > **Human-only** items carry no checkbox, so Auto never picks them up.
 
 **Now:** no milestone queued — Phases 1–4 and Later are shipped (Phase 4 marked ✅
-2026-09-29). Reviewed 2026-10-09: the next real work is a human taxonomy walk, not a feature.
-Docker deployment was removed on purpose (2026-07-23), so no deploy milestone either.
+2026-09-29). Reviewed 2026-11-21: the human taxonomy walk's open calls are all
+answered — the tree's next work is Rung 5 (Data & Content) and Rung 6 (Data Input),
+which will raise its own calls, not a feature. Docker deployment was removed on
+purpose (2026-07-23), so no deploy milestone either.
 
 **Grouping (2026-11-13):** the Cluster page was reworked into an AI-driven,
 human-in-the-loop refinement backed by a durable **grouping ledger** and an
 **MCP server** — see [`GROUPING.md`](GROUPING.md) for the method and
 [`MCP.md`](MCP.md) for the surface. 219 tests.
 
-**Human-only:** answer the 9 open taxonomy questions in CONSIDERATIONS.md (TAXONOMY
-Q7–Q11, Q13–Q15, Q17 — the other six were closed in September). They are numbered
-(`1.`), which Auto's pause count and interview don't see yet — atelier-harness ROADMAP M2b
-fixes that. Each question names its visual: `CONSIDERATIONS.html` shows every option side
-by side with the repos it moves.
+**Human-only:** the taxonomy questions live in CONSIDERATIONS.md, numbered (`1.`),
+which Auto's pause count and interview don't see yet — atelier-harness ROADMAP M2b
+fixes that. **All nine remaining calls were answered on 2026-11-21** (TAXONOMY
+Q7–Q11, Q13–Q15, Q17); the decisions are recorded in `TAXONOMY.md` and `ISSUES.md`.
+The next walk (Rung 5 — Data & Content, Rung 6 — Data Input) will raise its own
+calls, each with a visual in `CONSIDERATIONS.html`.
 
 Self-hosted web app for consolidating a sprawling GitHub portfolio into a small
 set of maintained "hubs" (absorb / archive / keep). Hubs are not predefined — they
