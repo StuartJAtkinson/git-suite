@@ -14,9 +14,11 @@ human-in-the-loop refinement backed by a durable **grouping ledger** and an
 **MCP server** — see [`GROUPING.md`](GROUPING.md) for the method and
 [`MCP.md`](MCP.md) for the surface. 219 tests.
 
-**Human-only:** answer the 15 taxonomy questions in CONSIDERATIONS.md. They are numbered
+**Human-only:** answer the 9 open taxonomy questions in CONSIDERATIONS.md (TAXONOMY
+Q7–Q11, Q13–Q15, Q17 — the other six were closed in September). They are numbered
 (`1.`), which Auto's pause count and interview don't see yet — atelier-harness ROADMAP M2b
-fixes that.
+fixes that. Each question names its visual: `CONSIDERATIONS.html` shows every option side
+by side with the repos it moves.
 
 Self-hosted web app for consolidating a sprawling GitHub portfolio into a small
 set of maintained "hubs" (absorb / archive / keep). Hubs are not predefined — they

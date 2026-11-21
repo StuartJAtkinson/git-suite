@@ -462,10 +462,11 @@ manami → Video · gpsbabel → Geospatial · lg-washer-dryer-card → Home
 Automation · huginn → Productivity (web automation that happens to watch pages)
 · tailslayer → Operating Systems
 
-Unresolved members: **holmesgpt** (AI incident response over observability data
-— function says Monitoring, implementation says AI) and **homebutler** /
-**homelable** (homelab status dashboards — discriminator 5 sends them to
-Homelab, function says Monitoring). Open question 9.
+Unresolved member: **holmesgpt** (AI incident response over observability data
+— function says Monitoring, implementation says AI). **homebutler** /
+**homelable** were resolved on 2026-09-11 into Self-Hosted Dashboards when the
+Homelab leaf split — see § Self-Hosted Dashboards — so only holmesgpt remains.
+Open question 9.
 
 ### Security scanning is NOT in this rung
 **Jira-Lens** is a vulnerability scanner and **awesome-scapy** is packet
@@ -579,13 +580,19 @@ to have repos already scattered across unrelated categories.
    belongs somewhere else. Alternatives: split into "Access" + "Observability"
    as two rungs, or rename to something that covers both (Rung 2 = "The Wire"?).
 8. **Does Remote Access earn a leaf?** Three members (mRemoteNG, tigervnc,
-   neko). Options: (a) its own leaf; (b) fold into Networking as session
-   transport; (c) fold into Operating Systems, since what you're doing is
-   driving a box. It is definitively *not* Authentication either way.
+   neko) plus `jetkvm/kvm`, folded in from the Homelab walk (2026-09-07) as the
+   strongest case for and against the leaf. Options: (a) its own leaf; (b) fold
+   into Networking as session transport; (c) fold into Operating Systems, since
+   what you're doing is driving a box. It is definitively *not* Authentication
+   either way.
 9. **Where do observability dashboards go?** holmesgpt (Monitoring or AI?) and
    homebutler / homelable (Monitoring or Homelab?). The substrate discriminator
    and the function discriminator disagree here, which is the first time
-   they've conflicted since ProxmoxVE.
+   they've conflicted since ProxmoxVE. —
+   **Partly resolved 2026-09-11:** `homebutler` / `homelable` landed in
+   **Self-Hosted Dashboards** (the split made the function discriminator and
+   the substrate discriminator agree). **holmesgpt** is still open: Monitoring
+   by function, AI by implementation.
 10. **caddy** — automatic-TLS reverse proxy that is also a web server.
     Networking or Web & API Tooling? Same shape as the kong call, but kong
     resolved cleanly and this doesn't.
@@ -601,12 +608,15 @@ to have repos already scattered across unrelated categories.
     inventory. Discriminator 6 cleanly separates these from the one-shot
     imperative installers (`community-scripts/ProxmoxVE`, `Deployrr`). So the
     question is live, not hypothetical: does declarative fleet config split
-    off from Homelab, or stay as a within-leaf ordering?
-13. **Does Hardware earn a leaf?** `jetkvm/kvm` (IP-KVM), `openhaystack`
-    (Find My), `3d-printed-nas`, `gsmarena-scraper` (device data) — each is a
-    one-off in Homelab today. If three more arrive, a Hardware leaf becomes
-    worth earning; until then they file by function (Networking for KVM, Home
-    Automation for Find-My-style trackers, IT Support for specs scrapers).
+    off from Homelab, or stay as a within-leaf ordering? —
+    **Resolved 2026-09-11:** IaC earns a leaf — **Orchestration & Infrastructure
+    as Code**, shared with the fleet orchestrators (komodo, homelab-core,
+    Olares). See § Orchestration & Infrastructure as Code.
+13. **Does Hardware earn a leaf?** `openhaystack` (Find My), `3d-printed-nas`,
+    `gsmarena-scraper` (device data) — each is a one-off in Homelab today
+    (`jetkvm/kvm` was folded into question 8 instead). If three more arrive, a
+    Hardware leaf becomes worth earning; until then they file by function
+    (Home Automation for Find-My-style trackers, IT Support for specs scrapers).
 14. **Where does nerd-fonts go?** Developer tooling (function: glyph/icons
     used in dev work) or device-side tooling (function: installed on the user's
     machine to *make every application look better*)? Same leaf, two
@@ -649,12 +659,18 @@ The counts disappear from this document rung by rung as that happens.
 
 ## Next
 
-**Rung 3 — Substrate** is walked but not closed: open questions 1, 6, 9, 12,
-13, 14 still hold. The structural one is question 6 — Homelab will still
-balloon once the deferred substrate categories (hypervisors already in,
-IaC/Hardware pending, status dashboards staying) all land. Likely target
-size after this walk: ~25 members, not 80+, because much of what *was* in
-Homelab was misclassified single-machine tooling that rung 1 evicts.
+**Rung 3 — Substrate** is walked but not closed: the Homelab leaf split on
+2026-09-11 (question 6) and IaC earned its leaf (question 12), leaving
+**questions 9, 13, 14 and 15** open on this rung — holmesgpt, the Hardware
+leaf, nerd-fonts and Deployrr. Likely target size after this walk: ~25
+members, not 80+, because much of what *was* in Homelab was misclassified
+single-machine tooling that rung 1 evicts.
+
+**The nine open calls across all rungs** — rung 2's name, Remote Access,
+holmesgpt, caddy, Security, Hardware, nerd-fonts, Deployrr and Productivity —
+are set out with their options in `CONSIDERATIONS.md`, each naming
+`CONSIDERATIONS.html` as the visual (every option shown side by side with the
+repos it moves).
 
 **Rung 4 — Data & Content** *(proposed)*: Knowledge Base · Dashboards ·
 Data Systems · Data & Systems Management · AI · Photos · Music · Video ·
@@ -682,24 +698,24 @@ owned project stay leaderless.
 
 | Hub | Leader | Satellites (owned) | Absorb candidates (third-party) |
 |---|---|---|---|
-| Database | sql-schema-miner | — | SchemaCrawler · sql_schema_visualizer · cloudbeaver · bytebase |
-| Homelab | homelab-designer | — | awesome-selfhosted · homelab-discovery · homelab-mcp · ProxmoxVE · Deployrr |
-| IT Support & Device Mgmt | belzona-tickets | — | jira · atlassian-python-api · Jira-Lens · EMailParseAI |
+| Database | sql-schema-miner | — | SchemaCrawler · *sql_schema_visualizer* · cloudbeaver · bytebase |
+| Homelab | homelab-designer | — | awesome-selfhosted · homelab-discovery · *homelab-mcp* · ProxmoxVE · Deployrr |
+| IT Support & Device Mgmt | *belzona-tickets* | — | jira · atlassian-api/atlassian-python-api · Jira-Lens · EMailParseAI |
 | Ingestion *(rung 5, Data Input)* | socialMediaArchiver | multitudes · dnd-session-recorder · aw-import-ical | YouTubeCommunityPosts · tweetext · twitterscraper |
-| Code & Build Tooling | git-suite | — | astral · all-repos |
-| Ai — agent tooling | Atelier-Harness | ask-ai | aider · OpenDevin · Archon · crewAI-examples |
-| Ontology | marvel-ontology | — | CommonCoreOntologies · ontologiesUK · skoseditor · sparql.anything · IAO |
-| Geospatial & Mapping | map-merch | — | streets-gl · osmnx · kepler.gl |
-| Business | chemeter-data | — | ZohoAPI · twenty |
-| Civic & Public Affairs | organised-commons | canvassing-planner | democracy-watcher · federated-api-model |
-| Lifelogging *(presentation)* | timelinize | Genealogy | ActivityWatch · aw-watcher-* · simklExporter · timeliner |
-| Health | traintenance | — | — |
-| Travel | travel-planner | — | — |
-| Video | video-autoeditor | — | — |
-| Games — TTRPG | FoundryVTT | ddb-bridge · swipe-vtt · dnd-aFirstStep | — |
+| Code & Build Tooling | git-suite | — | StuartJAtkinson/astral · all-repos |
+| Ai — agent tooling | Atelier-Harness | *ask-ai* | aider · OpenDevin · Archon · crewAI-examples |
+| Ontology | *marvel-ontology* | — | CommonCoreOntologies · ontologiesUK · skoseditor · *sparql.anything* · IAO |
+| Geospatial & Mapping | map-merch | — | streets-gl · gboeing/osmnx · kepler.gl |
+| Business | *chemeter-data* | — | ZohoAPI · twenty |
+| Civic & Public Affairs | organised-commons | canvassing-planner | *democracy-watcher* · federated-api-model |
+| Lifelogging *(presentation)* | timelinize | Genealogy | ActivityWatch · aw-watcher-* · simklExporter · *timeliner* |
+| Health | *traintenance* | — | — |
+| Travel | *travel-planner* | — | — |
+| Video | *video-autoeditor* | — | — |
+| Games — TTRPG | FoundryVTT | *ddb-bridge* · swipe-vtt · dnd-aFirstStep | — |
 | Games — library | Playnite *(local install, no remote)* | — | — |
-| Games — in-game data | game-across-the-obelisk | d4lf | free-map-genie · AllaganTools · WoWAnalyzer · FFXIVPlugin · xiv-resources · Memoria |
-| Games — collectibles | card-collection | — | card-collector |
+| Games — in-game data | *game-across-the-obelisk* | *d4lf* | free-map-genie · AllaganTools · WoWAnalyzer · FFXIVPlugin · *xiv-resources* · *Memoria* |
+| Games — collectibles | *card-collection* | — | card-collector |
 
 Cross-hub feature flows (not membership):
 
@@ -714,3 +730,7 @@ Playnite and card-collection stay separate · organised-commons leads Civic ·
 git-suite and Atelier-Harness are separate hubs · marvel-ontology leads Ontology ·
 Genealogy files under Lifelogging · ingestion is its own hub at rung 5, presentation
 stays with timelinize.
+
+*Italicised entries are aspirational — not yet published on GitHub (Stuart's
+roadmap). `tools/bootstrap_lists.py` keeps them in its `ASPIRATIONAL` set and
+silently skips them until they materialise.*
