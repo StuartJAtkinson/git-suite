@@ -86,6 +86,17 @@ def has_provider() -> bool:
     return bool(build_chain())
 
 
+def _err_text(exc: Exception) -> str:
+    """Readable text for an exception.
+
+    httpx's timeouts carry no message — `str(httpx.ReadTimeout())` is "" — so a
+    timeout used to log as a blank line ("LLM provider ollama failed: "). Fall
+    back to the exception type when the message is empty.
+    """
+    text = str(exc).strip()
+    return text or type(exc).__name__
+
+
 def chain_summary() -> list[dict]:
     """For the UI: the resolved failover order (no secrets)."""
     chain = build_chain()
@@ -255,16 +266,16 @@ async def complete(prompt: str, system: str = "", max_tokens: int = 1024) -> str
                     attempt += 1
                     delay = _RETRY_BACKOFF_SECONDS * attempt
                     log.warning("LLM provider %s transient error, retry %d/%d in %ds: %s",
-                                name, attempt, _RETRY_ATTEMPTS, delay, str(e)[:160])
+                                name, attempt, _RETRY_ATTEMPTS, delay, _err_text(e)[:160])
                     await asyncio.sleep(delay)
                     continue
                 break
         if exc is not None:
             # Fail over on ANY provider error (after exhausting retries above)
             # — a misconfigured leading provider must not kill the chain.
-            errors.append(f"{name}: {str(exc)[:160]}")
+            errors.append(f"{name}: {_err_text(exc)[:160]}")
             log.warning("LLM provider %s failed (failover=%s): %s",
-                        name, _should_failover(exc, name), str(exc)[:160])
+                        name, _should_failover(exc, name), _err_text(exc)[:160])
             if idx + 1 < len(chain):
                 _floor = idx + 1            # skip this dead leading provider next time
                 idx += 1

@@ -87,6 +87,23 @@ def test_complete_raises_when_no_providers(monkeypatch):
         asyncio.run(llm.complete("hi"))
 
 
+def test_error_with_empty_message_names_its_type(monkeypatch):
+    """httpx timeouts carry no message — `str(exc)` is "" — so a timeout used
+    to log as a blank line and read as "failed: " with nothing after it. The
+    type name has to survive into the error text."""
+    from services import llm
+    llm.reset_floor()
+    monkeypatch.setattr(llm, "build_chain", lambda: [("ollama", "", "m1")])
+
+    async def fake(name, key, model, prompt, system, mt):
+        raise TimeoutError()
+
+    monkeypatch.setattr(llm, "_dispatch", fake)
+    with pytest.raises(llm.AllProvidersFailed) as exc:
+        asyncio.run(llm.complete("hi"))
+    assert "TimeoutError" in str(exc.value)
+
+
 def test_complete_retries_transient_error_on_same_provider_before_failover(monkeypatch):
     """A DNS blip / rate-limit / timeout on a SINGLE-provider chain (the
     common case — only one API key configured, nothing to fail over to)
