@@ -303,5 +303,11 @@ provider chain empty (distill and the bundle summariser both have designed
 fallbacks for a dead chain), classify the exported compact table, and
 `POST /cluster/{sid}/import`. That landed **46 clumps over 887 repos**
 (3 in misc-unsorted, 0 orphans) and seeded the grouping ledger for the first
-time — every repo `proposed(clump)`, round 0, 46 clumps in the ledger.
-**220 tests green** (line 36 is the live count).*
+time — every repo `proposed(clump)`, round 0, 46 clumps in the ledger. (3) The
+**delta round** (GROUPING.md step 2) does not run against the local model
+either: its prompt is every *unsettled* repo — all 887 at round 0, ~24.5K
+tokens — and `qwen3:8b` was still generating after 40 minutes on a 16000-token
+JSON budget, where the app's own endpoint would have given up at 120 s. The
+delta round needs a cloud provider, or a smaller prompt (deltas over one clump
+at a time), before it can be driven locally. **220 tests green** (line 36 is
+the live count).*
