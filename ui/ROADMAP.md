@@ -286,3 +286,22 @@ since the relevant pages shipped — `installer` tag is `install`), and the
 `cluster` router description now lists the `merge / split / move /
 rename / delete` mutation endpoints that drive iterative refinement.
 **195 tests green** (line 36 is the live count).*
+
+*Last updated: 2026-11-24 — the app ran against the live portfolio for the
+first time on this machine: Setup flow (PAT from the `gh` CLI → session) →
+scan → stars pulled **185 owned + 702 starred = 887 repos** + 101 forks into
+`state.db`. Two things the run exposed. (1) The local-Ollama path cannot
+build an 887-repo bundle: `distill.records` fires one LLM call *per repo*
+(887 × 120 s timeout at concurrency 6 ≈ 5 h), and the bundle summariser then
+repeats that for the largest 25% of the bundle each pass — with a 30k-char
+prompt each, which no 8B model answers inside 120 s. (2) Those failures logged
+as blank lines — httpx timeouts carry no message, so `str(exc)` was "" — now
+fixed (`services/llm.py::_err_text` falls back to the exception type, with a
+test). The working path on a machine with no cloud key is the external-LLM
+paste-back route the 2026-07-24 entry already used: build the bundle with the
+provider chain empty (distill and the bundle summariser both have designed
+fallbacks for a dead chain), classify the exported compact table, and
+`POST /cluster/{sid}/import`. That landed **46 clumps over 887 repos**
+(3 in misc-unsorted, 0 orphans) and seeded the grouping ledger for the first
+time — every repo `proposed(clump)`, round 0, 46 clumps in the ledger.
+**220 tests green** (line 36 is the live count).*
