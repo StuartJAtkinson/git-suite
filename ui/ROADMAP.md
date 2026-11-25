@@ -309,9 +309,12 @@ either: one prompt over every *unsettled* repo — all 887 at round 0, ~24.5K
 tokens — and a 16000-token JSON budget, which `qwen3:8b` was still generating
 after 40 minutes while the app's own endpoint gave up at 120 s. Fixed by
 chunking the round (one call per 8 clumps, each seeing its clumps' members in
-full and the rest by name and size) and giving providers a request timeout
-(900 s for ollama, 120 s elsewhere). (4) The test suite was erasing the live
-ledger: the cluster routes replace `~/.git-suite/grouping.json` wholesale on
-every import, and the import tests did not isolate the store — the
-`isolated_grouping` fixture is now autouse. **223 tests green** (line 36 is
-the live count).*
+full and the rest by name and size), giving providers a request timeout
+(900 s for ollama, 120 s elsewhere), and fixing the Ollama call itself: it
+never passed `max_tokens` through (so Ollama generated until the context
+filled) and let qwen3's thinking block eat the whole budget. One chunk now
+answers in 530 s on qwen3:8b with valid JSON and ten deltas. (4) The test
+suite was erasing the live ledger: the cluster routes replace
+`~/.git-suite/grouping.json` wholesale on every import, and the import tests
+did not isolate the store — the `isolated_grouping` fixture is now autouse.
+**224 tests green** (line 36 is the live count).*
