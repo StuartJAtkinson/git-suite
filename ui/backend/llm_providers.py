@@ -21,6 +21,7 @@ class ProviderMeta(TypedDict):
     default_model: str
     needs_key: bool
     exhaust_patterns: list[str]
+    timeout: int          # request timeout in seconds
 
 
 # Substrings checked across all providers (in addition to per-provider ones).
@@ -120,8 +121,16 @@ PROVIDERS: dict[str, ProviderMeta] = {
         "default_model": "qwen3:8b",
         "needs_key": False,
         "exhaust_patterns": [],  # local — no credit concept
+        # A local model loads 5 GB of weights on first use and then generates
+        # token by token — minutes, not the seconds a cloud API takes.
+        "timeout": 900,
     },
 }
+
+# Every provider gets a request timeout; cloud APIs answer in seconds.
+DEFAULT_TIMEOUT = 120
+for _meta in PROVIDERS.values():
+    _meta.setdefault("timeout", DEFAULT_TIMEOUT)
 
 # Local providers: env var override (lets a non-Docker run keep using
 # localhost). Applied at import time below.

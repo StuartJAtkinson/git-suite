@@ -323,6 +323,11 @@ def themes_to_clusters(themes: list[dict], pool_by_name: dict[str, dict]
 # human approves; approving commits to the ledger and settles the touched repos.
 
 
+# One delta round runs in chunks of clumps — see propose_deltas. Eight clumps
+# is a prompt a local model can hold; the whole ledger at once is ~24K tokens.
+DELTA_CHUNK_CLUMPS = 8
+DELTA_CHUNK_MAX_TOKENS = 4000
+
 _DELTA_SYS = (
     "You refine an existing grouping of a software portfolio. The grouping is a "
     "set of CLUMPS (themes = human activities) with repos assigned to them. You "
@@ -369,14 +374,23 @@ _DELTA_SYS = (
 
 
 def _build_delta_prompt(records: list[dict], ledger: dict,
-                        answers: list[dict] | None = None) -> str:
+                        answers: list[dict] | None = None,
+                        focus_clumps: list[str] | None = None) -> str:
     """Current clumps + which repos are frozen vs actionable, so the LLM only
-    proposes deltas over the unsettled/proposed/ambiguous set."""
+    proposes deltas over the unsettled/proposed/ambiguous set.
+
+    `focus_clumps` narrows the round to a slice of the ledger: the clumps in
+    focus list their members, the rest are listed by name and size only, and
+    the actionable table carries just the focused repos. That is what keeps a
+    call inside a local model's context window — one whole-ledger prompt over
+    887 repos is ~24K tokens and no 8B model answers it.
+    """
     statuses = ledger.get("statuses", {})
     clumps = ledger.get("clumps", {})
     by_clump: dict = {}
     for key, s in statuses.items():
         by_clump.setdefault(s.get("clump"), []).append(key)
+    focus = set(focus_clumps) if focus_clumps is not None else None
 
     lines: list[str] = []
     if answers:
@@ -391,8 +405,12 @@ def _build_delta_prompt(records: list[dict], ledger: dict,
         conf = meta.get("confidence")
         conf_s = f"{conf:.2f}" if isinstance(conf, (int, float)) else "?"
         members = by_clump.get(slug, [])
-        lines.append(f"- {slug} \"{meta.get('name', slug)}\" (conf {conf_s}): "
-                     f"{', '.join(members) or '(empty)'}")
+        if focus is None or slug in focus:
+            lines.append(f"- {slug} \"{meta.get('name', slug)}\" (conf {conf_s}): "
+                         f"{', '.join(members) or '(empty)'}")
+        else:
+            lines.append(f"- {slug} \"{meta.get('name', slug)}\" (conf {conf_s}): "
+                         f"{len(members)} members")
 
     settled = [k for k, s in statuses.items() if s.get("status") == "settled"]
     if settled:
@@ -409,11 +427,14 @@ def _build_delta_prompt(records: list[dict], ledger: dict,
         s = statuses.get(name)
         if not s or s.get("status") == "settled":
             continue
+        clump = s.get("clump")
+        if focus is not None and clump is not None and clump not in focus:
+            continue
         purpose = (r.get("purpose") or "").replace("\n", " ").strip()[:120]
         entities = ", ".join(r.get("entities") or [])[:80]
         domain = (r.get("domain") or "").strip()[:40]
         lines.append(f"{name} | {purpose} | {entities} | {domain} | "
-                     f"{s.get('clump') or 'unplaced'}")
+                     f"{clump or 'unplaced'}")
 
     lines.append("")
     lines.append("Produce the deltas JSON.")
@@ -466,24 +487,56 @@ async def propose_deltas(records: list[dict], ledger: dict,
                          answers: list[dict] | None = None
                          ) -> tuple[list[dict], list[dict]]:
     """Read the ledger and ask the LLM for targeted refinement deltas +
-    clarifying questions. Returns ([], []) when nothing to refine or no LLM."""
+    clarifying questions. Returns ([], []) when nothing to refine or no LLM.
+
+    The round runs in chunks of clumps, one LLM call each: a whole-ledger
+    prompt over 887 repos is ~24K tokens, which no local model answers inside
+    a sane timeout, and a provider that is down would otherwise be waited on
+    once per chunk. Deltas from every chunk are merged, de-duplicated and
+    capped at 10 (the schema's own limit); questions at 5.
+    """
     clumps = set(ledger.get("clumps", {}).keys())
     repos = {r.get("name", "") for r in records}
     repos.discard("")
     if not clumps or not repos:
         return [], []
-    prompt = _build_delta_prompt(records, ledger, answers=answers)
-    try:
-        raw = await llm.complete(prompt, system=_DELTA_SYS, max_tokens=16000)
-    except llm.AllProvidersFailed as exc:
-        log.warning("topic_llm.propose_deltas: all providers failed: %s", exc)
+    statuses = ledger.get("statuses", {})
+    # Only clumps that still hold unsettled members are worth a look.
+    active = [slug for slug in clumps
+              if any(s.get("clump") == slug and s.get("status") != "settled"
+                     for s in statuses.values())]
+    if not active:
         return [], []
-    try:
-        parsed = json.loads(_extract_json(raw))
-    except json.JSONDecodeError as exc:
-        log.warning("propose_deltas: JSON parse failed: %s", exc)
-        return [], []
-    deltas_raw = parsed.get("deltas") if isinstance(parsed, dict) else parsed
-    questions_raw = parsed.get("questions") if isinstance(parsed, dict) else []
-    return (_validate_deltas(deltas_raw, clumps, repos),
-            _validate_questions(questions_raw, repos))
+
+    chunks = [active[i:i + DELTA_CHUNK_CLUMPS]
+              for i in range(0, len(active), DELTA_CHUNK_CLUMPS)]
+    deltas: list[dict] = []
+    questions: list[dict] = []
+    seen: set[tuple] = set()
+    for chunk in chunks:
+        prompt = _build_delta_prompt(records, ledger, answers=answers,
+                                     focus_clumps=chunk)
+        try:
+            raw = await llm.complete(prompt, system=_DELTA_SYS,
+                                     max_tokens=DELTA_CHUNK_MAX_TOKENS)
+        except llm.AllProvidersFailed as exc:
+            # The provider is gone — don't wait on it once per chunk.
+            log.warning("topic_llm.propose_deltas: all providers failed: %s", exc)
+            return [], []
+        try:
+            parsed = json.loads(_extract_json(raw))
+        except json.JSONDecodeError as exc:
+            log.warning("propose_deltas: JSON parse failed: %s", exc)
+            continue
+        deltas_raw = parsed.get("deltas") if isinstance(parsed, dict) else parsed
+        questions_raw = parsed.get("questions") if isinstance(parsed, dict) else []
+        for d in _validate_deltas(deltas_raw, clumps, repos):
+            key = (d.get("type"), d.get("a"), d.get("b"), d.get("cluster"),
+                   d.get("repo"))
+            if key in seen:
+                continue
+            seen.add(key)
+            deltas.append(d)
+        questions.extend(_validate_questions(questions_raw, repos))
+    deltas.sort(key=lambda d: -(d.get("confidence") or 0))
+    return deltas[:10], questions[:5]

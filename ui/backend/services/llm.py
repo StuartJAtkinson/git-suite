@@ -153,7 +153,7 @@ _RETRY_BACKOFF_SECONDS = 3
 
 # --- per-provider calls ----------------------------------------------------
 
-async def _call_anthropic(base_url, key, model, prompt, system, max_tokens) -> str:
+async def _call_anthropic(base_url, key, model, prompt, system, max_tokens, timeout=120) -> str:
     body = {"model": model, "max_tokens": max_tokens,
             "messages": [{"role": "user", "content": prompt}]}
     if system:
@@ -177,7 +177,7 @@ async def _call_anthropic(base_url, key, model, prompt, system, max_tokens) -> s
         url = f"{base}/messages"
     else:
         url = f"{base}/v1/messages"
-    async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=timeout) as client:
         r = await client.post(
             url,
             headers={"x-api-key": key, "anthropic-version": "2023-06-01",
@@ -197,10 +197,10 @@ async def _call_anthropic(base_url, key, model, prompt, system, max_tokens) -> s
         return text
 
 
-async def _call_openai_compat(base_url, key, model, prompt, system, max_tokens) -> str:
+async def _call_openai_compat(base_url, key, model, prompt, system, max_tokens, timeout=120) -> str:
     msgs = ([{"role": "system", "content": system}] if system else []) + \
            [{"role": "user", "content": prompt}]
-    async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=timeout) as client:
         r = await client.post(
             f"{base_url}/chat/completions",
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
@@ -211,10 +211,10 @@ async def _call_openai_compat(base_url, key, model, prompt, system, max_tokens) 
         return r.json()["choices"][0]["message"]["content"]
 
 
-async def _call_ollama(base_url, model, prompt, system, max_tokens) -> str:
+async def _call_ollama(base_url, model, prompt, system, max_tokens, timeout=120) -> str:
     msgs = ([{"role": "system", "content": system}] if system else []) + \
            [{"role": "user", "content": prompt}]
-    async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=timeout) as client:
         r = await client.post(
             f"{base_url}/api/chat",
             json={"model": model, "messages": msgs, "stream": False},
@@ -230,12 +230,13 @@ async def _dispatch(name, key, model, prompt, system, max_tokens) -> str:
     # handled by a registry edit).
     api_type = PROVIDERS[name]["api_type"]
     base = PROVIDERS[name]["base_url"]
+    timeout = PROVIDERS[name].get("timeout", 120)
     if api_type == "anthropic":
-        return await _call_anthropic(base, key, model, prompt, system, max_tokens)
+        return await _call_anthropic(base, key, model, prompt, system, max_tokens, timeout)
     if api_type == "openai_compat":
-        return await _call_openai_compat(base, key, model, prompt, system, max_tokens)
+        return await _call_openai_compat(base, key, model, prompt, system, max_tokens, timeout)
     if api_type == "ollama":
-        return await _call_ollama(key or base, model, prompt, system, max_tokens)
+        return await _call_ollama(key or base, model, prompt, system, max_tokens, timeout)
     raise RuntimeError(f"unknown api_type {api_type}")
 
 

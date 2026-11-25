@@ -1,5 +1,7 @@
 """Step 2: targeted deltas over the grouping ledger (apply_delta + the LLM
 prompt/validation helpers). No network — pure helpers and ledger mutation."""
+import json
+
 import grouping_store
 from services.topic_llm import _validate_deltas, _build_delta_prompt
 
@@ -130,3 +132,50 @@ def test_build_delta_prompt_separates_frozen_from_actionable():
     assert "repo-d" not in actionable
     assert "repo-a" in actionable
     assert "repo-e" in actionable
+
+
+def test_focused_prompt_lists_only_the_focused_clumps_members():
+    """A chunked round must not re-send the whole ledger each call."""
+    records = [
+        {"name": "repo-a", "purpose": "p", "entities": [], "domain": "d"},
+        {"name": "repo-b", "purpose": "p", "entities": [], "domain": "d"},
+        {"name": "repo-c", "purpose": "p", "entities": [], "domain": "d"},
+        {"name": "repo-e", "purpose": "p", "entities": [], "domain": "d"},
+    ]
+    prompt = _build_delta_prompt(records, _ledger(), focus_clumps=["alpha"])
+    actionable = prompt.split("ACTIONABLE")[1]
+    assert "repo-a" in actionable and "repo-c" not in actionable
+    # the unfocused clump is still named (the model may target it by slug)
+    assert "beta" in prompt.split("ACTIONABLE")[0]
+    # but without its member list
+    assert "repo-c" not in prompt.split("ACTIONABLE")[0]
+
+
+def test_propose_deltas_chunks_the_round_and_merges(monkeypatch):
+    """One LLM call per chunk of clumps; deltas merged and de-duplicated."""
+    import asyncio
+    from services import topic_llm
+
+    calls = []
+
+    async def fake_complete(prompt, system="", max_tokens=1024):
+        calls.append(prompt)
+        return json.dumps({"deltas": [{"type": "rename", "cluster": "alpha",
+                                        "new_name": "renamed", "confidence": 0.9}]})
+
+    monkeypatch.setattr(topic_llm.llm, "complete", fake_complete)
+    monkeypatch.setattr(topic_llm, "DELTA_CHUNK_CLUMPS", 2)
+
+    ledger = _ledger()
+    ledger["clumps"]["gamma"] = {"name": "gamma", "description": "", "confidence": 0.6}
+    ledger["statuses"]["repo-f"] = {"status": "proposed", "clump": "gamma",
+                                    "confidence": 0.6, "why": ""}
+    records = [{"name": n, "purpose": "p", "entities": [], "domain": "d"}
+               for n in ("repo-a", "repo-c", "repo-f")]
+
+    deltas, questions = asyncio.run(topic_llm.propose_deltas(records, ledger))
+    # alpha + beta in one chunk, gamma in the next
+    assert len(calls) == 2
+    # the same delta from both chunks is de-duplicated
+    assert len(deltas) == 1
+    assert deltas[0]["type"] == "rename"
