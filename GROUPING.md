@@ -56,6 +56,13 @@ One fixed three-step round, no buttons in the UI:
    answer. Approving commits the coin to the ledger (repo → `settled`).
 3. **Repeat** until nothing remains above the floor and no questions → *settled*.
 
+**The propose step runs in chunks.** One call per group of clumps (8 at a
+time), not one call over the whole ledger: at round 0 the ledger is every repo
+in the portfolio — ~24.5K tokens — which no local model answers inside any
+sane timeout, and a provider that is down would otherwise be waited on once
+per clump. Each call sees its clumps' members in full and the rest by name and
+size; the deltas merge into one pending list (10 at a time, de-duplicated).
+
 Confidence gates the human out of the boring work: deltas above `floor` apply
 automatically; only below-floor deltas and `question`s reach the human.
 
