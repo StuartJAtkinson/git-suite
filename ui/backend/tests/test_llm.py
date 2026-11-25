@@ -148,3 +148,47 @@ def test_complete_does_not_retry_exhaustion_errors(monkeypatch):
     with pytest.raises(llm.AllProvidersFailed):
         asyncio.run(llm.complete("hi"))
     assert calls == ["minimax"]             # no retry attempts
+
+
+def test_ollama_call_disables_thinking_and_passes_the_budget():
+    """qwen3 emits a thinking block that eats the whole num_predict budget,
+    and Ollama ignores max_tokens — without both, the call returns nothing
+    (measured: a 1200-token budget went to 15+ minutes of thinking)."""
+    import json as _json
+    import httpx
+    from services import llm
+
+    seen = {}
+
+    class _Resp:
+        status_code = 200
+
+        def json(self):
+            return {"message": {"content": "hi"}}
+
+    class _Client:
+        def __init__(self, **kw):
+            seen["timeout"] = kw.get("timeout")
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, json=None):
+            seen["url"] = url
+            seen["body"] = json
+            return _Resp()
+
+    orig = llm.httpx.AsyncClient
+    llm.httpx.AsyncClient = _Client
+    try:
+        out = asyncio.run(llm._call_ollama("http://localhost:11434", "qwen3:8b",
+                                           "p", "s", 1234, timeout=900))
+    finally:
+        llm.httpx.AsyncClient = orig
+    assert out == "hi"
+    assert seen["body"]["think"] is False
+    assert seen["body"]["options"]["num_predict"] == 1234
+    assert seen["timeout"] == 900

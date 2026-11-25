@@ -326,7 +326,11 @@ def themes_to_clusters(themes: list[dict], pool_by_name: dict[str, dict]
 # One delta round runs in chunks of clumps — see propose_deltas. Eight clumps
 # is a prompt a local model can hold; the whole ledger at once is ~24K tokens.
 DELTA_CHUNK_CLUMPS = 8
-DELTA_CHUNK_MAX_TOKENS = 4000
+# The schema says "at most 10 deltas" per call, and a delta is ~90 tokens, so
+# ~1500 is enough for a full response. A local model generating at a few
+# tokens a second needs the ceiling to be near what it actually uses — a
+# 4000-token budget just lets it ramble for another half hour.
+DELTA_CHUNK_MAX_TOKENS = 1500
 
 _DELTA_SYS = (
     "You refine an existing grouping of a software portfolio. The grouping is a "

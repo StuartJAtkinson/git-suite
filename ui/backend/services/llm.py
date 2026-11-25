@@ -217,7 +217,17 @@ async def _call_ollama(base_url, model, prompt, system, max_tokens, timeout=120)
     async with httpx.AsyncClient(timeout=timeout) as client:
         r = await client.post(
             f"{base_url}/api/chat",
-            json={"model": model, "messages": msgs, "stream": False},
+            json={
+                "model": model, "messages": msgs, "stream": False,
+                # qwen3 and friends emit a long thinking block before the
+                # answer; without this it eats the whole num_predict budget
+                # and the call returns nothing (or times out).
+                "think": False,
+                # Ollama ignores max_tokens — it would generate until the
+                # context filled, so the caller's budget has to be passed
+                # through as num_predict.
+                "options": {"num_predict": max_tokens},
+            },
         )
         if r.status_code >= 400:
             raise RuntimeError(f"HTTP {r.status_code}: {r.text[:300]}")
