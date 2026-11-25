@@ -184,9 +184,16 @@ def insert_stars(database, stars=None):
     asyncio.run(_go())
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def isolated_grouping(tmp_path, monkeypatch):
-    """grouping_store backed by a throwaway grouping.json in a tmp dir."""
+    """grouping_store backed by a throwaway grouping.json in a tmp dir.
+
+    Autouse because the cluster routes REPLACE the ledger on every
+    import/propose — seed_from_clusters overwrites it wholesale. A test that
+    forgot this fixture therefore wiped the developer's live
+    ~/.git-suite/grouping.json; one test run erased a seeded 887-repo
+    ledger. Autouse means no test can reach the real file again.
+    """
     import grouping_store
     monkeypatch.setattr(grouping_store, "_HOME", tmp_path)
     monkeypatch.setattr(grouping_store, "_FILE", tmp_path / "grouping.json")

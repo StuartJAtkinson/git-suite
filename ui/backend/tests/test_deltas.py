@@ -179,3 +179,14 @@ def test_propose_deltas_chunks_the_round_and_merges(monkeypatch):
     # the same delta from both chunks is de-duplicated
     assert len(deltas) == 1
     assert deltas[0]["type"] == "rename"
+
+
+def test_the_ledger_the_cluster_routes_write_is_the_isolated_one():
+    """The cluster routes seed the ledger through the module, so the
+    autouse isolation fixture redirects them. If a route ever reaches for a
+    private path handle instead, this catches it — a stray write replaces
+    the developer's live ledger wholesale."""
+    import grouping_store
+
+    assert str(grouping_store._FILE).startswith(str(grouping_store._HOME))
+    assert grouping_store._HOME != grouping_store.Path.home() / ".git-suite"
